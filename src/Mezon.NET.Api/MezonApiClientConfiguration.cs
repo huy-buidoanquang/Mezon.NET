@@ -1,0 +1,28 @@
+using Mezon.NET.Core;
+using Mezon.NET.Core.Abstractions;
+
+namespace Mezon.NET.Api
+{
+
+    /// <summary>
+    ///     Represents a configuration class for <see cref="MezonApiClient"/>.
+    /// </summary>
+    public class MezonApiClientConfiguration : MezonConfiguration
+    {
+        public MezonApiClientConfiguration()
+        {
+        }
+
+        public MezonApiClientConfiguration(string host, string port, bool useSSL) : base(host, port, useSSL)
+        {
+        }
+
+        /// <summary> Gets or sets the provider used to generate new HTTP connections. </summary>
+        public HttpClientProvider HttpClientProvider { get; set; } = DefaultHttpClientProvider.Instance;
+
+        /// <summary> Gets or sets the provider used to generate new gRPC connections. </summary>
+        public GRPCClientProvider GRPCClientProvider { get; set; } = Core.DefaultGRPCClientProvider.Instance;
+
+        public string ApiBasePath { get; set; } = string.Empty;
+    }
+}
