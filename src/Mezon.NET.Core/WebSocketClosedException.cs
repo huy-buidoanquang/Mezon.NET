@@ -1,0 +1,31 @@
+using System;
+using System.Net.WebSockets;
+
+namespace Mezon.NET.Core
+{
+    /// <summary>
+    ///     The exception that is thrown when the WebSocket session is closed by Mezon.
+    /// </summary>
+    public class WebSocketClosedException : Exception
+    {
+        /// <summary>
+        ///     Gets the close code sent by Mezon.
+        /// </summary>
+        public WebSocketCloseStatus CloseCode { get; }
+        /// <summary>
+        ///     Gets the reason of the interruption.
+        /// </summary>
+        public string Reason { get; }
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="WebSocketClosedException" /> using a Mezon close code
+        ///     and an optional reason.
+        /// </summary>
+        public WebSocketClosedException(WebSocketCloseStatus closeCode, string? reason = null)
+            : base($"The server sent close {closeCode}{(reason != null ? $": \"{reason}\"" : "")}")
+        {
+            CloseCode = closeCode;
+            Reason = reason ?? string.Empty;
+        }
+    }
+}
