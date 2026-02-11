@@ -14,9 +14,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="Abstractions\" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Folder Include="DependencyInjection\" />
-    <Folder Include="Entities\" />
+    <Folder Include="Entities\Channels\" />
+    <Folder Include="Request\" />
   </ItemGroup>
 
   <ItemGroup>

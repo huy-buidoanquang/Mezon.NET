@@ -4,14 +4,14 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Mezon.NET.Core.Abstractions
+namespace Mezon.NET.Abstractions
 {
-    public delegate IHttpClient HttpClientProvider(string baseUrl);
+    public delegate IRestClient RestClientProvider(string baseUrl);
 
     /// <summary>
     ///     Represents a generic REST-based client.
     /// </summary>
-    public interface IHttpClient : IDisposable
+    public interface IRestClient : IDisposable
     {
         /// <summary>
         ///     Sets the HTTP header of this client for all requests.

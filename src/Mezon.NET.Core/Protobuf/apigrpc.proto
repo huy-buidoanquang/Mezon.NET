@@ -20,7 +20,8 @@ package mezon.api;
 
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
-import "api/api.proto";
+import "Api/api.proto";
+import "Realtime/realtime.proto";
 
 option go_package = "mezon/v2/apigrpc";
 
@@ -1140,21 +1141,21 @@ service Mezon {
     };
   }
 
-  rpc SendSystemMessageExternal (api.ChannelMessage) returns (api.ChannelMessage) {
+  rpc SendChannelMessage (realtime.ChannelMessageSend) returns (realtime.ChannelMessageAck) {
     option (google.api.http) = {
-      post: "/v2/message/systemmessage",
+      post: "/v2/message/send",
     };
   }
 
-  rpc UpdateSystemMessageExternal (api.ChannelMessage) returns (google.protobuf.Empty) {
+  rpc UpdateChannelMessage (realtime.ChannelMessageUpdate) returns (google.protobuf.Empty) {
     option (google.api.http) = {
-      put: "/v2/message/systemmessage",
+      put: "/v2/message/update",
     };
   }
 
-  rpc DeleteSystemMessageExternal (api.ChannelMessage) returns (google.protobuf.Empty) {
+  rpc DeleteChannelMessage (realtime.ChannelMessageRemove) returns (google.protobuf.Empty) {
     option (google.api.http) = {
-      delete: "/v2/message/systemmessage"
+      delete: "/v2/message/delete"
     };
   }
 
@@ -1164,9 +1165,39 @@ service Mezon {
     };
   }
 
-  rpc ListLogedDevice(google.protobuf.Empty) returns (api.LogedDeviceList) {
+  rpc UpdateMezonVoiceState(realtime.HandleParticipantMeetStateEvent) returns (google.protobuf.Empty) {
     option (google.api.http) = {
-      get: "/v2/loged/device"
+      post: "/v2/voice/update"
+    };
+  }
+
+  rpc MessageButtonClick(realtime.MessageButtonClicked) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/interactive/buttonclick"
+    };
+  }
+
+  rpc DropdownBoxSelected(realtime.DropdownBoxSelected) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/interactive/dropdownselect"
+    };
+  }
+
+  rpc ActiveArchivedThread(realtime.ActiveArchivedThread) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/thread/activearchive"
+    };
+  }
+
+  rpc AddAgentToChannel(api.UpdateAIAgentRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/agent/addtochannel"
+    };
+  }
+
+  rpc DisconnectAgent(api.UpdateAIAgentRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/agent/disconnect"
     };
   }
 

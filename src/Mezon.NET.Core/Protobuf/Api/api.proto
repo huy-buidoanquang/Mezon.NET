@@ -21,7 +21,7 @@ package mezon.api;
 
 import "google/protobuf/wrappers.proto";
 
-option go_package = "mezon/v2/common/api";
+option go_package = "mezon-api/v2/common/api";
 
 option java_multiple_files = true;
 option java_outer_classname = "MezonApi";
@@ -456,14 +456,12 @@ message ChannelUserList {
 
 // A list of users belonging to a channel, along with their role.
 message VoiceChannelUser {
-  // voice user join id
-  int64 id = 1;
   // User for a channel.
-  int64 user_id = 2;
+  repeated string user_ids = 1;
   // channel id
-  int64 channel_id = 3;
-  // participant
-  string participant = 4;
+  int64 channel_id = 2;
+  // room name
+  string room_name = 3;
 }
 
 // A list of users belonging to a channel, along with their role.
@@ -766,6 +764,8 @@ message Session {
   string api_url = 6;
   // id token for zklogin
   string id_token = 7;
+  // ws_url
+  string ws_url = 8;
 }
 
 // Update username
@@ -1060,22 +1060,23 @@ message InviteUserRequest {
 
 // Add link invite users to.
 message InviteUserRes {
-   // id clan to add link to .
-   int64 clan_id = 1;
-   // id channel to add link to.
-   int64 channel_id = 2;
-   // clan name
-   string clan_name = 3;
+  // id clan to add link to .
+  int64 clan_id = 1;
+  // id channel to add link to.
+  int64 channel_id = 2;
+  // clan name
+  string clan_name = 3;
   // channel name
   string channel_label = 4;
   // check user exist
   bool user_joined = 5;
   // expiry_time
   uint32 expiry_time_seconds = 6;
-  //
-  api.ChannelDescription channel_desc = 7;
-  string clan_logo = 8;
-  int32 member_count = 9;
+  string clan_logo = 7;
+  int32 member_count = 8;
+  string banner = 9;
+  string community_banner = 10;
+  bool is_community = 11;
 }
 
 // Add link invite users to.
@@ -3447,3 +3448,59 @@ message GenerateMeetTokenExternalResponse {
   int64 guest_user_id = 2;
   string guest_access_token = 3;
 }
+
+message KafkaActionMsg {
+  int64 clan_id = 1;
+  int64 channel_id = 2;
+  repeated int64 friend_ids = 3;
+  repeated int64 user_ids = 4;
+  int32 mode = 5;
+  bytes stream = 6;
+}
+
+message UpdateAIAgentRequest {
+  int64 channel_id = 1;
+  string room_name = 2;
+}
+
+message ParticipantInfo {
+  enum State {
+    // websocket' connected, but not offered yet
+    JOINING = 0;
+    // server received client offer
+    JOINED = 1;
+    // ICE connectivity established
+    ACTIVE = 2;
+    // WS disconnected
+    DISCONNECTED = 3;
+  }
+  enum Kind {
+    // standard participants, e.g. web clients
+    STANDARD = 0;
+    // only ingests streams
+    INGRESS = 1;
+    // only consumes streams
+    EGRESS = 2;
+    // SIP participants
+    SIP = 3;
+    // LiveKit agents
+    AGENT = 4;
+    // Connectors participants
+    CONNECTOR = 7;
+    // Bridge participants
+    BRIDGE = 8;
+    // NEXT_ID: 9
+  }
+  enum KindDetail {
+    CLOUD_AGENT = 0;
+    FORWARDED = 1;
+    CONNECTOR_WHATSAPP = 2;
+    CONNECTOR_TWILIO = 3;
+    BRIDGE_RTSP = 4;
+    // NEXT_ID: 5
+  }
+  string sid = 1;
+  string identity = 2;
+  State state = 3;
+}
+

@@ -1,7 +1,5 @@
 using System.Threading.Tasks;
-using Mezon.NET.Api.Abstractions;
-using Mezon.NET.Core;
-using Mezon.NET.Core.Abstractions;
+using Mezon.NET.Abstractions;
 using Mezon.NET.Logging;
 using Mezon.Protobuf.Api;
 
@@ -17,7 +15,7 @@ namespace Mezon.NET.Api
         /// <summary>
         ///     Initializes a new <see cref="MezonClient"/> with the provided configuration.
         /// </summary>
-        /// <param name="config">The configuration to be used with the client.</param>
+        /// <param name="mezonConfiguration">The configuration to be used with the client.</param>
         public MezonClient(MezonApiClientConfiguration mezonConfiguration) : base(mezonConfiguration, CreateApiClient(mezonConfiguration))
         {
         }
@@ -25,7 +23,7 @@ namespace Mezon.NET.Api
         /// <summary>
         ///     Initializes a new <see cref="MezonClient"/> with the provided configuration.
         /// </summary>
-        /// <param name="config">The configuration to be used with the client.</param>
+        /// <param name="mezonConfiguration">The configuration to be used with the client.</param>
         public MezonClient(MezonApiClientConfiguration mezonConfiguration, IMezonApiClient apiClient) : base(mezonConfiguration, apiClient)
         {
         }
@@ -35,8 +33,7 @@ namespace Mezon.NET.Api
         /// </summary>
         /// <param name="mezonConfiguration">The configuration to be used with the client.</param>
         /// <param name="logManager">An external LogManager instance for centralized logging.</param>
-        public MezonClient(MezonApiClientConfiguration mezonConfiguration, LogManager logManager)
-            : base(mezonConfiguration, CreateApiClient(mezonConfiguration), logManager)
+        public MezonClient(MezonApiClientConfiguration mezonConfiguration, LogManager logManager) : base(mezonConfiguration, CreateApiClient(mezonConfiguration), logManager)
         {
         }
 
@@ -46,8 +43,7 @@ namespace Mezon.NET.Api
         /// <param name="mezonConfiguration">The configuration to be used with the client.</param>
         /// <param name="apiClient">The API client to use for requests.</param>
         /// <param name="logManager">An external LogManager instance for centralized logging.</param>
-        public MezonClient(MezonApiClientConfiguration mezonConfiguration, IMezonApiClient apiClient, LogManager logManager)
-            : base(mezonConfiguration, apiClient, logManager)
+        public MezonClient(MezonApiClientConfiguration mezonConfiguration, IMezonApiClient apiClient, LogManager logManager) : base(mezonConfiguration, apiClient, logManager)
         {
         }
 

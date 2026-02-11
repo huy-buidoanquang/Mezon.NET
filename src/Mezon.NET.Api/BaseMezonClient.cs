@@ -1,12 +1,9 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Mezon.NET.Api;
-using Mezon.NET.Api.Abstractions;
+using Mezon.NET.Abstractions;
 using Mezon.NET.Core;
-using Mezon.NET.Core.Abstractions;
 using Mezon.NET.Logging;
-using Microsoft.Extensions.Configuration;
 
 namespace Mezon.NET.Api
 {
@@ -17,6 +14,7 @@ namespace Mezon.NET.Api
 
         public event Func<Task> LoggedIn { add { _loggedInEvent.Add(value); } remove { _loggedInEvent.Remove(value); } }
         private readonly AsyncEvent<Func<Task>> _loggedInEvent = new AsyncEvent<Func<Task>>();
+
         public event Func<Task> LoggedOut { add { _loggedOutEvent.Add(value); } remove { _loggedOutEvent.Remove(value); } }
         private readonly AsyncEvent<Func<Task>> _loggedOutEvent = new AsyncEvent<Func<Task>>();
 
@@ -34,8 +32,6 @@ namespace Mezon.NET.Api
 
         internal IMezonApiClient ApiClient { get; }
         internal LogManager LogManager { get; }
-        internal SessionManager SessionManager { get; }
-
         /// <summary>
         ///     Gets the login state of the client.
         /// </summary>
@@ -48,16 +44,20 @@ namespace Mezon.NET.Api
         public MezonConfiguration ClientConfiguration => _configuration;
 
 #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
-        internal BaseMezonClient(MezonApiClientConfiguration mezonConfiguration, IMezonApiClient apiClient)
+        protected BaseMezonClient(MezonConfiguration mezonConfiguration)
 #pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
+        {
+        }
+
+        internal BaseMezonClient(MezonApiClientConfiguration mezonConfiguration, IMezonApiClient apiClient)
         {
             ApiClient = apiClient;
             LogManager = new LogManager(mezonConfiguration.LogLevel);
-            SessionManager = SessionManager.GetOrCreate(mezonConfiguration, apiClient);
+            SessionManager.GetOrCreate(mezonConfiguration, apiClient);
             LogManager.Message += async msg => await _logEvent.InvokeAsync(msg).ConfigureAwait(false);
 
             _stateLock = new SemaphoreSlim(1, 1);
-            _logger = LogManager.CreateLogger("ApiClient");
+            _logger = LogManager.CreateLogger("MezonClient");
             _isFirstLogin = mezonConfiguration.DisplayInitialLog;
             _configuration = mezonConfiguration;
 
@@ -76,18 +76,17 @@ namespace Mezon.NET.Api
             ApiClient.SentRequest += (method, endpoint, millis) => _sentRequest.InvokeAsync(method, endpoint, millis);
         }
 
-#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
         internal BaseMezonClient(MezonApiClientConfiguration mezonConfiguration, IMezonApiClient apiClient, LogManager logManager)
-#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
         {
             ApiClient = apiClient;
             LogManager = logManager ?? throw new ArgumentNullException(nameof(logManager));
-            SessionManager = SessionManager.GetOrCreate(mezonConfiguration, apiClient);
+            SessionManager.GetOrCreate(mezonConfiguration, apiClient);
             LogManager.Message += async msg => await _logEvent.InvokeAsync(msg).ConfigureAwait(false);
 
             _stateLock = new SemaphoreSlim(1, 1);
-            _logger = LogManager.CreateLogger("ApiClient");
+            _logger = LogManager.CreateLogger("MezonClient");
             _isFirstLogin = mezonConfiguration.DisplayInitialLog;
+            _configuration = mezonConfiguration;
 
             ApiClient.RequestQueue.RateLimitTriggered += async (id, info, endpoint) =>
             {
@@ -104,29 +103,18 @@ namespace Mezon.NET.Api
             ApiClient.SentRequest += (method, endpoint, millis) => _sentRequest.InvokeAsync(method, endpoint, millis);
         }
 
-#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
-        protected BaseMezonClient(MezonConfiguration mezonConfiguration)
-#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
-        {
-        }
-
-        public void CloseSocket()
-        {
-            throw new System.NotImplementedException();
-        }
-
         public virtual async Task<bool> LoginAsync(ISession session)
         {
             await _stateLock.WaitAsync().ConfigureAwait(false);
             try
             {
-                await SessionManager.LoginAsync(session).ConfigureAwait(false);
-                if (SessionManager.CurrentSession().IsExpired())
+                await SessionManager.Instance.LoginAsync(session).ConfigureAwait(false);
+                if (SessionManager.Instance.CurrentSession().IsExpired())
                 {
                     return false;
                 }
 
-                await LoginInternalAsync(TokenType, SessionManager.CurrentSession().AuthToken).ConfigureAwait(false);
+                await LoginInternalAsync(TokenType, SessionManager.Instance.CurrentSession().AuthToken).ConfigureAwait(false);
                 return true;
             }
             catch
@@ -144,13 +132,13 @@ namespace Mezon.NET.Api
             await _stateLock.WaitAsync().ConfigureAwait(false);
             try
             {
-                await SessionManager.LoginAsync().ConfigureAwait(false);
-                if (SessionManager.CurrentSession().IsExpired())
+                await SessionManager.Instance.LoginAsync().ConfigureAwait(false);
+                if (SessionManager.Instance.CurrentSession().IsExpired())
                 {
                     return false;
                 }
 
-                await LoginInternalAsync(TokenType, SessionManager.CurrentSession().AuthToken).ConfigureAwait(false);
+                await LoginInternalAsync(TokenType, SessionManager.Instance.CurrentSession().AuthToken).ConfigureAwait(false);
                 return true;
             }
             catch
@@ -180,7 +168,7 @@ namespace Mezon.NET.Api
 
             try
             {
-                ApiClient.ConfigureApiBasePath(SessionManager.CurrentSession().ApiUrl ?? string.Empty);
+                ApiClient.ConfigureApiBasePath(SessionManager.Instance.CurrentSession().ApiUrl ?? string.Empty);
                 await ApiClient.LoginAsync(tokenType, token).ConfigureAwait(false);
                 await OnLoginAsync(tokenType, token).ConfigureAwait(false);
                 LoginState = LoginState.LoggedIn;
@@ -218,11 +206,10 @@ namespace Mezon.NET.Api
 
             LoginState = LoginState.LoggingOut;
 
-            await SessionManager.LogoutAsync().ConfigureAwait(false);
+            await SessionManager.Instance.LogoutAsync().ConfigureAwait(false);
             await ApiClient.LogoutAsync().ConfigureAwait(false);
 
             await OnLogoutAsync().ConfigureAwait(false);
-            //CurrentUser = null;
             LoginState = LoginState.LoggedOut;
 
             await _loggedOutEvent.InvokeAsync().ConfigureAwait(false);

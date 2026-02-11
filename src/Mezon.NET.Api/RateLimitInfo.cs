@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
-using Mezon.NET.Core.Abstractions;
+using Mezon.NET.Abstractions;
 using Newtonsoft.Json;
 
 namespace Mezon.NET.Api

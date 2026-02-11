@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
+using Mezon.NET.Api;
 using Mezon.NET.Core;
+using Mezon.NET.Queue;
 using Mezon.Protobuf.Api;
 
-namespace Mezon.NET.Api.Abstractions
+namespace Mezon.NET.Abstractions
 {
     public interface IMezonApiClient : IDisposable, IAsyncDisposable
     {
@@ -13,13 +15,13 @@ namespace Mezon.NET.Api.Abstractions
 
         LoginState LoginState { get; }
 
-        internal MezonApiRequestQueue RequestQueue { get; }
+        internal MezonRequestQueue RequestQueue { get; }
 
         Task LoginAsync(TokenType tokenType, string token, RequestOptions? options = null);
 
         Task LogoutAsync();
 
-        ulong? CurrentUserId { get; }
+        long? CurrentUserId { get; }
 
         TokenType TokenType { get; }
 
@@ -50,9 +52,9 @@ namespace Mezon.NET.Api.Abstractions
         //Task UpdateAccountAsync(UpdateAccountRequest body, RequestOptions? options = null);
 
         //// Authentication
-        Task<AuthenticationResponse> CheckLoginRequestAsync(string basicAuthUsername, string basicAuthPassword, ConfirmLoginRequest body, RequestOptions? options = null);
-        Task ConfirmLoginAsync(ConfirmLoginRequest body, RequestOptions options);
-        Task<LoginIDResponse> CreateQRLoginAsync(string basicAuthUsername, string basicAuthPassword, LoginIDRequest body, RequestOptions? options = null);
+        Task<AuthenticationResponse> CheckLoginRequestAsync(string basicAuthUsername, string basicAuthPassword, Api.ConfirmLoginRequest body, RequestOptions? options = null);
+        Task ConfirmLoginAsync(Api.ConfirmLoginRequest body, RequestOptions options);
+        Task<Api.LoginIDResponse> CreateQRLoginAsync(string basicAuthUsername, string basicAuthPassword, LoginIDRequest body, RequestOptions? options = null);
         Task<AuthenticationResponse> AuthenticateEmailAsync(string basicAuthUsername, string basicAuthPassword, EmailAuthenticationRequest body, RequestOptions? options = null);
         Task<AuthenticationResponse> AuthenticateMezonAsync(string basicAuthUsername, string basicAuthPassword, AccountMezonRequest body, AccountMezonParams args, RequestOptions? options = null);
         Task<AccountConfirmResponse> AuthenticateSMSOTPAsync(string basicAuthUsername, string basicAuthPassword, AuthenticateSMSRequest body, RequestOptions? options = null);
@@ -65,7 +67,7 @@ namespace Mezon.NET.Api.Abstractions
 
         //// Registration and session
         //Task<AuthenticationResponse> RegisterEmailAsync(RegistrationEmailRequest body, RequestOptions? options = null);
-        Task<AuthenticationResponse> RefreshSessionAsync(string basicAuthUsername, string basicAuthPassword, SessionRefreshRequest body, RequestOptions? options = null);
+        Task<AuthenticationResponse> RefreshSessionAsync(string basicAuthUsername, string basicAuthPassword, Api.SessionRefreshRequest body, RequestOptions? options = null);
 
         //// Activity management
         //Task<UserActivitiesResponse> GetActivitiesAsync(string bearerToken);

@@ -22,7 +22,7 @@ package mezon.realtime;
 import "google/protobuf/wrappers.proto";
 import "Api/api.proto";
 
-option go_package = "mezon/v2/common/rtapi";
+option go_package = "mezon-api/v2/common/rtapi";
 
 option java_multiple_files = true;
 option java_outer_classname = "MezonRealtime";
@@ -215,12 +215,15 @@ message Envelope {
     AllowAnonymousEvent allow_anonymous_event = 91;
     // Message sending to another server for update localcache
     UpdateLocalCacheEvent update_localcache_event = 92;
+    // Clan Created Event
+    ClanCreatedEvent clan_created_event = 93;
+    AIAgentEnabledEvent aiagent_enabled_event = 94;
   }
 }
 
 message UpdateLocalCacheEvent {
-  repeated int64 user_ids = 1;
-  repeated int64 channel_ids = 2;
+  repeated int64 params1 = 1;
+  repeated int64 params2 = 2;
 }
 
 message FollowEvent {
@@ -436,7 +439,7 @@ message ChannelMessageAck {
 
 message EphemeralMessageSend {
   ChannelMessageSend message = 1;
-  int64 receiver_id = 2;
+  repeated int64 receiver_ids = 2;
 }
 
 message QuickMenuDataEvent {
@@ -1096,6 +1099,19 @@ message UserClanRemoved {
   repeated int64 user_ids = 2;
 }
 
+message ClanCreatedEvent {
+  // clan id
+  int64 clan_id = 1;
+  // clan name
+  string clan_name = 2;
+  // logo
+  string logo = 3;
+  // creator id
+  int64 creator_id = 4;
+  // general channel id
+  int64 welcome_channel_id = 5;
+}
+
 // clan updated event
 message ClanUpdatedEvent {
   // clan id
@@ -1345,73 +1361,11 @@ message DeleteAccountEvent {
 
 message ListDataSocket {
   string api_name = 1;
-  api.ListClanDescRequest list_clan_req = 2;
-  api.ClanDescList clan_desc_list = 3;
-  api.ListThreadRequest list_thread_req = 4;
-  api.ChannelDescList channel_desc_list = 5;
-  api.AllUsersAddChannelRequest list_channel_users_uc_req = 6;
-  api.AllUsersAddChannelResponse channel_users_uc_list = 7;
-  api.ListChannelDetailRequest list_channel_detail_req = 8;
-  api.ChannelDescription channel_desc = 9;
-  api.ListChannelDescsRequest list_channel_req = 10;
-  api.ListChannelMessagesRequest list_channel_message_req = 11;
-  api.ChannelMessageList channel_message_list = 12;
-  api.ListChannelUsersRequest list_channel_users_req = 13;
-  api.VoiceChannelUserList voice_user_list = 14;
-  api.ChannelUserList channel_user_list = 15;
-  api.ListChannelAttachmentRequest list_channel_attachment_req = 16;
-  api.ChannelAttachmentList channel_attachment_list = 17;
-  //api.HashtagDmListRequest hashtag_dm_req = 18;
-  //api.HashtagDmList hashtag_dm_list = 19;
-  api.ChannelSettingListRequest channel_setting_req = 20;
-  api.ChannelSettingListResponse channel_setting_list = 21;
-  api.ListFavoriteChannelRequest favorite_channel_req = 22;
-  api.ListFavoriteChannelResponse favorite_channel_list = 23;
-  api.SearchThreadRequest search_thread_req = 24;
-  api.NotificationChannel notification_channel = 25;
-  api.NotificationUserChannel notificaion_user_channel = 26;
-  api.DefaultNotificationCategory notification_category = 27;
-  api.NotificationClan notification_clan = 28;
-  api.NotificationSetting notification_setting = 29;
-  api.NotifiReactMessage notification_message = 30;
-  api.NotificationChannelCategorySettingList noti_channel_cat_setting_list = 31;
-  api.ListNotificationsRequest list_notification_req = 32;
-  api.NotificationList notification_list = 33;
-  api.StickerListedResponse sticker_list = 34;
-  api.EmojiRecentList emoji_recent_list = 35;
-  api.ListClanWebhookRequest clan_webhook_req = 36;
-  api.ListClanWebhookResponse clan_webhook_list = 37;
-  api.WebhookListRequest webhook_list_req = 38;
-  api.WebhookListResponse webhook_list = 39;
-  api.ListPermissionsRequest permission_list_req = 40;
-  api.PermissionList permission_list = 41;
-  api.ListRoleUsersRequest role_user_req = 42;
-  api.RoleUserList role_user_list = 43;
-  api.ListPermissionOfUsersRequest permission_user_req = 44;
-  api.RoleList role_list = 45;
-  api.RoleListEventRequest role_list_event_req = 46;
-  api.RoleListEventResponse role_event_list = 47;
-  api.UserPermissionInChannelListRequest user_permission_req = 48;
-  api.UserPermissionInChannelListResponse user_permission_list = 49;
-  api.PermissionRoleChannelListEventRequest permission_role_req = 50;
-  api.PermissionRoleChannelListEventResponse permission_role_list = 51;
-  api.EmojiListedResponse emoji_list = 52;
-  api.ListFriendsRequest list_friend_req = 53;
-  api.FriendList friend_list = 54;
-  api.ListChannelAppsRequest list_apps_req = 55;
-  api.ListChannelAppsResponse channel_apps_list = 56;
-  api.ListUserActivity user_activity_list = 57;
-  api.ListClanUsersRequest list_clan_user_req = 58;
-  api.ClanUserList clan_user_list = 59;
-  api.ListEventsRequest list_event_req = 60;
-  api.EventList event_list = 61;
-  api.CategoryDesc list_category_req = 62;
-  api.CategoryDescList category_list = 63;
-  api.StreamingChannelUserList stream_user_list = 64;
-  api.ListClanUnreadMsgIndicatorRequest list_unread_msg_indicator_req = 65;
-  api.ListClanUnreadMsgIndicatorResponse unread_msg_indicator = 66;
-  api.ListClanBadgeCountRequest list_clan_badge_count_req = 67;
-  api.ListClanBadgeCountResponse clan_badge_count = 68;
+  api.ListClanUnreadMsgIndicatorRequest list_unread_msg_indicator_req = 2;
+  api.ListClanUnreadMsgIndicatorResponse unread_msg_indicator = 3;
+  api.ListClanBadgeCountRequest list_clan_badge_count_req = 4;
+  api.ListClanBadgeCountResponse clan_badge_count = 5;
+  api.LogedDeviceList list_loged_device = 6;
 }
 
 message MeetParticipantEvent {
@@ -1453,4 +1407,11 @@ message FcmDataPayload {
   repeated api.MessageMention mentions = 12;
   repeated api.MessageRef references = 13;
   repeated api.MessageAttachment attachments = 14;
+}
+
+message AIAgentEnabledEvent {
+  int64 clan_id = 1;
+	int64 channel_id = 2;
+	string room_name = 3;
+  bool enabled = 4;
 }

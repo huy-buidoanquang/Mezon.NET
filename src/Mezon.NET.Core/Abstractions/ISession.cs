@@ -1,4 +1,4 @@
-namespace Mezon.NET.Core.Abstractions
+namespace Mezon.NET.Abstractions
 {
     public interface ISession
     {

@@ -2,7 +2,21 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Mezon.NET.Core.Abstractions;
+using Mezon.NET.Abstractions;
+
+// Forward declare enum to avoid circular dependency
+namespace Mezon.NET.Core
+{
+    /// <summary>
+    ///     Gateway bucket types for WebSocket rate limiting.
+    /// </summary>
+    public enum GatewayBucketType
+    {
+        Unbucketed = 0,
+        Identify = 1,
+        PresenceUpdate = 2,
+    }
+}
 
 namespace Mezon.NET.Core
 {
@@ -70,6 +84,11 @@ namespace Mezon.NET.Core
         internal bool IsClientBucket { get; set; }
         internal bool IsReactionBucket { get; set; }
         internal bool IsGatewayBucket { get; set; }
+
+        /// <summary>
+        ///     Gets or sets the gateway bucket type for WebSocket requests.
+        /// </summary>
+        internal GatewayBucketType? GatewayBucketType { get; set; }
 
         public IDictionary<string, IEnumerable<string>> RequestHeaders { get; }
 

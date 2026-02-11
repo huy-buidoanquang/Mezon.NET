@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace Mezon.NET.Core.Abstractions
+namespace Mezon.NET.Abstractions
 {
     /// <summary>
     ///     Represents a context of a command. This may include the client, guild, channel, user, and message.
