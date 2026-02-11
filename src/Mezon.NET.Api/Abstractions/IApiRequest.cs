@@ -1,12 +1,12 @@
 using System.IO;
 using System.Threading.Tasks;
-using Mezon.NET.Core.Abstractions;
+using Mezon.NET.Abstractions;
 
-namespace Mezon.NET.Api.Abstractions
+namespace Mezon.NET.Abstractions
 {
     public interface IApiRequest : IRequest
     {
-        IHttpClient ApiClient { get; }
+        IRestClient RestClient { get; }
         string Method { get; }
         string Endpoint { get; }
         TaskCompletionSource<Stream> Promise { get; }

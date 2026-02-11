@@ -3,7 +3,7 @@
 //using System.Threading.Tasks;
 //using Grpc.Core;
 //using Mezon.NET.Core;
-//using Mezon.NET.Core.Abstractions;
+//using Mezon.NET.Abstractions;
 //using Google.Protobuf.WellKnownTypes;
 
 //namespace Mezon.NET.Example

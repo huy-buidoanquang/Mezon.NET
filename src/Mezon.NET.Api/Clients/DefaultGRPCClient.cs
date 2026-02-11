@@ -7,12 +7,13 @@ using System.Threading.Tasks;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Grpc.Net.Client.Web;
-using Mezon.NET.Core.Abstractions;
+using Mezon.NET.Core;
+using Mezon.NET.Abstractions;
 using MezonRPC = Mezon.Protobuf.Service.Mezon;
 
-namespace Mezon.NET.Core
+namespace Mezon.NET.Api
 {
-    public class DefaultGRPCClient : IGRPCClient, IDisposable
+    internal sealed class DefaultGRPCClient : IGRPCClient, IDisposable
     {
         private readonly GrpcChannel _channel;
         private readonly MezonRPC.MezonClient _client;
@@ -28,15 +29,14 @@ namespace Mezon.NET.Core
             _headers = new Dictionary<string, string>();
             _cancelToken = CancellationToken.None;
 
-            //var httpHandler = new HttpClientHandler();
-            var httpHandler = new GrpcWebHandler(GrpcWebMode.GrpcWeb, new HttpClientHandler());
+            var httpClientHandler = new HttpClientHandler();
+            if (useProxy && webProxy != null)
+            {
+                httpClientHandler.Proxy = webProxy;
+                httpClientHandler.UseProxy = true;
+            }
 
-            //if (useProxy && webProxy != null)
-            //{
-            //    httpHandler.Proxy = webProxy;
-            //    httpHandler.UseProxy = true;
-            //}
-
+            var httpHandler = new GrpcWebHandler(GrpcWebMode.GrpcWeb, httpClientHandler);
             _channel = GrpcChannel.ForAddress(url, new GrpcChannelOptions
             {
                 HttpHandler = httpHandler,

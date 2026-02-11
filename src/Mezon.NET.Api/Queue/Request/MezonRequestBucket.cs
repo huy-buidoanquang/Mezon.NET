@@ -6,27 +6,28 @@ using System.Threading;
 using System.Threading.Tasks;
 using Grpc.Core;
 using Mezon.NET.Core;
-using Mezon.NET.Core.Abstractions;
+using Mezon.NET.Abstractions;
+using Mezon.NET.Queue;
 using Mezon.NET.Utils;
 using Newtonsoft.Json;
 
 namespace Mezon.NET.Api
 {
-    internal class RequestBucket
+    internal class MezonRequestBucket
     {
         private const int MinimumSleepTimeMs = 750;
 
         private readonly object _lock;
-        private readonly MezonApiRequestQueue _queue;
+        private readonly MezonRequestQueue _queue;
         private int _semaphore;
         private DateTimeOffset? _resetTick;
-        private RequestBucket? _redirectBucket;
+        private MezonRequestBucket? _redirectBucket;
 
         public BucketId Id { get; private set; }
         public int WindowCount { get; private set; }
         public DateTimeOffset LastAttemptAt { get; private set; }
 
-        public RequestBucket(MezonApiRequestQueue queue, IRequest request, BucketId id)
+        public MezonRequestBucket(MezonRequestQueue queue, IRequest request, BucketId id)
         {
             _queue = queue;
             Id = id;
@@ -39,7 +40,9 @@ namespace Mezon.NET.Api
             }
             else if (request.Options.IsGatewayBucket)
             {
-                WindowCount = request.Options.BucketId != null ? GatewayBucket.Get(request.Options.BucketId).WindowCount : 1;
+                // Gateway buckets are handled by GatewayRateLimiter in MezonRequestQueue
+                // Set WindowCount to -1 to disable bucket-level rate limiting
+                WindowCount = -1;
             }
             else
             {
@@ -300,57 +303,59 @@ namespace Mezon.NET.Api
             }
         }
 
-        //        public async Task SendAsync(WebSocketRequest request)
-        //        {
-        //            int id = Interlocked.Increment(ref nextId);
-        //#if DEBUG_LIMITS
-        //            Debug.WriteLine($"[{id}] Start");
-        //#endif
-        //            LastAttemptAt = DateTimeOffset.UtcNow;
-        //            while (true)
-        //            {
-        //                await _queue.EnterGlobalAsync(id, request).ConfigureAwait(false);
-        //                await EnterAsync(id, request).ConfigureAwait(false);
+        public async Task SendAsync(WebSocketRequest request)
+        {
+            int id = Interlocked.Increment(ref nextId);
+#if DEBUG_LIMITS
+                    Debug.WriteLine($"[{id}] Start");
+#endif
+            LastAttemptAt = DateTimeOffset.UtcNow;
+            while (true)
+            {
+                await _queue.EnterGlobalAsync(id, request).ConfigureAwait(false);
+                await EnterAsync(id, request).ConfigureAwait(false);
 
-        //#if DEBUG_LIMITS
-        //                Debug.WriteLine($"[{id}] Sending...");
-        //#endif
-        //                try
-        //                {
-        //                    await request.SendAsync().ConfigureAwait(false);
-        //                    return;
-        //                }
-        //                catch (TimeoutException)
-        //                {
-        //#if DEBUG_LIMITS
-        //                    Debug.WriteLine($"[{id}] Timeout");
-        //#endif
-        //                    if ((request.Options.RetryMode & RetryMode.RetryTimeouts) == 0)
-        //                        throw;
+#if DEBUG_LIMITS
+                        Debug.WriteLine($"[{id}] Sending...");
+#endif
+                try
+                {
+                    await request.SendAsync().ConfigureAwait(false);
+                    return;
+                }
+                catch (TimeoutException)
+                {
+#if DEBUG_LIMITS
+                            Debug.WriteLine($"[{id}] Timeout");
+#endif
+                    if ((request.Options.RetryMode & RetryMode.RetryTimeouts) == 0)
+                    {
+                        throw;
+                    }
 
-        //                    await Task.Delay(500).ConfigureAwait(false);
-        //                    continue; //Retry
-        //                }
-        //                /*catch (Exception)
-        //                {
-        //#if DEBUG_LIMITS
-        //                    Debug.WriteLine($"[{id}] Error");
-        //#endif
-        //                    if ((request.Options.RetryMode & RetryMode.RetryErrors) == 0)
-        //                        throw;
+                    await Task.Delay(500).ConfigureAwait(false);
+                    continue; //Retry
+                }
+                /*catch (Exception)
+                {
+#if DEBUG_LIMITS
+                    Debug.WriteLine($"[{id}] Error");
+#endif
+                    if ((request.Options.RetryMode & RetryMode.RetryErrors) == 0)
+                        throw;
 
-        //                    await Task.Delay(500);
-        //                    continue; //Retry
-        //                }*/
-        //                finally
-        //                {
-        //                    UpdateRateLimit(id, request, default(RateLimitInfo), false);
-        //#if DEBUG_LIMITS
-        //                    Debug.WriteLine($"[{id}] Stop");
-        //#endif
-        //                }
-        //            }
-        //        }
+                    await Task.Delay(500);
+                    continue; //Retry
+                }*/
+                finally
+                {
+                    UpdateRateLimit(id, request, default(RateLimitInfo), false);
+#if DEBUG_LIMITS
+                            Debug.WriteLine($"[{id}] Stop");
+#endif
+                }
+            }
+        }
 
         internal async Task TriggerAsync(int id, IRequest request)
         {
@@ -405,14 +410,14 @@ namespace Mezon.NET.Api
                             case ApiRequest apiRequest:
                                 await _queue.RaiseRateLimitTriggered(Id, null, $"{apiRequest.Method} {apiRequest.Endpoint}").ConfigureAwait(false);
                                 break;
-                            //case WebSocketRequest webSocketRequest:
-                            //    if (webSocketRequest.IgnoreLimit)
-                            //    {
-                            //        ignoreRatelimit = true;
-                            //        break;
-                            //    }
-                            //    await _queue.RaiseRateLimitTriggered(Id, null, Id.Endpoint).ConfigureAwait(false);
-                            //    break;
+                            case WebSocketRequest webSocketRequest:
+                                if (webSocketRequest.IgnoreLimit)
+                                {
+                                    ignoreRatelimit = true;
+                                    break;
+                                }
+                                await _queue.RaiseRateLimitTriggered(Id, null, Id.Endpoint).ConfigureAwait(false);
+                                break;
                             default:
                                 throw new InvalidOperationException("Unknown request type");
                         }
@@ -484,7 +489,7 @@ namespace Mezon.NET.Api
 
                 if (info.Bucket != null && !redirected)
                 {
-                    (RequestBucket?, BucketId?) hashBucket = _queue.UpdateBucketHash(Id, info.Bucket);
+                    (MezonRequestBucket?, BucketId?) hashBucket = _queue.UpdateBucketHash(Id, info.Bucket);
                     if (!(hashBucket.Item1 is null) && !(hashBucket.Item2 is null))
                     {
                         if (hashBucket.Item1 == this) //this bucket got promoted to a hash queue
@@ -583,23 +588,7 @@ namespace Mezon.NET.Api
                     Debug.WriteLine($"[{id}] Client Bucket ({ClientBucket.Get(Id).WindowSeconds * 1000} ms)");
 #endif
                 }
-                else if (request.Options.IsGatewayBucket && request.Options.BucketId != null)
-                {
-                    resetTick = DateTimeOffset.UtcNow.AddSeconds(GatewayBucket.Get(request.Options.BucketId).WindowSeconds);
-#if DEBUG_LIMITS
-                    Debug.WriteLine($"[{id}] Gateway Bucket ({GatewayBucket.Get(request.Options.BucketId).WindowSeconds * 1000} ms)");
-#endif
-                    if (!hasQueuedReset)
-                    {
-                        _resetTick = resetTick;
-                        LastAttemptAt = resetTick.Value;
-#if DEBUG_LIMITS
-                    Debug.WriteLine($"[{id}] Reset in {(int)Math.Ceiling((resetTick - DateTimeOffset.UtcNow).Value.TotalMilliseconds)} ms");
-#endif
-                        var _ = QueueReset(id, (int)Math.Ceiling((_resetTick.Value - DateTimeOffset.UtcNow).TotalMilliseconds), request);
-                    }
-                    return;
-                }
+                // Gateway buckets are handled by GatewayRateLimiter - no need for reset logic here
 
                 if (resetTick == null)
                 {

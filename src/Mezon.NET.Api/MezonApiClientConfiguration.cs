@@ -1,5 +1,5 @@
 using Mezon.NET.Core;
-using Mezon.NET.Core.Abstractions;
+using Mezon.NET.Abstractions;
 
 namespace Mezon.NET.Api
 {
@@ -18,10 +18,10 @@ namespace Mezon.NET.Api
         }
 
         /// <summary> Gets or sets the provider used to generate new HTTP connections. </summary>
-        public HttpClientProvider HttpClientProvider { get; set; } = DefaultHttpClientProvider.Instance;
+        public RestClientProvider HttpClientProvider { get; set; } = DefaultRestClientProvider.Instance;
 
         /// <summary> Gets or sets the provider used to generate new gRPC connections. </summary>
-        public GRPCClientProvider GRPCClientProvider { get; set; } = Core.DefaultGRPCClientProvider.Instance;
+        public GRPCClientProvider GRPCClientProvider { get; set; } = DefaultGRPCClientProvider.Instance;
 
         public string ApiBasePath { get; set; } = string.Empty;
     }

@@ -1,8 +1,8 @@
 using System;
 using System.Net;
-using Mezon.NET.Core.Abstractions;
+using Mezon.NET.Abstractions;
 
-namespace Mezon.NET.Core
+namespace Mezon.NET.Api
 {
     public static class DefaultGRPCClientProvider
     {

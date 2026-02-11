@@ -1,9 +1,9 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Mezon.NET.Api.Abstractions;
+using Mezon.NET.Abstractions;
 using Mezon.NET.Core;
-using Mezon.NET.Core.Abstractions;
+using Mezon.NET.Core.Exceptions;
 using Mezon.NET.Logging;
 
 namespace Mezon.NET.Api
@@ -205,19 +205,19 @@ namespace Mezon.NET.Api
 
                 await _logger.InfoAsync($"Authenticating with token... (Auto-refresh: {autoRefreshSession})").ConfigureAwait(false);
 
-                var session = await _apiClient.AuthenticateAppAsync(
-                    basicAuthUsername: _mezonConfiguration.ClientSecret,
-                    basicAuthPassword: string.Empty,
-                    body: new AppAuthenticationRequest(new AppAccountRequest { AppId = _mezonConfiguration.ClientId, Token = _mezonConfiguration.ClientSecret })
-                ).ConfigureAwait(false);
+                //var session = await _apiClient.AuthenticateAppAsync(
+                //    basicAuthUsername: _mezonConfiguration.ClientSecret,
+                //    basicAuthPassword: string.Empty,
+                //    body: new AppAuthenticationRequest(new AppAccountRequest { AppId = _mezonConfiguration.ClientId, Token = _mezonConfiguration.ClientSecret })
+                //).ConfigureAwait(false);
 
-                if (session != null && !string.IsNullOrEmpty(session.Token))
-                {
-                    _session = new Session(session);
-                    StartSessionTimer();
-                    await _logger.InfoAsync($"Authentication successful. User: {_session.Username}, Expires: {DateTimeOffset.FromUnixTimeSeconds(_session.ExpiresAt)}").ConfigureAwait(false);
-                    return true;
-                }
+                //if (session != null && !string.IsNullOrEmpty(session.Token))
+                //{
+                //    _session = new Session(session);
+                //    StartSessionTimer();
+                //    await _logger.InfoAsync($"Authentication successful. User: {_session.Username}, Expires: {DateTimeOffset.FromUnixTimeSeconds(_session.ExpiresAt)}").ConfigureAwait(false);
+                //    return true;
+                //}
 
                 await _logger.WarningAsync("Authentication failed: Invalid response from API.").ConfigureAwait(false);
                 _session = Session.NullSession();
@@ -339,7 +339,7 @@ namespace Mezon.NET.Api
                     return;
                 }
 
-                var request = new SessionRefreshRequest { RefreshToken = _session.RefreshToken };
+                var request = new SessionRefreshRequest { Token = _session.RefreshToken };
                 var newSession = await _apiClient.RefreshSessionAsync("", "", request);
 
                 if (newSession != null && !string.IsNullOrEmpty(newSession.Token))
@@ -350,7 +350,7 @@ namespace Mezon.NET.Api
                 {
                     _session = Session.NullSession();
                     StopSessionTimer();
-                    //throw new SessionRefreshFailedException("Failed to refresh session.");
+                    throw new SessionRefreshFailedException();
                 }
             }
             catch (Exception ex)

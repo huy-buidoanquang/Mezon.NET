@@ -11,15 +11,14 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using JetBrains.Annotations;
-using Mezon.NET.Api.Abstractions;
+using Mezon.NET.Abstractions;
 using Mezon.NET.Core;
-using Mezon.NET.Core.Abstractions;
 using Mezon.NET.Utils;
 using Newtonsoft.Json;
 
 namespace Mezon.NET.Api
 {
-    internal sealed class DefaultHttpClient : IHttpClient, IDisposable
+    internal sealed class DefaultRestClient : IRestClient, IDisposable
     {
         private const int HR_SECURECHANNELFAILED = -2146233079;
 
@@ -31,7 +30,7 @@ namespace Mezon.NET.Api
         private CancellationToken _cancelToken;
         private bool _isDisposed;
 
-        public DefaultHttpClient(string baseUrl, bool useProxy = false, IWebProxy? webProxy = null)
+        public DefaultRestClient(string baseUrl, bool useProxy = false, IWebProxy? webProxy = null)
         {
             _baseUrl = baseUrl.EndsWith("/") ? baseUrl : baseUrl + "/";
             _baseUri = new Uri(_baseUrl);

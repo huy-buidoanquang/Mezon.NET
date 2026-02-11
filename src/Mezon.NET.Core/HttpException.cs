@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Net;
-using Mezon.NET.Core.Abstractions;
+using Mezon.NET.Abstractions;
 
 namespace Mezon.NET.Core
 {

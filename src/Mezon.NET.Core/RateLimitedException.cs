@@ -1,5 +1,5 @@
 using System;
-using Mezon.NET.Core.Abstractions;
+using Mezon.NET.Abstractions;
 
 namespace Mezon.NET.Core
 {

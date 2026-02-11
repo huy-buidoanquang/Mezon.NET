@@ -3,9 +3,9 @@ using System.IO;
 using System.Threading.Tasks;
 using Grpc.Core;
 using Mezon.NET.Core;
-using Mezon.NET.Core.Abstractions;
+using Mezon.NET.Abstractions;
 
-namespace Mezon.NET.Api
+namespace Mezon.NET.Queue
 {
     public class RpcRequest<TRequest, TResponse> : IRequest
         where TRequest : class

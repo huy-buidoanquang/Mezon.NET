@@ -1,4 +1,6 @@
-namespace Mezon.NET.Api.Abstractions
+using Mezon.NET.Abstractions;
+
+namespace Mezon.NET.Abstractions
 {
     public interface IApiClientProvider
     {

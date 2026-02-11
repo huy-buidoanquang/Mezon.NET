@@ -25,7 +25,7 @@ namespace Mezon.NET.Core
         ///     Gets the hash of this bucket.
         /// </summary>
         /// <remarks>
-        ///     The hash is provided by Discord to group ratelimits.
+        ///     The hash is provided by Mezon to group ratelimits.
         /// </remarks>
         public string BucketHash { get; }
         /// <summary>
@@ -63,7 +63,7 @@ namespace Mezon.NET.Core
         ///     Creates a new <see cref="BucketId"/> based on a
         ///     <see cref="BucketHash"/> and a previous <see cref="BucketId"/>.
         /// </summary>
-        /// <param name="hash">Bucket hash provided by Discord.</param>
+        /// <param name="hash">Bucket hash provided by Mezon.</param>
         /// <param name="oldBucket"><see cref="BucketId"/> that is going to be upgraded to a hash type.</param>
         /// <returns>
         ///     A <see cref="BucketId"/> based on the <see cref="BucketHash"/>

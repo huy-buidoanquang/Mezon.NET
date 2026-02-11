@@ -10,6 +10,9 @@ namespace Mezon.NET.Core
         public const string DefaultMMNApi = "https://dong.mezon.ai/mmn-api/";
         public const string DefaultZKApi = "https://dong.mezon.ai/zk-api/";
         public const string DefaultServerKey = "defaultkey";
+        public const string DefaultHost = "dev-mezon.nccsoft.vn";
+        public const string DefaultPort = "8080";
+        public const bool DefaultUseSSL = true;
 
         /// <summary>
         ///     Gets the Mezon.Net version, including the build number.
@@ -22,17 +25,14 @@ namespace Mezon.NET.Core
             typeof(MezonConfiguration).GetTypeInfo().Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ??
             typeof(MezonConfiguration).GetTypeInfo().Assembly.GetName().Version?.ToString(2) ??
             "Unknown";
+
         public string ServerKey { get; set; } = DefaultServerKey;
 
-        public string Host { get; set; }
+        public string Host { get; set; } = DefaultHost;
 
-        public string Port { get; set; }
+        public string Port { get; set; } = DefaultPort;
 
-        public bool UseSSL { get; set; }
-
-        public string ClientId { get; set; }
-
-        public string ClientSecret { get; set; }
+        public bool UseSSL { get; set; } = DefaultUseSSL;
 
         /// <summary>
         ///     Returns the base Gateway Api Url.
@@ -77,19 +77,15 @@ namespace Mezon.NET.Core
 
         public int TimeoutInMilliseconds { get; set; } = DefaultTimeoutInMilliseconds;
 
-#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
+        public MezonConfiguration()
+        {
+        }
+
         public MezonConfiguration(string host, string port, bool useSSL)
-#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
         {
             Host = host;
             Port = port;
             UseSSL = useSSL;
-        }
-
-#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
-        public MezonConfiguration()
-#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
-        {
         }
     }
 }

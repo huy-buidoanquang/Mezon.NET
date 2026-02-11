@@ -10,35 +10,34 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
-using Mezon.NET.Api.Abstractions;
+using Mezon.NET.Abstractions;
 using Mezon.NET.Core;
-using Mezon.NET.Core.Abstractions;
+using Mezon.NET.Queue;
 using Mezon.NET.Utils;
 using Mezon.Protobuf.Api;
-using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
-using static Google.Rpc.Context.AttributeContext.Types;
 using PbSession = Mezon.Protobuf.Api.Session;
 
 namespace Mezon.NET.Api
 {
-    public class MezonApiClient : IMezonApiClient
+    internal class MezonApiClient : IMezonApiClient, IDisposable, IAsyncDisposable
     {
         private static readonly ConcurrentDictionary<string, Func<BucketIds, BucketId>> _bucketIdGenerators = new ConcurrentDictionary<string, Func<BucketIds, BucketId>>();
+
         public event Func<string, string, double, Task> SentRequest { add { _sentRequestEvent.Add(value); } remove { _sentRequestEvent.Remove(value); } }
         private readonly AsyncEvent<Func<string, string, double, Task>> _sentRequestEvent = new AsyncEvent<Func<string, string, double, Task>>();
-        private readonly JsonSerializer _serializer;
-        private readonly SemaphoreSlim _stateLock;
-        private readonly HttpClientProvider _httpClientProvider;
-        private readonly GRPCClientProvider _grpcClientProvider;
-        protected bool _isDisposed;
-        private CancellationTokenSource _loginCancelToken;
 
-        internal MezonApiRequestQueue RequestQueue { get; }
-        MezonApiRequestQueue IMezonApiClient.RequestQueue => RequestQueue;
+        protected bool _isDisposed;
+        protected readonly JsonSerializer _serializer;
+        protected readonly SemaphoreSlim _stateLock = new SemaphoreSlim(1, 1);
+        private readonly RestClientProvider _httpClientProvider;
+        private readonly GRPCClientProvider _grpcClientProvider;
+        private CancellationTokenSource _loginCancelToken = new CancellationTokenSource();
+
+        internal MezonRequestQueue RequestQueue { get; }
+        MezonRequestQueue IMezonApiClient.RequestQueue => RequestQueue;
 
         public LoginState LoginState { get; private set; }
 
@@ -46,51 +45,50 @@ namespace Mezon.NET.Api
 
         TokenType IMezonApiClient.TokenType => AuthTokenType;
 
-        internal string AuthToken { get; private set; }
+        internal string AuthToken { get; private set; } = string.Empty;
 
         string IMezonApiClient.AuthToken => AuthToken;
 
-        internal ulong? CurrentUserId { get; set; }
-        ulong? IMezonApiClient.CurrentUserId => CurrentUserId;
+        internal long? CurrentUserId { get; set; }
 
-        protected IHttpClient ApiClient { get; private set; }
+        long? IMezonApiClient.CurrentUserId => CurrentUserId;
+
+        protected IRestClient RestClient { get; private set; }
+
         protected IGRPCClient GRPCClient { get; private set; }
 
         internal bool UseSystemClock { get; set; }
 
+        public RetryMode DefaultRetryMode { get; }
+
         internal Func<IRateLimitInfo, Task>? DefaultRatelimitCallback { get; set; }
 
-        internal JsonSerializer Serializer => _serializer;
-
-        //private readonly Session _session;
+        protected MezonConfiguration MezonConfiguration;
 
 #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
         public MezonApiClient(
 #pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
-            HttpClientProvider httpClientProvider,
-            GRPCClientProvider gRPCClientProvider,
-            //Session session,
+            RestClientProvider restClientProvider,
+            GRPCClientProvider grpcClientProvider,
             MezonConfiguration configuration,
             JsonSerializer? serializer = null,
             Func<IRateLimitInfo, Task>? defaultRatelimitCallback = null)
         {
-            _httpClientProvider = httpClientProvider;
-            _grpcClientProvider = gRPCClientProvider;
-            //_session = session;
+            _httpClientProvider = restClientProvider;
+            _grpcClientProvider = grpcClientProvider;
             _serializer = serializer ?? Json.Serializer;
+            MezonConfiguration = configuration;
             DefaultRatelimitCallback = defaultRatelimitCallback;
-
-            RequestQueue = new MezonApiRequestQueue();
-            _stateLock = new SemaphoreSlim(1, 1);
+            RequestQueue = new MezonRequestQueue();
             ConfigureGatewayBasePath(configuration.GatewayBasePath);
         }
 
         /// <exception cref="ArgumentException">Unknown OAuth token type.</exception>
         public virtual void ConfigureGatewayBasePath(string gatewayBasePath)
         {
-            ApiClient?.Dispose();
-            ApiClient = _httpClientProvider(gatewayBasePath);
-            ApiClient.SetHeader("Accept", "*/*");
+            RestClient?.Dispose();
+            RestClient = _httpClientProvider(gatewayBasePath);
+            RestClient.SetHeader("Accept", "*/*");
         }
 
         /// <exception cref="ArgumentException">Unknown OAuth token type.</exception>
@@ -117,7 +115,7 @@ namespace Mezon.NET.Api
                 if (disposing)
                 {
                     _loginCancelToken?.Dispose();
-                    ApiClient?.Dispose();
+                    RestClient?.Dispose();
                     GRPCClient?.Dispose();
                     RequestQueue?.Dispose();
                     _stateLock?.Dispose();
@@ -133,7 +131,7 @@ namespace Mezon.NET.Api
                 if (disposing)
                 {
                     _loginCancelToken?.Dispose();
-                    ApiClient?.Dispose();
+                    RestClient?.Dispose();
                     GRPCClient?.Dispose();
 
                     if (!(RequestQueue is null))
@@ -179,14 +177,14 @@ namespace Mezon.NET.Api
                 _loginCancelToken = new CancellationTokenSource();
 
                 await RequestQueue.SetCancelTokenAsync(_loginCancelToken.Token).ConfigureAwait(false);
-                ApiClient.SetCancelToken(_loginCancelToken.Token);
+                RestClient.SetCancelToken(_loginCancelToken.Token);
                 GRPCClient.SetCancelToken(_loginCancelToken.Token);
 
                 AuthTokenType = tokenType;
                 AuthToken = token.TrimEnd();
                 if (tokenType != TokenType.Webhook)
                 {
-                    ApiClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+                    RestClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
                 }
 
                 LoginState = LoginState.LoggedIn;
@@ -231,7 +229,7 @@ namespace Mezon.NET.Api
             await RequestQueue.ClearAsync().ConfigureAwait(false);
 
             await RequestQueue.SetCancelTokenAsync(CancellationToken.None).ConfigureAwait(false);
-            ApiClient.SetCancelToken(CancellationToken.None);
+            RestClient.SetCancelToken(CancellationToken.None);
             GRPCClient.SetCancelToken(CancellationToken.None);
 
             CurrentUserId = null;
@@ -239,6 +237,7 @@ namespace Mezon.NET.Api
         }
 
         internal virtual Task ConnectInternalAsync() => Task.CompletedTask;
+
         internal virtual Task DisconnectInternalAsync(Exception? ex = null) => Task.CompletedTask;
 
         #region Core
@@ -251,7 +250,7 @@ namespace Mezon.NET.Api
             options.HeaderOnly = true;
             options.BucketId = bucketId;
 
-            var request = new ApiRequest(ApiClient, method, endpoint, options);
+            var request = new ApiRequest(RestClient, method, endpoint, options);
             return SendInternalAsync(method, endpoint, request);
         }
 
@@ -265,7 +264,7 @@ namespace Mezon.NET.Api
             options.BucketId = bucketId;
 
             string json = payload != null ? SerializeJson(payload) : string.Empty;
-            var request = new JsonApiRequest(ApiClient, method, endpoint, json, options);
+            var request = new JsonApiRequest(RestClient, method, endpoint, json, options);
             return SendInternalAsync(method, endpoint, request);
         }
 
@@ -278,7 +277,7 @@ namespace Mezon.NET.Api
             options.HeaderOnly = true;
             options.BucketId = bucketId;
 
-            var request = new MultipartApiRequest(ApiClient, method, endpoint, multipartArgs, options);
+            var request = new MultipartApiRequest(RestClient, method, endpoint, multipartArgs, options);
             return SendInternalAsync(method, endpoint, request);
         }
 
@@ -290,7 +289,7 @@ namespace Mezon.NET.Api
             options ??= new RequestOptions();
             options.BucketId = bucketId;
 
-            var request = new ApiRequest(ApiClient, method, endpoint, options);
+            var request = new ApiRequest(RestClient, method, endpoint, options);
             return await SendInternalAsync(method, endpoint, request).ConfigureAwait(false);
         }
 
@@ -304,7 +303,7 @@ namespace Mezon.NET.Api
 
             string json = payload != null ? SerializeJson(payload) : string.Empty;
 
-            var request = new JsonApiRequest(ApiClient, method, endpoint, json, options);
+            var request = new JsonApiRequest(RestClient, method, endpoint, json, options);
             return await SendInternalAsync(method, endpoint, request).ConfigureAwait(false);
         }
 
@@ -316,7 +315,7 @@ namespace Mezon.NET.Api
             options ??= new RequestOptions();
             options.BucketId = bucketId;
 
-            var request = new MultipartApiRequest(ApiClient, method, endpoint, multipartArgs, options);
+            var request = new MultipartApiRequest(RestClient, method, endpoint, multipartArgs, options);
             return await SendInternalAsync(method, endpoint, request).ConfigureAwait(false);
         }
 

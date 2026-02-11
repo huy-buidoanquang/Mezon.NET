@@ -1,7 +1,8 @@
 using System;
 using System.Threading.Tasks;
+using Mezon.NET.Core;
 
-namespace Mezon.NET.Core.Abstractions
+namespace Mezon.NET.Abstractions
 {
     public interface IMezonClient : IDisposable, IAsyncDisposable
     {
@@ -39,10 +40,5 @@ namespace Mezon.NET.Core.Abstractions
         ///     A task that represents the asynchronous stop operation.
         /// </returns>
         Task LogoutAsync();
-
-        /// <summary>
-        /// Close the socket connection
-        /// </summary>
-        void CloseSocket();
     }
 }
