@@ -4,14 +4,13 @@ using Mezon.NET.Core;
 
 namespace Mezon.NET.WebSocket
 {
-    public partial class BaseMezonClient
+    public partial class BaseSocketClient
     {
         public event Func<SocketChannelMessage, Task> ChannelMessageReceived
         {
             add { _channelMessageReceivedEvent.Add(value); }
             remove { _channelMessageReceivedEvent.Remove(value); }
         }
-
         internal readonly AsyncEvent<Func<SocketChannelMessage, Task>> _channelMessageReceivedEvent = new AsyncEvent<Func<SocketChannelMessage, Task>>();
     }
 }

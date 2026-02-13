@@ -6,7 +6,6 @@ namespace Mezon.NET.Abstractions
 {
     public interface IMezonClient : IDisposable, IAsyncDisposable
     {
-        MezonConfiguration ClientConfiguration { get; }
         /// <summary>
         ///     Gets the current state of connection.
         /// </summary>

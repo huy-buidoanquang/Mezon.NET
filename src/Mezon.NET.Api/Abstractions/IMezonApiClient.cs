@@ -23,9 +23,9 @@ namespace Mezon.NET.Abstractions
 
         long? CurrentUserId { get; }
 
-        TokenType TokenType { get; }
+        internal TokenType TokenType { get; }
 
-        string AuthToken { get; }
+        internal string AuthToken { get; }
 
         Task SendNoResAsync(string method, string endpoint, BucketId? bucketId = null, ClientBucketType clientBucket = ClientBucketType.Unbucketed, RequestOptions? options = null);
 

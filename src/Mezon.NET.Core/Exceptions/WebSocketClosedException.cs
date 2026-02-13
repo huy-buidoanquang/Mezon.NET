@@ -1,5 +1,4 @@
 using System;
-using System.Net.WebSockets;
 
 namespace Mezon.NET.Core
 {
@@ -11,7 +10,7 @@ namespace Mezon.NET.Core
         /// <summary>
         ///     Gets the close code sent by Mezon.
         /// </summary>
-        public WebSocketCloseStatus CloseCode { get; }
+        public int CloseCode { get; }
         /// <summary>
         ///     Gets the reason of the interruption.
         /// </summary>
@@ -21,7 +20,7 @@ namespace Mezon.NET.Core
         ///     Initializes a new instance of the <see cref="WebSocketClosedException" /> using a Mezon close code
         ///     and an optional reason.
         /// </summary>
-        public WebSocketClosedException(WebSocketCloseStatus closeCode, string? reason = null)
+        public WebSocketClosedException(int closeCode, string? reason = null)
             : base($"The server sent close {closeCode}{(reason != null ? $": \"{reason}\"" : "")}")
         {
             CloseCode = closeCode;

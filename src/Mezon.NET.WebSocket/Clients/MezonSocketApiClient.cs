@@ -10,12 +10,13 @@ using Mezon.Protobuf.Realtime;
 
 namespace Mezon.NET.WebSocket
 {
-    internal class MezonSocketApiClient : MezonApiClient, IMezonSocketClient, IMezonApiClient, IDisposable, IAsyncDisposable
+    internal class MezonSocketApiClient : MezonApiClient, IMezonSocketClient, IDisposable, IAsyncDisposable
     {
         public event Func<Envelope, Task> SentMessage { add { _sentMessageEvent.Add(value); } remove { _sentMessageEvent.Remove(value); } }
         private readonly AsyncEvent<Func<Envelope, Task>> _sentMessageEvent = new AsyncEvent<Func<Envelope, Task>>();
         public event Func<Envelope, Task> ReceivedMessageEvent { add { _receivedMessageEvent.Add(value); } remove { _receivedMessageEvent.Remove(value); } }
         private readonly AsyncEvent<Func<Envelope, Task>> _receivedMessageEvent = new AsyncEvent<Func<Envelope, Task>>();
+
         public event Func<Exception, Task> Disconnected { add { _disconnectedEvent.Add(value); } remove { _disconnectedEvent.Remove(value); } }
         private readonly AsyncEvent<Func<Exception, Task>> _disconnectedEvent = new AsyncEvent<Func<Exception, Task>>();
 
@@ -29,10 +30,10 @@ namespace Mezon.NET.WebSocket
             : base(restClientProvider, grpcClientProvider, configuration)
         {
             WebSocketClient = webSocketClientProvider();
-            WebSocketClient.BinaryMessageReceived += WebSocketClient_BinaryMessageReceived;
+            WebSocketClient.Opened += WebSocketClient_Opened;
             WebSocketClient.Closed += WebSocketClient_Closed;
             WebSocketClient.ErrorOccurred += WebSocketClient_ErrorOccurred;
-            WebSocketClient.Opened += WebSocketClient_Opened;
+            WebSocketClient.BinaryMessageReceived += WebSocketClient_BinaryMessageReceived;
         }
 
         public async Task ConnectAsync()
@@ -47,7 +48,6 @@ namespace Mezon.NET.WebSocket
                 _stateLock.Release();
             }
         }
-
         /// <exception cref="InvalidOperationException">The client must be logged in before connecting.</exception>
         /// <exception cref="NotSupportedException">This client is not configured with WebSocket support.</exception>
         internal override async Task ConnectInternalAsync()
@@ -123,6 +123,7 @@ namespace Mezon.NET.WebSocket
 
         public Task SendAsync(ReadOnlyMemory<byte> bytes, RequestOptions? options = null)
             => SendInternalAsync(bytes, options);
+
         private async Task SendInternalAsync(ReadOnlyMemory<byte> bytes, RequestOptions? options = null)
         {
             options ??= RequestOptions.CreateOrClone(options);
@@ -165,11 +166,10 @@ namespace Mezon.NET.WebSocket
         private string GetWebSocketUrl()
         {
             var session = SessionManager.Instance.CurrentSession();
-            var scheme = MezonConfiguration.UseSSL ? "wss://" : "ws://";
             var apiUri = new Uri(session.ApiUrl!);
+            var scheme = apiUri.Scheme == Uri.UriSchemeHttps ? "wss://" : "ws://";
             var wsUrl = !string.IsNullOrEmpty(session.WsUrl) ? session.WsUrl : apiUri.Host;
-            var port = !string.IsNullOrEmpty(MezonConfiguration.Port) ? $":{apiUri.Port}" : string.Empty;
-
+            var port = apiUri.Port != 0 ? $":{apiUri.Port}" : string.Empty;
             return $"{scheme}{wsUrl}{port}/ws?lang=en&token={Uri.EscapeDataString(AuthToken)}&format=protobuf";
         }
 

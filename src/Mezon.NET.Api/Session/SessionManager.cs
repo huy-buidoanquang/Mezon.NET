@@ -3,7 +3,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Mezon.NET.Abstractions;
 using Mezon.NET.Core;
-using Mezon.NET.Core.Exceptions;
 using Mezon.NET.Logging;
 
 namespace Mezon.NET.Api

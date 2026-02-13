@@ -18,7 +18,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="DependencyInjection\" />
+    <Folder Include="DependencyInjection\Extensions\" />
+    <Folder Include="DependencyInjection\Options\" />
     <Folder Include="Entities\Channels\" />
     <Folder Include="Request\" />
   </ItemGroup>

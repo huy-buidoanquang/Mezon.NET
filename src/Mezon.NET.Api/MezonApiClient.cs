@@ -32,21 +32,20 @@ namespace Mezon.NET.Api
         protected bool _isDisposed;
         protected readonly JsonSerializer _serializer;
         protected readonly SemaphoreSlim _stateLock = new SemaphoreSlim(1, 1);
+        private CancellationTokenSource _loginCancelToken = new CancellationTokenSource();
+
         private readonly RestClientProvider _httpClientProvider;
         private readonly GRPCClientProvider _grpcClientProvider;
-        private CancellationTokenSource _loginCancelToken = new CancellationTokenSource();
 
         internal MezonRequestQueue RequestQueue { get; }
         MezonRequestQueue IMezonApiClient.RequestQueue => RequestQueue;
 
         public LoginState LoginState { get; private set; }
 
-        internal TokenType AuthTokenType { get; private set; }
-
-        TokenType IMezonApiClient.TokenType => AuthTokenType;
+        internal TokenType TokenType { get; private set; }
+        TokenType IMezonApiClient.TokenType => TokenType;
 
         internal string AuthToken { get; private set; } = string.Empty;
-
         string IMezonApiClient.AuthToken => AuthToken;
 
         internal long? CurrentUserId { get; set; }
@@ -180,11 +179,11 @@ namespace Mezon.NET.Api
                 RestClient.SetCancelToken(_loginCancelToken.Token);
                 GRPCClient.SetCancelToken(_loginCancelToken.Token);
 
-                AuthTokenType = tokenType;
+                TokenType = tokenType;
                 AuthToken = token.TrimEnd();
                 if (tokenType != TokenType.Webhook)
                 {
-                    RestClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+                    RestClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
                 }
 
                 LoginState = LoginState.LoggedIn;
@@ -326,7 +325,7 @@ namespace Mezon.NET.Api
                 CheckState();
             }
 
-            //request.Options.RetryMode ??= DefaultRetryMode;
+            request.Options.RetryMode ??= DefaultRetryMode;
             request.Options.UseSystemClock ??= UseSystemClock;
             request.Options.RatelimitCallback ??= DefaultRatelimitCallback;
 
@@ -845,7 +844,7 @@ namespace Mezon.NET.Api
         public async Task<bool> AuthenticateAppLogoutAsync(AppAuthenticationLogoutRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
             Expression<Func<string>> endpoint = () => $"/v2/apps/authenticate/token";
@@ -860,7 +859,7 @@ namespace Mezon.NET.Api
 
         public Task<ClanDescList> ListClanDescsAsync(PaginationParams args, RequestOptions? options = null)
         {
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             Expression<Func<string>> endpoint = () => $"/v2/clandesc";
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
@@ -875,7 +874,7 @@ namespace Mezon.NET.Api
 
         public Task<Protobuf.Api.AddFriendsResponse> AddFriendsAsync(IEnumerable<long>? ids = null, IEnumerable<string>? usernames = null, RequestOptions? options = null)
         {
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
 
@@ -903,7 +902,7 @@ namespace Mezon.NET.Api
 
         public async Task BlockFriendsAsync(IEnumerable<long>? ids = null, IEnumerable<string>? usernames = null, RequestOptions? options = null)
         {
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
 
@@ -931,7 +930,7 @@ namespace Mezon.NET.Api
 
         public async Task UnblockFriendsAsync(IEnumerable<long>? ids = null, IEnumerable<string>? usernames = null, RequestOptions? options = null)
         {
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
 
@@ -959,7 +958,7 @@ namespace Mezon.NET.Api
 
         public async Task DeleteFriendsAsync(IEnumerable<long>? ids = null, IEnumerable<string>? usernames = null, RequestOptions? options = null)
         {
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
 
@@ -987,7 +986,7 @@ namespace Mezon.NET.Api
 
         public Task<FriendList> ListFriendsAsync(int? state = null, int? limit = null, string? cursor = null, RequestOptions? options = null)
         {
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
 
@@ -1020,7 +1019,7 @@ namespace Mezon.NET.Api
         public Task<ClanDesc> CreateClanDescAsync(string clanName, string? logo = null, string? banner = null, RequestOptions? options = null)
         {
             Check.NotNullOrEmpty(clanName, nameof(clanName));
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
 
@@ -1044,7 +1043,7 @@ namespace Mezon.NET.Api
 
         public async Task DeleteClanDescAsync(long clanId, RequestOptions? options = null)
         {
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
 
@@ -1060,7 +1059,7 @@ namespace Mezon.NET.Api
         public async Task UpdateClanDescAsync(UpdateClanDescRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
 
@@ -1072,7 +1071,7 @@ namespace Mezon.NET.Api
 
         public Task<ClanUserList> ListClanUsersAsync(long clanId, RequestOptions? options = null)
         {
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
 
@@ -1088,7 +1087,7 @@ namespace Mezon.NET.Api
         public async Task RemoveClanUsersAsync(long clanId, IEnumerable<long> userIds, RequestOptions? options = null)
         {
             Check.NotNull(userIds, nameof(userIds));
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
 
@@ -1108,7 +1107,7 @@ namespace Mezon.NET.Api
         public async Task BanClanUsersAsync(long clanId, long channelId, IEnumerable<long> userIds, int? banTime = null, string? reason = null, RequestOptions? options = null)
         {
             Check.NotNull(userIds, nameof(userIds));
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
 
@@ -1143,7 +1142,7 @@ namespace Mezon.NET.Api
         public Task<ChannelDescription> CreateChannelDescAsync(CreateChannelDescRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
 
@@ -1155,7 +1154,7 @@ namespace Mezon.NET.Api
 
         public async Task DeleteChannelDescAsync(long channelId, RequestOptions? options = null)
         {
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
 
@@ -1171,7 +1170,7 @@ namespace Mezon.NET.Api
         public async Task UpdateChannelDescAsync(UpdateChannelDescRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
 
@@ -1184,7 +1183,7 @@ namespace Mezon.NET.Api
         public async Task AddChannelUsersAsync(long channelId, IEnumerable<long> userIds, RequestOptions? options = null)
         {
             Check.NotNull(userIds, nameof(userIds));
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
 
@@ -1204,7 +1203,7 @@ namespace Mezon.NET.Api
         public async Task RemoveChannelUsersAsync(long channelId, IEnumerable<long> userIds, RequestOptions? options = null)
         {
             Check.NotNull(userIds, nameof(userIds));
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
 
@@ -1223,7 +1222,7 @@ namespace Mezon.NET.Api
 
         public Task<ChannelMessageList> ListChannelMessagesAsync(long clanId, long channelId, long? messageId = null, int? direction = null, int? limit = null, long? topicId = null, RequestOptions? options = null)
         {
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
 
@@ -1258,7 +1257,7 @@ namespace Mezon.NET.Api
 
         public Task<ChannelUserList> ListChannelUsersAsync(long clanId, long channelId, int channelType, int? limit = null, int? state = null, string? cursor = null, RequestOptions? options = null)
         {
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
 
@@ -1294,7 +1293,7 @@ namespace Mezon.NET.Api
         public Task<Mezon.Protobuf.Api.Role> CreateRoleAsync(Mezon.Protobuf.Api.CreateRoleRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
 
@@ -1306,7 +1305,7 @@ namespace Mezon.NET.Api
 
         public async Task DeleteRoleAsync(long roleId, RequestOptions? options = null)
         {
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
 
@@ -1322,7 +1321,7 @@ namespace Mezon.NET.Api
         public async Task UpdateRoleAsync(Mezon.Protobuf.Api.UpdateRoleRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
 
@@ -1334,7 +1333,7 @@ namespace Mezon.NET.Api
 
         public Task<Mezon.Protobuf.Api.RoleListEventResponse> ListRolesAsync(long? clanId = null, int? limit = null, int? state = null, string? cursor = null, RequestOptions? options = null)
         {
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
 
@@ -1372,7 +1371,7 @@ namespace Mezon.NET.Api
         public async Task UpdateUserAsync(Mezon.Protobuf.Api.UpdateUsersRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
 
@@ -1389,7 +1388,7 @@ namespace Mezon.NET.Api
         public Task<Mezon.Protobuf.Api.EventManagement> CreateEventAsync(Mezon.Protobuf.Api.CreateEventRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
 
@@ -1401,7 +1400,7 @@ namespace Mezon.NET.Api
 
         public async Task DeleteEventAsync(long eventId, RequestOptions? options = null)
         {
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
 
@@ -1417,7 +1416,7 @@ namespace Mezon.NET.Api
         public async Task UpdateEventAsync(Mezon.Protobuf.Api.UpdateEventRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
 
@@ -1429,7 +1428,7 @@ namespace Mezon.NET.Api
 
         public Task<Mezon.Protobuf.Api.EventList> ListEventsAsync(long? clanId = null, RequestOptions? options = null)
         {
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
 
@@ -1452,7 +1451,7 @@ namespace Mezon.NET.Api
         public Task<Mezon.Protobuf.Api.SearchMessageResponse> SearchMessageAsync(Mezon.Protobuf.Api.SearchMessageRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
 
@@ -1465,7 +1464,7 @@ namespace Mezon.NET.Api
         public Task<Mezon.Protobuf.Api.ChannelMessage> CreatePinMessageAsync(Mezon.Protobuf.Api.PinMessageRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
 
@@ -1477,7 +1476,7 @@ namespace Mezon.NET.Api
 
         public Task<Mezon.Protobuf.Api.PinMessagesList> GetPinMessagesListAsync(long channelId, long clanId, RequestOptions? options = null)
         {
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
 
@@ -1493,7 +1492,7 @@ namespace Mezon.NET.Api
 
         public async Task DeletePinMessageAsync(long messageId, long channelId, long clanId, RequestOptions? options = null)
         {
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
 
@@ -1511,7 +1510,7 @@ namespace Mezon.NET.Api
         public async Task MarkAsReadAsync(Mezon.Protobuf.Api.MarkAsReadRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            GRPCClient.SetHeader("Authorization", GetPrefixedToken(AuthTokenType, AuthToken));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
             options = RequestOptions.CreateOrClone(options);
             var bucket = new BucketIds();
 
