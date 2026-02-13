@@ -25,12 +25,14 @@ namespace Mezon.NET.Api
         /// </summary>
         public event Func<string, string, double, Task> SentRequest { add { _sentRequest.Add(value); } remove { _sentRequest.Remove(value); } }
 
-        internal readonly Logger _logger;
+        internal readonly Logger _apiLogger;
         private readonly SemaphoreSlim _stateLock;
-        private readonly MezonConfiguration _configuration;
         private bool _isFirstLogin, _isDisposed;
 
+        protected readonly MezonApiClientConfiguration Configuration;
+
         internal IMezonApiClient ApiClient { get; }
+
         internal LogManager LogManager { get; }
         /// <summary>
         ///     Gets the login state of the client.
@@ -39,67 +41,32 @@ namespace Mezon.NET.Api
 
         public TokenType TokenType => ApiClient.TokenType;
 
-        public ConnectionState ConnectionState => throw new System.NotImplementedException();
+        public virtual ConnectionState ConnectionState => ConnectionState.Disconnected;
 
-        public MezonConfiguration ClientConfiguration => _configuration;
-
-#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
-        protected BaseMezonClient(MezonConfiguration mezonConfiguration)
-#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
+        internal BaseMezonClient(MezonApiClientConfiguration configuration, IMezonApiClient apiClient)
         {
-        }
-
-        internal BaseMezonClient(MezonApiClientConfiguration mezonConfiguration, IMezonApiClient apiClient)
-        {
+            Configuration = configuration;
             ApiClient = apiClient;
-            LogManager = new LogManager(mezonConfiguration.LogLevel);
-            SessionManager.GetOrCreate(mezonConfiguration, apiClient);
+            LogManager = new LogManager(configuration.LogLevel);
+            SessionManager.GetOrCreate(configuration, apiClient);
             LogManager.Message += async msg => await _logEvent.InvokeAsync(msg).ConfigureAwait(false);
 
             _stateLock = new SemaphoreSlim(1, 1);
-            _logger = LogManager.CreateLogger("MezonClient");
-            _isFirstLogin = mezonConfiguration.DisplayInitialLog;
-            _configuration = mezonConfiguration;
+            _apiLogger = LogManager.CreateLogger("MezonClient");
+            _isFirstLogin = configuration.DisplayInitialLog;
 
             ApiClient.RequestQueue.RateLimitTriggered += async (id, info, endpoint) =>
             {
                 if (info == null)
                 {
-                    await _logger.VerboseAsync($"Preemptive Rate limit triggered: {endpoint} {(id.IsHashBucket ? $"(Bucket: {id.BucketHash})" : "")}").ConfigureAwait(false);
+                    await _apiLogger.VerboseAsync($"Preemptive Rate limit triggered: {endpoint} {(id.IsHashBucket ? $"(Bucket: {id.BucketHash})" : "")}").ConfigureAwait(false);
                 }
                 else
                 {
-                    await _logger.WarningAsync($"Rate limit triggered: {endpoint} Remaining: {info.Value.RetryAfter}s {(id.IsHashBucket ? $"(Bucket: {id.BucketHash})" : "")}").ConfigureAwait(false);
+                    await _apiLogger.WarningAsync($"Rate limit triggered: {endpoint} Remaining: {info.Value.RetryAfter}s {(id.IsHashBucket ? $"(Bucket: {id.BucketHash})" : "")}").ConfigureAwait(false);
                 }
             };
-            ApiClient.SentRequest += async (method, endpoint, millis) => await _logger.VerboseAsync($"{method} {endpoint}: {millis} ms").ConfigureAwait(false);
-            ApiClient.SentRequest += (method, endpoint, millis) => _sentRequest.InvokeAsync(method, endpoint, millis);
-        }
-
-        internal BaseMezonClient(MezonApiClientConfiguration mezonConfiguration, IMezonApiClient apiClient, LogManager logManager)
-        {
-            ApiClient = apiClient;
-            LogManager = logManager ?? throw new ArgumentNullException(nameof(logManager));
-            SessionManager.GetOrCreate(mezonConfiguration, apiClient);
-            LogManager.Message += async msg => await _logEvent.InvokeAsync(msg).ConfigureAwait(false);
-
-            _stateLock = new SemaphoreSlim(1, 1);
-            _logger = LogManager.CreateLogger("MezonClient");
-            _isFirstLogin = mezonConfiguration.DisplayInitialLog;
-            _configuration = mezonConfiguration;
-
-            ApiClient.RequestQueue.RateLimitTriggered += async (id, info, endpoint) =>
-            {
-                if (info == null)
-                {
-                    await _logger.VerboseAsync($"Preemptive Rate limit triggered: {endpoint} {(id.IsHashBucket ? $"(Bucket: {id.BucketHash})" : "")}").ConfigureAwait(false);
-                }
-                else
-                {
-                    await _logger.WarningAsync($"Rate limit triggered: {endpoint} Remaining: {info.Value.RetryAfter}s {(id.IsHashBucket ? $"(Bucket: {id.BucketHash})" : "")}").ConfigureAwait(false);
-                }
-            };
-            ApiClient.SentRequest += async (method, endpoint, millis) => await _logger.VerboseAsync($"{method} {endpoint}: {millis} ms").ConfigureAwait(false);
+            ApiClient.SentRequest += async (method, endpoint, millis) => await _apiLogger.VerboseAsync($"{method} {endpoint}: {millis} ms").ConfigureAwait(false);
             ApiClient.SentRequest += (method, endpoint, millis) => _sentRequest.InvokeAsync(method, endpoint, millis);
         }
 

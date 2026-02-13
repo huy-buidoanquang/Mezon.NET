@@ -1,6 +1,5 @@
 using System.Threading.Tasks;
 using Mezon.NET.Abstractions;
-using Mezon.NET.Logging;
 using Mezon.Protobuf.Api;
 
 namespace Mezon.NET.Api
@@ -28,31 +27,12 @@ namespace Mezon.NET.Api
         {
         }
 
-        /// <summary>
-        ///     Initializes a new <see cref="MezonClient"/> with the provided configuration and external LogManager.
-        /// </summary>
-        /// <param name="mezonConfiguration">The configuration to be used with the client.</param>
-        /// <param name="logManager">An external LogManager instance for centralized logging.</param>
-        public MezonClient(MezonApiClientConfiguration mezonConfiguration, LogManager logManager) : base(mezonConfiguration, CreateApiClient(mezonConfiguration), logManager)
-        {
-        }
-
-        /// <summary>
-        ///     Initializes a new <see cref="MezonClient"/> with the provided configuration, API client, and external LogManager.
-        /// </summary>
-        /// <param name="mezonConfiguration">The configuration to be used with the client.</param>
-        /// <param name="apiClient">The API client to use for requests.</param>
-        /// <param name="logManager">An external LogManager instance for centralized logging.</param>
-        public MezonClient(MezonApiClientConfiguration mezonConfiguration, IMezonApiClient apiClient, LogManager logManager) : base(mezonConfiguration, apiClient, logManager)
-        {
-        }
-
         private static IMezonApiClient CreateApiClient(MezonApiClientConfiguration config)
             => new MezonApiClient(config.HttpClientProvider, config.GRPCClientProvider, config);
 
         public async Task<AuthenticationResponse> AuthenticateEmailAsync(string email, string password)
         {
-            return await ApiClient.AuthenticateEmailAsync(ClientConfiguration.ServerKey, "", new EmailAuthenticationRequest
+            return await ApiClient.AuthenticateEmailAsync(Configuration.ServerKey, "", new EmailAuthenticationRequest
             {
                 Account = new AccountEmailRequest
                 {
@@ -64,7 +44,7 @@ namespace Mezon.NET.Api
 
         public async Task<LoginIDResponse> CreateQRLoginAsync(LoginIDRequest request)
         {
-            return await ApiClient.CreateQRLoginAsync(ClientConfiguration.ServerKey, "", request);
+            return await ApiClient.CreateQRLoginAsync(Configuration.ServerKey, "", request);
         }
 
         public Task<ClanDescList> GetClanDescriptionAsync(PaginationParams paginationParams)
@@ -72,6 +52,6 @@ namespace Mezon.NET.Api
             return ApiClient.ListClanDescsAsync(paginationParams);
         }
 
-        IMezonApiClient IApiClientProvider.MezonApiClient => ApiClient;
+        IMezonClient IApiClientProvider.MezonApiClient => this;
     }
 }
