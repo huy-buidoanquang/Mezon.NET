@@ -7,11 +7,11 @@ namespace Mezon.NET.WebSocket
 {
     public partial class MezonClient
     {
-        private async Task ProcessMessageAsync(SoketMessageCode code, Envelope envelope)
+        private async Task ProcessMessageAsync(SocketMessageCode code, Envelope envelope)
         {
             _lastMessageTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-            if (code == SoketMessageCode.Ready)
+            if (code == SocketMessageCode.Ready)
             {
                 await _socketLogger.DebugAsync("Received: REDY").ConfigureAwait(false);
                 try
@@ -26,7 +26,7 @@ namespace Mezon.NET.WebSocket
                 }
                 return;
             }
-            else if (code == SoketMessageCode.Data)
+            else if (code == SocketMessageCode.Data)
             {
                 await _socketLogger.DebugAsync("Received: DATA").ConfigureAwait(false);
                 if (envelope == null)
