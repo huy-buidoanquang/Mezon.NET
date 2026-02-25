@@ -16,7 +16,7 @@ namespace Mezon.NET.WebSocket
 
         private readonly SemaphoreSlim _stateLock;
         private readonly Logger _logger;
-        private readonly int _connectionTimeout;
+        private readonly int _connectionTimeoutInMilliseconds;
         private readonly Func<Task> _onConnecting;
         private readonly Func<Exception, Task> _onDisconnecting;
 
@@ -30,13 +30,18 @@ namespace Mezon.NET.WebSocket
         public CancellationToken CancelToken { get; private set; }
 
 #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
-        internal SocketConnectionManager(SemaphoreSlim stateLock, Logger logger, int connectionTimeout,
+        internal SocketConnectionManager(
 #pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
-            Func<Task> onConnecting, Func<Exception, Task> onDisconnecting, Action<Func<Exception, Task>> clientDisconnectHandler)
+            SemaphoreSlim stateLock,
+            Logger logger,
+            int connectionTimeoutInMilliseconds,
+            Func<Task> onConnecting,
+            Func<Exception, Task> onDisconnecting,
+            Action<Func<Exception, Task>> clientDisconnectHandler)
         {
             _stateLock = stateLock;
             _logger = logger;
-            _connectionTimeout = connectionTimeout;
+            _connectionTimeoutInMilliseconds = connectionTimeoutInMilliseconds;
             _onConnecting = onConnecting;
             _onDisconnecting = onDisconnecting;
 
@@ -67,7 +72,7 @@ namespace Mezon.NET.WebSocket
             });
         }
 
-        public virtual async Task StartAsync()
+        public async Task ConnectAsync()
         {
             if (State != ConnectionState.Disconnected)
             {
@@ -88,31 +93,27 @@ namespace Mezon.NET.WebSocket
                     {
                         try
                         {
-                            await ConnectAsync(reconnectCancelToken).ConfigureAwait(false);
-                            nextReconnectDelay = 1000; //Reset delay
+                            await ConnectInternalAsync(reconnectCancelToken).ConfigureAwait(false);
+                            nextReconnectDelay = 1000;
                             await _connectionPromise.Task.ConfigureAwait(false);
                         }
-                        // remove for testing.
-                        //catch (OperationCanceledException ex)
-                        //{
-                        //    // Added back for log out / stop to client. The connection promise would cancel and it would be logged as an error, shouldn't be the case.
-                        //    // ref #2026
-
-                        //    Cancel(); //In case this exception didn't come from another Error call
-                        //    await DisconnectAsync(ex, !reconnectCancelToken.IsCancellationRequested).ConfigureAwait(false);
-                        //}
+                        catch (OperationCanceledException ex)
+                        {
+                            Cancel();
+                            await DisconnectInternalAsync(ex, !reconnectCancelToken.IsCancellationRequested).ConfigureAwait(false);
+                        }
                         catch (Exception ex)
                         {
-                            Error(ex); //In case this exception didn't come from another Error call
+                            Error(ex);
                             if (!reconnectCancelToken.IsCancellationRequested)
                             {
                                 await _logger.WarningAsync(ex).ConfigureAwait(false);
-                                await DisconnectAsync(ex, true).ConfigureAwait(false);
+                                await DisconnectInternalAsync(ex, true).ConfigureAwait(false);
                             }
                             else
                             {
                                 await _logger.ErrorAsync(ex).ConfigureAwait(false);
-                                await DisconnectAsync(ex, false).ConfigureAwait(false);
+                                await DisconnectInternalAsync(ex, false).ConfigureAwait(false);
                             }
                         }
 
@@ -134,13 +135,46 @@ namespace Mezon.NET.WebSocket
                 }
             });
         }
-        public virtual Task StopAsync()
+
+        public Task DisconnectAsync()
         {
             Cancel();
             return Task.CompletedTask;
         }
 
-        private async Task ConnectAsync(CancellationTokenSource reconnectCancelToken)
+        public Task CompleteAsync() => Task.Run(() => _readyPromise.TrySetResult(true));
+
+        public Task WaitAsync() => _readyPromise.Task;
+
+        public void Cancel()
+        {
+            _readyPromise?.TrySetCanceled();
+            _connectionPromise?.TrySetCanceled();
+            _reconnectCancelToken?.Cancel();
+            _connectionCancelToken?.Cancel();
+        }
+
+        public void Error(Exception ex)
+        {
+            _readyPromise.TrySetException(ex);
+            _connectionPromise.TrySetException(ex);
+            _connectionCancelToken?.Cancel();
+        }
+
+        public void CriticalError(Exception ex)
+        {
+            _reconnectCancelToken?.Cancel();
+            Error(ex);
+        }
+
+        public void Reconnect()
+        {
+            _readyPromise.TrySetCanceled();
+            _connectionPromise.TrySetCanceled();
+            _connectionCancelToken?.Cancel();
+        }
+
+        private async Task ConnectInternalAsync(CancellationTokenSource reconnectCancelToken)
         {
             _connectionCancelToken?.Dispose();
             _combinedCancelToken?.Dispose();
@@ -157,13 +191,12 @@ namespace Mezon.NET.WebSocket
                 var readyPromise = new TaskCompletionSource<bool>();
                 _readyPromise = readyPromise;
 
-                //Abort connection on timeout
                 var cancelToken = CancelToken;
                 var _ = Task.Run(async () =>
                 {
                     try
                     {
-                        await Task.Delay(_connectionTimeout, cancelToken).ConfigureAwait(false);
+                        await Task.Delay(_connectionTimeoutInMilliseconds, cancelToken).ConfigureAwait(false);
                         readyPromise.TrySetException(new TimeoutException());
                     }
                     catch (OperationCanceledException) { }
@@ -173,7 +206,6 @@ namespace Mezon.NET.WebSocket
 
                 await _logger.InfoAsync("Connected").ConfigureAwait(false);
                 State = ConnectionState.Connected;
-                await _logger.DebugAsync("Raising Event").ConfigureAwait(false);
                 await _connectedEvent.InvokeAsync().ConfigureAwait(false);
             }
             catch (Exception ex)
@@ -182,7 +214,8 @@ namespace Mezon.NET.WebSocket
                 throw;
             }
         }
-        private async Task DisconnectAsync(Exception ex, bool isReconnecting)
+
+        private async Task DisconnectInternalAsync(Exception ex, bool isReconnecting)
         {
             if (State == ConnectionState.Disconnected)
             {
@@ -199,41 +232,11 @@ namespace Mezon.NET.WebSocket
             await _logger.InfoAsync("Disconnected").ConfigureAwait(false);
         }
 
-        public Task CompleteAsync()
-            => Task.Run(() => _readyPromise.TrySetResult(true));
-
-        public Task WaitAsync()
-            => _readyPromise.Task;
-
-        public void Cancel()
-        {
-            _readyPromise?.TrySetCanceled();
-            _connectionPromise?.TrySetCanceled();
-            _reconnectCancelToken?.Cancel();
-            _connectionCancelToken?.Cancel();
-        }
-        public void Error(Exception ex)
-        {
-            _readyPromise.TrySetException(ex);
-            _connectionPromise.TrySetException(ex);
-            _connectionCancelToken?.Cancel();
-        }
-        public void CriticalError(Exception ex)
-        {
-            _reconnectCancelToken?.Cancel();
-            Error(ex);
-        }
-        public void Reconnect()
-        {
-            _readyPromise.TrySetCanceled();
-            _connectionPromise.TrySetCanceled();
-            _connectionCancelToken?.Cancel();
-        }
         private async Task AcquireConnectionLock()
         {
             while (true)
             {
-                await StopAsync().ConfigureAwait(false);
+                await DisconnectAsync().ConfigureAwait(false);
                 if (await _stateLock.WaitAsync(0).ConfigureAwait(false))
                 {
                     break;

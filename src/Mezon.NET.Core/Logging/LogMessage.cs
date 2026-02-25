@@ -9,12 +9,12 @@ namespace Mezon.NET.Logging
     public struct LogMessage
     {
         /// <summary>
-        ///     Gets the severity of the log entry.
+        ///     Gets the level of the log entry.
         /// </summary>
         /// <returns>
-        ///     A <see cref="LogSeverity"/> enum to indicate the severeness of the incident or event.
+        ///     A <see cref="LogLevel"/> enum to indicate the severeness of the incident or event.
         /// </returns>
-        public LogSeverity Severity { get; }
+        public LogLevel Level { get; }
         /// <summary>
         ///     Gets the source of the log entry.
         /// </summary>
@@ -38,16 +38,16 @@ namespace Mezon.NET.Logging
         public Exception? Exception { get; }
 
         /// <summary>
-        ///     Initializes a new <see cref="LogMessage"/> struct with the severity, source, message of the event, and
+        ///     Initializes a new <see cref="LogMessage"/> struct with the level, source, message of the event, and
         ///     optionally, an exception.
         /// </summary>
-        /// <param name="severity">The severity of the event.</param>
+        /// <param name="level">The level of the event.</param>
         /// <param name="source">The source of the event.</param>
         /// <param name="message">The message of the event.</param>
         /// <param name="exception">The exception of the event.</param>
-        public LogMessage(LogSeverity severity, string source, string message, Exception? exception = null)
+        public LogMessage(LogLevel level, string source, string message, Exception? exception = null)
         {
-            Severity = severity;
+            Level = level;
             Source = source;
             Message = message;
             Exception = exception;
@@ -62,7 +62,7 @@ namespace Mezon.NET.Logging
             string? exMessage = fullException ? Exception?.ToString() : Exception?.Message;
 
             int maxLength = 1 +
-                (prependTimestamp ? 8 : 0) + 1 +
+                (prependTimestamp ? 18 : 0) + 2 +
                 (padSource.HasValue ? padSource.Value : sourceName?.Length ?? 0) + 1 +
                 (message?.Length ?? 0) +
                 (exMessage?.Length ?? 0) + 3;
@@ -89,7 +89,7 @@ namespace Mezon.NET.Logging
                     now = DateTime.Now;
                 }
 
-                string format = "HH:mm:ss";
+                string format = "yyyy-MM-dd HH:mm:ss";
                 builder.Append(now.ToString(format));
                 builder.Append(' ');
             }

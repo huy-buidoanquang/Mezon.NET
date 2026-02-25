@@ -16,11 +16,11 @@ namespace Mezon.NET.Queue
 
         private readonly ConcurrentDictionary<BucketId, object> _buckets;
         private readonly SemaphoreSlim _tokenLock;
-        private readonly CancellationTokenSource _cancelTokenSource; //Dispose token
+        private readonly CancellationTokenSource _cancelTokenSource;
         private CancellationTokenSource _clearToken;
         private CancellationToken _parentToken;
         private CancellationTokenSource _requestCancelTokenSource;
-        private CancellationToken _requestCancelToken; //Parent token + Clear token
+        private CancellationToken _requestCancelToken;
         private DateTimeOffset _waitUntil;
 
         // Gateway rate limiters (WebSocket only)
@@ -44,9 +44,9 @@ namespace Mezon.NET.Queue
             _buckets = new ConcurrentDictionary<BucketId, object>();
 
             // Initialize gateway rate limiters
-            _unbucketedLimiter = new GatewayRateLimiter(GatewayBucketType.Unbucketed, 117, 60);
-            _identifyLimiter = new GatewayRateLimiter(GatewayBucketType.Identify, 1, 5);
-            _presenceUpdateLimiter = new GatewayRateLimiter(GatewayBucketType.PresenceUpdate, 5, 60);
+            _unbucketedLimiter = new GatewayRateLimiter(BucketType.Unbucketed, 117, 60);
+            _identifyLimiter = new GatewayRateLimiter(BucketType.Identify, 1, 5);
+            _presenceUpdateLimiter = new GatewayRateLimiter(BucketType.PresenceUpdate, 5, 60);
 
             _cleanupTask = RunCleanup();
         }
@@ -104,6 +104,20 @@ namespace Mezon.NET.Queue
             return result;
         }
 
+        internal Task EnterGlobalAsync(int id, ApiRequest request)
+        {
+            int millis = (int)Math.Ceiling((_waitUntil - DateTimeOffset.UtcNow).TotalMilliseconds);
+            if (millis > 0)
+            {
+#if DEBUG_LIMITS
+                Debug.WriteLine($"[{id}] Sleeping {millis} ms (Pre-emptive) [Global]");
+#endif
+                return Task.Delay(millis);
+            }
+
+            return Task.CompletedTask;
+        }
+
         public async Task<TResponse> SendAsync<TRequest, TResponse>(RpcRequest<TRequest, TResponse> request)
             where TResponse : class
             where TRequest : class
@@ -123,6 +137,22 @@ namespace Mezon.NET.Queue
             var result = await bucket.SendAsync(request).ConfigureAwait(false);
             createdTokenSource?.Dispose();
             return result;
+        }
+
+        internal Task EnterGlobalAsync<TRequest, TResponse>(int id, RpcRequest<TRequest, TResponse> request)
+            where TResponse : class
+            where TRequest : class
+        {
+            int millis = (int)Math.Ceiling((_waitUntil - DateTimeOffset.UtcNow).TotalMilliseconds);
+            if (millis > 0)
+            {
+#if DEBUG_LIMITS
+                Debug.WriteLine($"[{id}] Sleeping {millis} ms (Pre-emptive) [Global]");
+#endif
+                return Task.Delay(millis);
+            }
+
+            return Task.CompletedTask;
         }
 
         public async Task SendAsync(WebSocketRequest request)
@@ -148,61 +178,26 @@ namespace Mezon.NET.Queue
             createdTokenSource?.Dispose();
         }
 
-        internal Task EnterGlobalAsync(int id, ApiRequest request)
-        {
-            int millis = (int)Math.Ceiling((_waitUntil - DateTimeOffset.UtcNow).TotalMilliseconds);
-            if (millis > 0)
-            {
-#if DEBUG_LIMITS
-                Debug.WriteLine($"[{id}] Sleeping {millis} ms (Pre-emptive) [Global]");
-#endif
-                return Task.Delay(millis);
-            }
-
-            return Task.CompletedTask;
-        }
-
-        internal Task EnterGlobalAsync<TRequest, TResponse>(int id, RpcRequest<TRequest, TResponse> request)
-            where TResponse : class
-            where TRequest : class
-        {
-            int millis = (int)Math.Ceiling((_waitUntil - DateTimeOffset.UtcNow).TotalMilliseconds);
-            if (millis > 0)
-            {
-#if DEBUG_LIMITS
-                Debug.WriteLine($"[{id}] Sleeping {millis} ms (Pre-emptive) [Global]");
-#endif
-                return Task.Delay(millis);
-            }
-
-            return Task.CompletedTask;
-        }
-
         internal async Task EnterGlobalAsync(int id, WebSocketRequest request)
         {
-            // Simplified WebSocket rate limiting using dedicated rate limiters
-            if (request.Options.GatewayBucketType == null)
+            if (request.Options.BucketType == null)
             {
-                // Default to unbucketed
                 await _unbucketedLimiter.WaitAsync(request.Options.CancelToken).ConfigureAwait(false);
                 return;
             }
 
-            var bucketType = request.Options.GatewayBucketType.Value;
+            var bucketType = request.Options.BucketType.Value;
 
-            // Special buckets (Identify, PresenceUpdate) consume from both their specific bucket AND global bucket
-            if (bucketType != GatewayBucketType.Unbucketed)
+            if (bucketType != BucketType.Unbucketed)
             {
-                // Wait for global bucket first
                 await _unbucketedLimiter.WaitAsync(request.Options.CancelToken).ConfigureAwait(false);
             }
 
-            // Then wait for specific bucket
             var limiter = bucketType switch
             {
-                GatewayBucketType.Unbucketed => _unbucketedLimiter,
-                GatewayBucketType.Identify => _identifyLimiter,
-                GatewayBucketType.PresenceUpdate => _presenceUpdateLimiter,
+                BucketType.Unbucketed => _unbucketedLimiter,
+                BucketType.Identify => _identifyLimiter,
+                BucketType.PresenceUpdate => _presenceUpdateLimiter,
                 _ => _unbucketedLimiter
             };
 

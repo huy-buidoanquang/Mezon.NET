@@ -4,20 +4,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Mezon.NET.Abstractions;
 
-// Forward declare enum to avoid circular dependency
-namespace Mezon.NET.Core
-{
-    /// <summary>
-    ///     Gateway bucket types for WebSocket rate limiting.
-    /// </summary>
-    public enum GatewayBucketType
-    {
-        Unbucketed = 0,
-        Identify = 1,
-        PresenceUpdate = 2,
-    }
-}
-
 namespace Mezon.NET.Core
 {
     /// <summary>
@@ -41,7 +27,8 @@ namespace Mezon.NET.Core
         /// <returns>
         ///     A <see cref="int"/> in milliseconds for when the request times out.
         /// </returns>
-        public int? Timeout { get; set; }
+        public int? ApiSendTimeout { get; set; }
+        public int? SocketSendTimeout { get; set; }
         /// <summary>
         ///     Gets or sets the cancellation token for this request.
         /// </summary>
@@ -88,7 +75,7 @@ namespace Mezon.NET.Core
         /// <summary>
         ///     Gets or sets the gateway bucket type for WebSocket requests.
         /// </summary>
-        internal GatewayBucketType? GatewayBucketType { get; set; }
+        internal BucketType? BucketType { get; set; }
 
         public IDictionary<string, IEnumerable<string>> RequestHeaders { get; }
 
@@ -121,7 +108,8 @@ namespace Mezon.NET.Core
         /// </summary>
         public RequestOptions()
         {
-            Timeout = MezonConfiguration.DefaultTimeoutInMilliseconds;
+            ApiSendTimeout = MezonConfiguration.DefaultApiTimeoutInMilliseconds;
+            SocketSendTimeout = MezonConfiguration.DefaultSocketTimeoutInMilliseconds;
             RequestHeaders = new Dictionary<string, IEnumerable<string>>();
         }
 

@@ -7,23 +7,23 @@ namespace Mezon.NET.Api
     /// </summary>
     internal struct GatewayBucket
     {
-        public static readonly GatewayBucket Unbucketed = new(GatewayBucketType.Unbucketed, 117, 60);
-        public static readonly GatewayBucket Identify = new(GatewayBucketType.Identify, 1, 5);
-        public static readonly GatewayBucket PresenceUpdate = new(GatewayBucketType.PresenceUpdate, 5, 60);
+        public static readonly GatewayBucket Unbucketed = new(BucketType.Unbucketed, 117, 60);
+        public static readonly GatewayBucket Identify = new(BucketType.Identify, 1, 5);
+        public static readonly GatewayBucket PresenceUpdate = new(BucketType.PresenceUpdate, 5, 60);
 
-        public static GatewayBucket Get(GatewayBucketType type) => type switch
+        public static GatewayBucket Get(BucketType type) => type switch
         {
-            GatewayBucketType.Unbucketed => Unbucketed,
-            GatewayBucketType.Identify => Identify,
-            GatewayBucketType.PresenceUpdate => PresenceUpdate,
+            BucketType.Unbucketed => Unbucketed,
+            BucketType.Identify => Identify,
+            BucketType.PresenceUpdate => PresenceUpdate,
             _ => throw new System.ArgumentOutOfRangeException(nameof(type))
         };
 
-        public GatewayBucketType Type { get; }
+        public BucketType Type { get; }
         public int WindowCount { get; }
         public int WindowSeconds { get; }
 
-        private GatewayBucket(GatewayBucketType type, int count, int seconds)
+        private GatewayBucket(BucketType type, int count, int seconds)
         {
             Type = type;
             WindowCount = count;

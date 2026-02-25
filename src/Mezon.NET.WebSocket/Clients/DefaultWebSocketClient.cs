@@ -2,17 +2,11 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.IO;
 using System.Net;
-using System.Net.Sockets;
 using System.Net.WebSockets;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Mezon.NET.Api;
-using Mezon.NET.Core;
 using Mezon.NET.Abstractions;
-using Mezon.Protobuf.Realtime;
 
 namespace Mezon.NET.WebSocket
 {
@@ -21,9 +15,11 @@ namespace Mezon.NET.WebSocket
         public const int InitialBufferSize = 16 * 1024; //16KB
         public const int SendChunkSize = 4 * 1024; //4KB
         private const int HR_TIMEOUT = -2147012894;
+        private const int WS_CONNECTING_RETRY = 10;
 
-        public event BinaryMessageReceivedHandler? BinaryMessageReceived;
+        public event Func<ReadOnlyMemory<byte>, ValueTask>? MessageReceived;
         public event Func<Task>? Opened;
+        public event Func<Task>? Ready;
         public event Func<Exception, Task>? Closed;
         public event Func<Exception, Task>? ErrorOccurred;
 
@@ -82,6 +78,7 @@ namespace Mezon.NET.WebSocket
             await _client.ConnectAsync(new Uri(host), _cancelToken).ConfigureAwait(false);
             await OnOpened().ConfigureAwait(false);
             _receiveTask = ReceiveLoopAsync(_cancelToken);
+            await OnReady().ConfigureAwait(false);
         }
 
         public async Task DisconnectAsync(int closeCode = 1000)
@@ -148,7 +145,19 @@ namespace Mezon.NET.WebSocket
 
         public async ValueTask SendAsync(ReadOnlyMemory<byte> data)
         {
-            if (_client == null || _client.State != WebSocketState.Open)
+            if (_client == null)
+            {
+                return;
+            }
+
+            int retry = 0;
+            while (_client.State == WebSocketState.Connecting && retry < WS_CONNECTING_RETRY)
+            {
+                await Task.Delay(100);
+                retry++;
+            }
+
+            if (_client.State != WebSocketState.Open)
             {
                 return;
             }
@@ -245,11 +254,12 @@ namespace Mezon.NET.WebSocket
             }
         }
 
+        #region Event invokers
         private async Task OnMesasageReceived(byte[] bytes, int length)
         {
-            if (BinaryMessageReceived != null)
+            if (MessageReceived != null)
             {
-                await BinaryMessageReceived.Invoke(new ReadOnlyMemory<byte>(bytes, 0, length)).ConfigureAwait(false);
+                await MessageReceived.Invoke(new ReadOnlyMemory<byte>(bytes, 0, length)).ConfigureAwait(false);
             }
         }
 
@@ -295,6 +305,15 @@ namespace Mezon.NET.WebSocket
                 await Opened.Invoke().ConfigureAwait(false);
             }
         }
+
+        private async Task OnReady()
+        {
+            if (Ready != null)
+            {
+                await Ready.Invoke().ConfigureAwait(false);
+            }
+        }
+        #endregion
 
         public void Dispose()
         {

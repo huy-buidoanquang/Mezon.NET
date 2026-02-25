@@ -1,11 +1,10 @@
 using System;
+using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 using Mezon.NET.Abstractions;
-using Mezon.NET.Api;
 using Mezon.NET.Core;
 using Mezon.NET.Logging;
-using static Mezon.Protobuf.Api.Friend.Types;
 
 namespace Mezon.NET.WebSocket
 {
@@ -14,10 +13,17 @@ namespace Mezon.NET.WebSocket
         private readonly SocketConnectionManager _connection;
         private readonly SemaphoreSlim _stateLock;
         private readonly Logger _socketLogger;
+        private readonly ConcurrentQueue<long> _heartbeatTimes;
 
+        private Task? _heartbeatTask;
+        private long _lastMessageTime;
         internal int? HandlerTimeout { get; private set; }
 
         public override Api.MezonClient RestClient { get; }
+        /// <inheritdoc />
+        public override long Latency { get; protected set; }
+        /// <inheritdoc />
+        public override ConnectionState ConnectionState => _connection.State;
 
         public MezonClient() : this(new MezonSocketClientConfiguration())
         {
@@ -29,25 +35,67 @@ namespace Mezon.NET.WebSocket
 
         public MezonClient(MezonSocketClientConfiguration configuration, IMezonSocketClient socketClient) : base(configuration, socketClient)
         {
-            _stateLock = new SemaphoreSlim(1);
+            _stateLock = new SemaphoreSlim(1, 1);
             _socketLogger = LogManager.CreateLogger("MezonSocketClient");
+            _heartbeatTimes = new ConcurrentQueue<long>();
             RestClient = new Api.MezonClient(configuration, ApiClient);
-            HandlerTimeout = configuration.HandlerTimeout;
-
-            RestClient = new Api.MezonClient(configuration, ApiClient);
+            HandlerTimeout = configuration.SocketHandlerTimeoutInMilliseconds;
             _connection = new SocketConnectionManager(
                 _stateLock,
-                _socketLogger, configuration.ConnectionTimeout,
-               OnConnectingAsync, OnDisconnectingAsync, x => ApiClient.Disconnected += x);
+                _socketLogger,
+                configuration.ConnectionTimeoutInMilliseconds,
+               OnConnectingAsync,
+               OnDisconnectingAsync,
+               x => ApiClient.DisconnectedEvent += x);
             _connection.Connected += () => TimedInvokeAsync(_connectedEvent, nameof(Connected));
             _connection.Disconnected += (ex, recon) => TimedInvokeAsync(_disconnectedEvent, nameof(Disconnected), ex);
+            ApiClient.SocketSentMessageEvent += async msg => await _socketLogger.DebugAsync(msg).ConfigureAwait(false);
+            ApiClient.ReceivedMessageEvent += ProcessMessageAsync;
         }
 
         private static MezonSocketApiClient CreateSocketApiClient(MezonSocketClientConfiguration configuration)
             => new MezonSocketApiClient(configuration.HttpClientProvider, configuration.GRPCClientProvider, configuration.WebSocketClientProvider, configuration);
 
-        private async Task OnConnectingAsync() => await Task.CompletedTask;
-        private async Task OnDisconnectingAsync(Exception ex) => await Task.CompletedTask;
+        private async Task OnConnectingAsync()
+        {
+            try
+            {
+                await _socketLogger.TraceAsync("Connecting MezonSocket").ConfigureAwait(false);
+                await ApiClient.ConnectAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                await _socketLogger.TraceAsync($"Error {ex.Message}").ConfigureAwait(false);
+            }
+            finally
+            {
+                await _socketLogger.TraceAsync("Connected MezonSocket").ConfigureAwait(false);
+            }
+
+            // TODO:
+            // Wait for PONG event or connection timeout before allowing next connection attempt
+            await _connection.WaitAsync().ConfigureAwait(false);
+        }
+
+        private async Task OnDisconnectingAsync(Exception ex)
+        {
+            await _socketLogger.TraceAsync("Disconnecting MezonSocket").ConfigureAwait(false);
+            await ApiClient.DisconnectAsync(ex).ConfigureAwait(false);
+
+            //Wait for tasks to complete
+            await _socketLogger.TraceAsync("Waiting for heartbeater").ConfigureAwait(false);
+            var heartbeatTask = _heartbeatTask;
+            if (heartbeatTask != null)
+            {
+                await heartbeatTask.ConfigureAwait(false);
+            }
+
+            _heartbeatTask = null;
+
+            while (_heartbeatTimes.TryDequeue(out _))
+            { }
+            await _socketLogger.TraceAsync("Disconnected MezonSocket").ConfigureAwait(false);
+        }
 
         private Task TimedInvokeAsync(AsyncEvent<Func<Task>> eventHandler, string name)
         {
@@ -128,7 +176,7 @@ namespace Mezon.NET.WebSocket
                 var handlersTask = action();
                 if (await Task.WhenAny(timeoutTask, handlersTask).ConfigureAwait(false) == timeoutTask)
                 {
-                    await _socketLogger.WarningAsync($"A {name} handler is blocking the gateway task.").ConfigureAwait(false);
+                    await _socketLogger.WarningAsync($"A {name} handler is blocking the socket task.").ConfigureAwait(false);
                 }
                 await handlersTask.ConfigureAwait(false);
             }
@@ -138,14 +186,60 @@ namespace Mezon.NET.WebSocket
             }
         }
 
-        public async Task ConnectAsync()
+        private async Task RunHeartbeatAsync(CancellationToken cancelToken)
         {
-            await ApiClient.ConnectAsync();
+            try
+            {
+                await _socketLogger.DebugAsync("Heartbeat Started").ConfigureAwait(false);
+                while (!cancelToken.IsCancellationRequested)
+                {
+                    long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+                    if (_heartbeatTimes.TryPeek(out long oldestHeartBeat))
+                    {
+                        if ((now - oldestHeartBeat) > Configuration.HeartbeatIntervalInMilliseconds)
+                        {
+                            if (ConnectionState == ConnectionState.Connected)
+                            {
+                                _connection.Error(new Exception("Server missed last heartbeat"));
+                                return;
+                            }
+                        }
+                    }
+
+                    _heartbeatTimes.Enqueue(now);
+                    try
+                    {
+                        await ApiClient.Ping().ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        await _socketLogger.WarningAsync("Heartbeat Errored", ex).ConfigureAwait(false);
+                    }
+
+                    int delay = (int)Math.Max(0, Configuration.HeartbeatIntervalInMilliseconds - Latency);
+                    await Task.Delay(delay, cancelToken).ConfigureAwait(false);
+                }
+                await _socketLogger.DebugAsync("Heartbeat Stopped").ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                await _socketLogger.DebugAsync("Heartbeat Stopped").ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                await _socketLogger.ErrorAsync("Heartbeat Errored", ex).ConfigureAwait(false);
+            }
         }
 
-        public async Task DisconnectAsync()
+        public override async Task ConnectAsync()
         {
-            await ApiClient.DisconnectAsync();
+            await _connection.ConnectAsync().ConfigureAwait(false);
+        }
+
+        public override async Task DisconnectAsync()
+        {
+            await _connection.DisconnectAsync().ConfigureAwait(false);
         }
     }
 }

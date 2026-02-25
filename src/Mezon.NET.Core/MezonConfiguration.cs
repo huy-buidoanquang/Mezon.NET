@@ -6,7 +6,8 @@ namespace Mezon.NET.Core
     public class MezonConfiguration
     {
         public const int MaxTimeRetry = 10;
-        public const int DefaultTimeoutInMilliseconds = 7000;
+        public const int DefaultApiTimeoutInMilliseconds = 7000;
+        public const int DefaultSocketTimeoutInMilliseconds = 3000;
         public const string DefaultMMNApi = "https://dong.mezon.ai/mmn-api/";
         public const string DefaultZKApi = "https://dong.mezon.ai/zk-api/";
         public const string DefaultServerKey = "defaultkey";
@@ -62,9 +63,9 @@ namespace Mezon.NET.Core
         ///     Gets or sets the minimum log level severity that will be sent to the Log event.
         /// </summary>
         /// <returns>
-        ///     The currently set <see cref="LogSeverity"/> for logging level.
+        ///     The currently set <see cref="LogLevel"/> for logging level.
         /// </returns>
-        public LogSeverity LogLevel { get; set; } = LogSeverity.Info;
+        public LogLevel LogLevel { get; set; } = LogLevel.Information;
 
         /// <summary>
         ///     Gets or sets whether the initial log entry should be printed.
@@ -75,7 +76,9 @@ namespace Mezon.NET.Core
         /// </remarks>
         internal bool DisplayInitialLog { get; set; } = true;
 
-        public int TimeoutInMilliseconds { get; set; } = DefaultTimeoutInMilliseconds;
+        public int ApiTimeoutInMilliseconds { get; set; } = DefaultApiTimeoutInMilliseconds;
+
+        public int SocketTimeoutInMilliseconds { get; set; } = DefaultSocketTimeoutInMilliseconds;
 
         public MezonConfiguration()
         {

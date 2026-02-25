@@ -18,12 +18,12 @@ namespace Mezon.NET.Api
         public event Func<Task> LoggedOut { add { _loggedOutEvent.Add(value); } remove { _loggedOutEvent.Remove(value); } }
         private readonly AsyncEvent<Func<Task>> _loggedOutEvent = new AsyncEvent<Func<Task>>();
 
-        internal readonly AsyncEvent<Func<string, string, double, Task>> _sentRequest = new AsyncEvent<Func<string, string, double, Task>>();
+        internal readonly AsyncEvent<Func<string, string, double, Task>> _apiSentRequestEvent = new AsyncEvent<Func<string, string, double, Task>>();
         /// <summary>
         ///     Fired when a REST request is sent to the API. First parameter is the HTTP method,
         ///     second is the endpoint, and third is the time taken to complete the request.
         /// </summary>
-        public event Func<string, string, double, Task> SentRequest { add { _sentRequest.Add(value); } remove { _sentRequest.Remove(value); } }
+        public event Func<string, string, double, Task> ApiSentRequestEvent { add { _apiSentRequestEvent.Add(value); } remove { _apiSentRequestEvent.Remove(value); } }
 
         internal readonly Logger _apiLogger;
         private readonly SemaphoreSlim _stateLock;
@@ -47,9 +47,10 @@ namespace Mezon.NET.Api
         {
             Configuration = configuration;
             ApiClient = apiClient;
+
             LogManager = new LogManager(configuration.LogLevel);
-            SessionManager.GetOrCreate(configuration, apiClient);
             LogManager.Message += async msg => await _logEvent.InvokeAsync(msg).ConfigureAwait(false);
+            SessionManager.GetOrCreate(configuration, apiClient, LogManager);
 
             _stateLock = new SemaphoreSlim(1, 1);
             _apiLogger = LogManager.CreateLogger("MezonClient");
@@ -59,15 +60,15 @@ namespace Mezon.NET.Api
             {
                 if (info == null)
                 {
-                    await _apiLogger.VerboseAsync($"Preemptive Rate limit triggered: {endpoint} {(id.IsHashBucket ? $"(Bucket: {id.BucketHash})" : "")}").ConfigureAwait(false);
+                    await _apiLogger.DebugAsync($"Preemptive Rate limit triggered: {endpoint} {(id.IsHashBucket ? $"(Bucket: {id.BucketHash})" : "")}").ConfigureAwait(false);
                 }
                 else
                 {
                     await _apiLogger.WarningAsync($"Rate limit triggered: {endpoint} Remaining: {info.Value.RetryAfter}s {(id.IsHashBucket ? $"(Bucket: {id.BucketHash})" : "")}").ConfigureAwait(false);
                 }
             };
-            ApiClient.SentRequest += async (method, endpoint, millis) => await _apiLogger.VerboseAsync($"{method} {endpoint}: {millis} ms").ConfigureAwait(false);
-            ApiClient.SentRequest += (method, endpoint, millis) => _sentRequest.InvokeAsync(method, endpoint, millis);
+            ApiClient.ApiSentRequestEvent += async (method, endpoint, millis) => await _apiLogger.DebugAsync($"{method} {endpoint}: {millis} ms").ConfigureAwait(false);
+            ApiClient.ApiSentRequestEvent += (method, endpoint, millis) => _apiSentRequestEvent.InvokeAsync(method, endpoint, millis);
         }
 
         public virtual async Task<bool> LoginAsync(ISession session)
@@ -94,29 +95,29 @@ namespace Mezon.NET.Api
             }
         }
 
-        public virtual async Task<bool> LoginAsync()
-        {
-            await _stateLock.WaitAsync().ConfigureAwait(false);
-            try
-            {
-                await SessionManager.Instance.LoginAsync().ConfigureAwait(false);
-                if (SessionManager.Instance.CurrentSession().IsExpired())
-                {
-                    return false;
-                }
+        //public virtual async Task<bool> LoginAsync()
+        //{
+        //    await _stateLock.WaitAsync().ConfigureAwait(false);
+        //    try
+        //    {
+        //        await SessionManager.Instance.LoginAsync(Configuration., Configuration.ClientSecret).ConfigureAwait(false);
+        //        if (SessionManager.Instance.CurrentSession().IsExpired())
+        //        {
+        //            return false;
+        //        }
 
-                await LoginInternalAsync(TokenType, SessionManager.Instance.CurrentSession().AuthToken).ConfigureAwait(false);
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-            finally
-            {
-                _stateLock.Release();
-            }
-        }
+        //        await LoginInternalAsync(TokenType, SessionManager.Instance.CurrentSession().AuthToken).ConfigureAwait(false);
+        //        return true;
+        //    }
+        //    catch
+        //    {
+        //        return false;
+        //    }
+        //    finally
+        //    {
+        //        _stateLock.Release();
+        //    }
+        //}
 
         internal virtual async Task LoginInternalAsync(TokenType tokenType, string token)
         {
@@ -183,6 +184,13 @@ namespace Mezon.NET.Api
         }
 
         internal virtual Task OnLogoutAsync() => Task.CompletedTask;
+
+        /// <inheritdoc />
+        Task IMezonClient.ConnectAsync()
+            => Task.CompletedTask;
+        /// <inheritdoc />
+        Task IMezonClient.DisconnectAsync()
+            => Task.CompletedTask;
 
         internal virtual void Dispose(bool disposing)
         {
