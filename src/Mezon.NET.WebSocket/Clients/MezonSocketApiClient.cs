@@ -1,9 +1,10 @@
 using System;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
-using Mezon.NET.Api;
 using Mezon.NET.Abstractions;
+using Mezon.NET.Api;
 using Mezon.NET.Core;
 using Mezon.NET.Queue;
 using Mezon.Protobuf.Realtime;
@@ -12,15 +13,17 @@ namespace Mezon.NET.WebSocket
 {
     internal class MezonSocketApiClient : MezonApiClient, IMezonSocketClient, IDisposable, IAsyncDisposable
     {
-        public event Func<Envelope, Task> SentMessage { add { _sentMessageEvent.Add(value); } remove { _sentMessageEvent.Remove(value); } }
-        private readonly AsyncEvent<Func<Envelope, Task>> _sentMessageEvent = new AsyncEvent<Func<Envelope, Task>>();
-        public event Func<Envelope, Task> ReceivedMessageEvent { add { _receivedMessageEvent.Add(value); } remove { _receivedMessageEvent.Remove(value); } }
-        private readonly AsyncEvent<Func<Envelope, Task>> _receivedMessageEvent = new AsyncEvent<Func<Envelope, Task>>();
+        public event Func<string, Task> SocketSentMessageEvent { add { _socketSentMessageEvent.Add(value); } remove { _socketSentMessageEvent.Remove(value); } }
+        private readonly AsyncEvent<Func<string, Task>> _socketSentMessageEvent = new AsyncEvent<Func<string, Task>>();
 
-        public event Func<Exception, Task> Disconnected { add { _disconnectedEvent.Add(value); } remove { _disconnectedEvent.Remove(value); } }
+        public event Func<SoketMessageCode, Envelope, Task> ReceivedMessageEvent { add { _receivedMessageEvent.Add(value); } remove { _receivedMessageEvent.Remove(value); } }
+        private readonly AsyncEvent<Func<SoketMessageCode, Envelope, Task>> _receivedMessageEvent = new AsyncEvent<Func<SoketMessageCode, Envelope, Task>>();
+
+        public event Func<Exception, Task> DisconnectedEvent { add { _disconnectedEvent.Add(value); } remove { _disconnectedEvent.Remove(value); } }
         private readonly AsyncEvent<Func<Exception, Task>> _disconnectedEvent = new AsyncEvent<Func<Exception, Task>>();
 
         private CancellationTokenSource? _connectCancelToken;
+
 
         internal IWebSocketClient WebSocketClient { get; }
 
@@ -31,9 +34,10 @@ namespace Mezon.NET.WebSocket
         {
             WebSocketClient = webSocketClientProvider();
             WebSocketClient.Opened += WebSocketClient_Opened;
+            WebSocketClient.Ready += WebSocketClient_Ready;
             WebSocketClient.Closed += WebSocketClient_Closed;
             WebSocketClient.ErrorOccurred += WebSocketClient_ErrorOccurred;
-            WebSocketClient.BinaryMessageReceived += WebSocketClient_BinaryMessageReceived;
+            WebSocketClient.MessageReceived += WebSocketClient_MessageReceived;
         }
 
         public async Task ConnectAsync()
@@ -48,8 +52,7 @@ namespace Mezon.NET.WebSocket
                 _stateLock.Release();
             }
         }
-        /// <exception cref="InvalidOperationException">The client must be logged in before connecting.</exception>
-        /// <exception cref="NotSupportedException">This client is not configured with WebSocket support.</exception>
+
         internal override async Task ConnectInternalAsync()
         {
             if (LoginState != LoginState.LoggedIn)
@@ -70,11 +73,6 @@ namespace Mezon.NET.WebSocket
                 _connectCancelToken?.Dispose();
                 _connectCancelToken = new CancellationTokenSource();
                 WebSocketClient.SetCancelToken(_connectCancelToken.Token);
-
-#if DEBUG_PACKETS
-                Console.WriteLine("Connecting to gateway: " + _webSocketUrl);
-#endif
-
                 await WebSocketClient.ConnectAsync(GetWebSocketUrl()).ConfigureAwait(false);
                 ConnectionState = ConnectionState.Connected;
             }
@@ -97,7 +95,7 @@ namespace Mezon.NET.WebSocket
                 _stateLock.Release();
             }
         }
-        /// <exception cref="NotSupportedException">This client is not configured with WebSocket support.</exception>
+
         internal override async Task DisconnectInternalAsync(Exception? ex = null)
         {
             if (WebSocketClient == null)
@@ -121,48 +119,53 @@ namespace Mezon.NET.WebSocket
             ConnectionState = ConnectionState.Disconnected;
         }
 
-        public Task SendAsync(ReadOnlyMemory<byte> bytes, RequestOptions? options = null)
-            => SendInternalAsync(bytes, options);
+        public Task SendAsync(string socketName, ReadOnlyMemory<byte> bytes, RequestOptions? options = null)
+            => SendInternalAsync(socketName, bytes, options);
 
-        private async Task SendInternalAsync(ReadOnlyMemory<byte> bytes, RequestOptions? options = null)
+        private async Task SendInternalAsync(string socketName, ReadOnlyMemory<byte> bytes, RequestOptions? options = null)
         {
             options ??= RequestOptions.CreateOrClone(options);
             CheckState();
 
             await RequestQueue.SendAsync(new WebSocketRequest(WebSocketClient, bytes, false, options)).ConfigureAwait(false);
-            await _sentMessageEvent.InvokeAsync(new Envelope()).ConfigureAwait(false);
+            await _socketSentMessageEvent.InvokeAsync($"Sent:     {socketName} {bytes.Length} bytes").ConfigureAwait(false);
+
+        }
+
+        public async Task Ping(RequestOptions? options = null)
+        {
+            options ??= RequestOptions.CreateOrClone(options);
+            options.BucketType = BucketType.Unbucketed;
+            var envelope = new Envelope
+            {
+                Ping = new Ping()
+            };
+            await SendAsync("Ping", envelope.ToByteArray(), options);
         }
 
         public async Task JoinClanChat(long clanId, RequestOptions? options = null)
         {
             options ??= RequestOptions.CreateOrClone(options);
-            options.GatewayBucketType = GatewayBucketType.Unbucketed;
-            var bucket = new BucketIds();
-            var envelop = new Envelope();
-            envelop.ClanJoin = new ClanJoin()
+            options.BucketType = BucketType.Unbucketed;
+
+            var envelope = new Envelope
             {
-                ClanId = clanId,
+                ClanJoin = new ClanJoin { ClanId = clanId }
             };
-            await SendAsync(envelop.ToByteArray(), options);
+            await SendAsync("JoinClanChat", envelope.ToByteArray(), options);
         }
 
         public async Task JoinChannelChat(long clanId, long channelId, int channelType, bool isPublic, RequestOptions? options = null)
         {
             options ??= RequestOptions.CreateOrClone(options);
-            var bucket = new BucketIds();
-            var payload = new ChannelJoin()
+
+            var envelope = new Envelope
             {
-                ClanId = clanId,
-                ChannelId = channelId,
-                ChannelType = channelType,
-                IsPublic = isPublic
+                ChannelJoin = new ChannelJoin { ClanId = clanId, ChannelId = channelId, ChannelType = channelType, IsPublic = isPublic }
             };
-            await SendAsync(payload.ToByteArray(), options);
+            await SendAsync("JoinChannelChat", envelope.ToByteArray(), options);
         }
 
-        /// <summary>
-        ///     Appends necessary query parameters to the specified gateway URL.
-        /// </summary>
         private string GetWebSocketUrl()
         {
             var session = SessionManager.Instance.CurrentSession();
@@ -173,10 +176,25 @@ namespace Mezon.NET.WebSocket
             return $"{scheme}{wsUrl}{port}/ws?lang=en&token={Uri.EscapeDataString(AuthToken)}&format=protobuf";
         }
 
+        #region Event Handlers
         private Task WebSocketClient_Opened()
         {
-            Console.WriteLine("WebSocket connection opened.");
             return Task.CompletedTask;
+        }
+
+        private async Task WebSocketClient_Ready()
+        {
+            try
+            {
+                if (_receivedMessageEvent.HasSubscribers)
+                {
+                    await _receivedMessageEvent.InvokeAsync(SoketMessageCode.Ready, new Envelope()).ConfigureAwait(false);
+                }
+            }
+            catch (Exception)
+            {
+                await Task.CompletedTask;
+            }
         }
 
         private async Task WebSocketClient_ErrorOccurred(Exception exception)
@@ -184,13 +202,16 @@ namespace Mezon.NET.WebSocket
             Console.WriteLine($"WebSocket error occurred: {exception.Message}");
         }
 
-        private Task WebSocketClient_Closed(Exception arg)
+        private async Task WebSocketClient_Closed(Exception ex)
         {
-            Console.WriteLine("WebSocket connection closed.");
-            return Task.CompletedTask;
+            await DisconnectAsync().ConfigureAwait(false);
+            if (_disconnectedEvent.HasSubscribers)
+            {
+                await _disconnectedEvent.InvokeAsync(ex).ConfigureAwait(false);
+            }
         }
 
-        private ValueTask WebSocketClient_BinaryMessageReceived(ReadOnlyMemory<byte> data)
+        private ValueTask WebSocketClient_MessageReceived(ReadOnlyMemory<byte> data)
         {
             if (data.Length == 0)
             {
@@ -203,12 +224,13 @@ namespace Mezon.NET.WebSocket
 
             try
             {
-                var envelop = Envelope.Parser.ParseFrom(data.Span);
-                Console.WriteLine(envelop.ToString());
+                if (_receivedMessageEvent.HasSubscribers)
+                {
+                    _receivedMessageEvent.InvokeAsync(SoketMessageCode.Data, Envelope.Parser.ParseFrom(data.Span)).ConfigureAwait(false);
+                }
             }
             catch (Exception)
             {
-                throw;
             }
 
 #if NET6_0_OR_GREATER
@@ -217,6 +239,7 @@ namespace Mezon.NET.WebSocket
             return new ValueTask();
 #endif
         }
+        #endregion
 
         internal override void Dispose(bool disposing)
         {

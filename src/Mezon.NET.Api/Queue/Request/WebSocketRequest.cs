@@ -25,7 +25,7 @@ namespace Mezon.NET.Queue
             Data = data;
             IgnoreLimit = ignoreLimit;
             Options = options;
-            TimeoutAt = options.Timeout.HasValue ? DateTimeOffset.UtcNow.AddMilliseconds(options.Timeout.Value) : (DateTimeOffset?)null;
+            TimeoutAt = options.ApiSendTimeout.HasValue ? DateTimeOffset.UtcNow.AddMilliseconds(options.ApiSendTimeout.Value) : (DateTimeOffset?)null;
             CancelToken = options.CancelToken;
             Promise = new TaskCompletionSource<Stream>();
         }

@@ -6,23 +6,23 @@ namespace Mezon.NET.Logging
 {
     public class LogManager
     {
-        public LogSeverity Level { get; }
+        public LogLevel Level { get; }
         private Logger ClientLogger { get; }
 
         public event Func<LogMessage, Task> Message { add { _messageEvent.Add(value); } remove { _messageEvent.Remove(value); } }
         private readonly AsyncEvent<Func<LogMessage, Task>> _messageEvent = new AsyncEvent<Func<LogMessage, Task>>();
 
-        public LogManager(LogSeverity minSeverity)
+        public LogManager(LogLevel minLevel)
         {
-            Level = minSeverity;
+            Level = minLevel;
             ClientLogger = new Logger(this, "Mezon.NET");
         }
 
-        public async Task LogAsync(LogSeverity severity, string source, Exception? ex)
+        public async Task LogAsync(LogLevel severity, string source, Exception? ex)
         {
             try
             {
-                if (severity <= Level)
+                if (severity >= Level)
                 {
                     await _messageEvent.InvokeAsync(new LogMessage(severity, source, string.Empty, ex)).ConfigureAwait(false);
                 }
@@ -32,11 +32,11 @@ namespace Mezon.NET.Logging
                 // ignored
             }
         }
-        public async Task LogAsync(LogSeverity severity, string source, string message, Exception? ex = null)
+        public async Task LogAsync(LogLevel severity, string source, string message, Exception? ex = null)
         {
             try
             {
-                if (severity <= Level)
+                if (severity >= Level)
                 {
                     await _messageEvent.InvokeAsync(new LogMessage(severity, source, message, ex)).ConfigureAwait(false);
                 }
@@ -46,66 +46,49 @@ namespace Mezon.NET.Logging
                 // ignored
             }
         }
-
-        public async Task LogAsync(LogSeverity severity, string source, FormattableString message, Exception? ex = null)
+        public async Task LogAsync(LogLevel severity, string source, FormattableString message, Exception? ex = null)
         {
             try
             {
-                if (severity <= Level)
+                if (severity >= Level)
                 {
                     await _messageEvent.InvokeAsync(new LogMessage(severity, source, message.ToString(), ex)).ConfigureAwait(false);
                 }
             }
             catch { }
         }
-
-
         public Task ErrorAsync(string source, Exception? ex)
-            => LogAsync(LogSeverity.Error, source, ex);
+            => LogAsync(LogLevel.Error, source, ex);
         public Task ErrorAsync(string source, string message, Exception? ex = null)
-            => LogAsync(LogSeverity.Error, source, message, ex);
-
+            => LogAsync(LogLevel.Error, source, message, ex);
         public Task ErrorAsync(string source, FormattableString message, Exception? ex = null)
-            => LogAsync(LogSeverity.Error, source, message, ex);
-
-
+            => LogAsync(LogLevel.Error, source, message, ex);
         public Task WarningAsync(string source, Exception? ex)
-            => LogAsync(LogSeverity.Warning, source, ex);
+            => LogAsync(LogLevel.Warning, source, ex);
         public Task WarningAsync(string source, string message, Exception? ex = null)
-            => LogAsync(LogSeverity.Warning, source, message, ex);
-
+            => LogAsync(LogLevel.Warning, source, message, ex);
         public Task WarningAsync(string source, FormattableString message, Exception? ex = null)
-            => LogAsync(LogSeverity.Warning, source, message, ex);
-
-
+            => LogAsync(LogLevel.Warning, source, message, ex);
         public Task InfoAsync(string source, Exception? ex)
-            => LogAsync(LogSeverity.Info, source, ex);
+            => LogAsync(LogLevel.Information, source, ex);
         public Task InfoAsync(string source, string message, Exception? ex = null)
-            => LogAsync(LogSeverity.Info, source, message, ex);
+            => LogAsync(LogLevel.Information, source, message, ex);
         public Task InfoAsync(string source, FormattableString message, Exception? ex = null)
-            => LogAsync(LogSeverity.Info, source, message, ex);
-
-
-        public Task VerboseAsync(string source, Exception? ex)
-            => LogAsync(LogSeverity.Verbose, source, ex);
-        public Task VerboseAsync(string source, string message, Exception? ex = null)
-            => LogAsync(LogSeverity.Verbose, source, message, ex);
-        public Task VerboseAsync(string source, FormattableString message, Exception? ex = null)
-            => LogAsync(LogSeverity.Verbose, source, message, ex);
-
-
+            => LogAsync(LogLevel.Information, source, message, ex);
         public Task DebugAsync(string source, Exception? ex)
-            => LogAsync(LogSeverity.Debug, source, ex);
+            => LogAsync(LogLevel.Debug, source, ex);
         public Task DebugAsync(string source, string message, Exception? ex = null)
-            => LogAsync(LogSeverity.Debug, source, message, ex);
+            => LogAsync(LogLevel.Debug, source, message, ex);
         public Task DebugAsync(string source, FormattableString message, Exception? ex = null)
-            => LogAsync(LogSeverity.Debug, source, message, ex);
-
-
+            => LogAsync(LogLevel.Debug, source, message, ex);
+        public Task TraceAsync(string source, Exception? ex)
+            => LogAsync(LogLevel.Trace, source, ex);
+        public Task TraceAsync(string source, string message, Exception? ex = null)
+            => LogAsync(LogLevel.Trace, source, message, ex);
+        public Task TraceAsync(string source, FormattableString message, Exception? ex = null)
+            => LogAsync(LogLevel.Trace, source, message, ex);
         public Logger CreateLogger(string name) => new Logger(this, name);
-
         public Task WriteInitialLog()
-            //=> ClientLogger.InfoAsync($"Mezon.NET v{MezonConfig.Version} (API v{MezonConfig.APIVersion})");
-            => ClientLogger.InfoAsync($"Mezon.NET v1.0 (API v1.0)");
+            => ClientLogger.InfoAsync($"Mezon.NET v1.0.1");
     }
 }

@@ -16,11 +16,11 @@ namespace Mezon.NET.Api
         private readonly Queue<DateTimeOffset> _timestamps;
         private readonly SemaphoreSlim _lock;
 
-        public GatewayBucketType Type { get; }
+        public BucketType Type { get; }
         public int WindowCount => _maxCount;
         public int WindowSeconds => _windowSeconds;
 
-        public GatewayRateLimiter(GatewayBucketType type, int maxCount, int windowSeconds)
+        public GatewayRateLimiter(BucketType type, int maxCount, int windowSeconds)
         {
             Type = type;
             _maxCount = maxCount;

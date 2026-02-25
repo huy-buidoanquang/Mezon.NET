@@ -11,7 +11,7 @@ namespace Mezon.NET.Abstractions
 {
     public interface IMezonApiClient : IDisposable, IAsyncDisposable
     {
-        event Func<string, string, double, Task> SentRequest;
+        event Func<string, string, double, Task> ApiSentRequestEvent;
 
         LoginState LoginState { get; }
 

@@ -26,8 +26,8 @@ namespace Mezon.NET.Api
     {
         private static readonly ConcurrentDictionary<string, Func<BucketIds, BucketId>> _bucketIdGenerators = new ConcurrentDictionary<string, Func<BucketIds, BucketId>>();
 
-        public event Func<string, string, double, Task> SentRequest { add { _sentRequestEvent.Add(value); } remove { _sentRequestEvent.Remove(value); } }
-        private readonly AsyncEvent<Func<string, string, double, Task>> _sentRequestEvent = new AsyncEvent<Func<string, string, double, Task>>();
+        public event Func<string, string, double, Task> ApiSentRequestEvent { add { _apiSentRequestEvent.Add(value); } remove { _apiSentRequestEvent.Remove(value); } }
+        private readonly AsyncEvent<Func<string, string, double, Task>> _apiSentRequestEvent = new AsyncEvent<Func<string, string, double, Task>>();
 
         protected bool _isDisposed;
         protected readonly JsonSerializer _serializer;
@@ -334,7 +334,7 @@ namespace Mezon.NET.Api
             stopwatch.Stop();
 
             double milliseconds = ToMilliseconds(stopwatch);
-            await _sentRequestEvent.InvokeAsync(method, endpoint, milliseconds).ConfigureAwait(false);
+            await _apiSentRequestEvent.InvokeAsync(method, endpoint, milliseconds).ConfigureAwait(false);
 
             return responseStream;
         }
@@ -503,7 +503,7 @@ namespace Mezon.NET.Api
             stopwatch.Stop();
 
             double milliseconds = ToMilliseconds(stopwatch);
-            await _sentRequestEvent.InvokeAsync("POST", endpoint, milliseconds).ConfigureAwait(false);
+            await _apiSentRequestEvent.InvokeAsync("POST", endpoint, milliseconds).ConfigureAwait(false);
 
             return responseStream;
         }

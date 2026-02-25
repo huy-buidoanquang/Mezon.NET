@@ -23,7 +23,7 @@ namespace Mezon.NET.Queue
             Method = method;
             Endpoint = endpoint;
             Options = options;
-            TimeoutAt = options.Timeout.HasValue ? DateTimeOffset.UtcNow.AddMilliseconds(options.Timeout.Value) : (DateTimeOffset?)null;
+            TimeoutAt = options.ApiSendTimeout.HasValue ? DateTimeOffset.UtcNow.AddMilliseconds(options.ApiSendTimeout.Value) : (DateTimeOffset?)null;
             Promise = new TaskCompletionSource<Stream>();
         }
 
