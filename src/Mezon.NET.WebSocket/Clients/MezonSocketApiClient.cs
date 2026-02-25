@@ -16,8 +16,8 @@ namespace Mezon.NET.WebSocket
         public event Func<string, Task> SocketSentMessageEvent { add { _socketSentMessageEvent.Add(value); } remove { _socketSentMessageEvent.Remove(value); } }
         private readonly AsyncEvent<Func<string, Task>> _socketSentMessageEvent = new AsyncEvent<Func<string, Task>>();
 
-        public event Func<SoketMessageCode, Envelope, Task> ReceivedMessageEvent { add { _receivedMessageEvent.Add(value); } remove { _receivedMessageEvent.Remove(value); } }
-        private readonly AsyncEvent<Func<SoketMessageCode, Envelope, Task>> _receivedMessageEvent = new AsyncEvent<Func<SoketMessageCode, Envelope, Task>>();
+        public event Func<SocketMessageCode, Envelope, Task> ReceivedMessageEvent { add { _receivedMessageEvent.Add(value); } remove { _receivedMessageEvent.Remove(value); } }
+        private readonly AsyncEvent<Func<SocketMessageCode, Envelope, Task>> _receivedMessageEvent = new AsyncEvent<Func<SocketMessageCode, Envelope, Task>>();
 
         public event Func<Exception, Task> DisconnectedEvent { add { _disconnectedEvent.Add(value); } remove { _disconnectedEvent.Remove(value); } }
         private readonly AsyncEvent<Func<Exception, Task>> _disconnectedEvent = new AsyncEvent<Func<Exception, Task>>();
@@ -188,7 +188,7 @@ namespace Mezon.NET.WebSocket
             {
                 if (_receivedMessageEvent.HasSubscribers)
                 {
-                    await _receivedMessageEvent.InvokeAsync(SoketMessageCode.Ready, new Envelope()).ConfigureAwait(false);
+                    await _receivedMessageEvent.InvokeAsync(SocketMessageCode.Ready, new Envelope()).ConfigureAwait(false);
                 }
             }
             catch (Exception)
@@ -226,7 +226,7 @@ namespace Mezon.NET.WebSocket
             {
                 if (_receivedMessageEvent.HasSubscribers)
                 {
-                    _receivedMessageEvent.InvokeAsync(SoketMessageCode.Data, Envelope.Parser.ParseFrom(data.Span)).ConfigureAwait(false);
+                    _receivedMessageEvent.InvokeAsync(SocketMessageCode.Data, Envelope.Parser.ParseFrom(data.Span)).ConfigureAwait(false);
                 }
             }
             catch (Exception)
