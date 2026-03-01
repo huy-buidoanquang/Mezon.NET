@@ -7,12 +7,12 @@ public class MezonWorker : BackgroundService
 {
     private readonly ILogger<MezonWorker> _logger;
     private readonly MezonClient _mezonClient;
-    private readonly DateTime _startTime;
+    private readonly DateTimeOffset _startTime;
 
     public MezonWorker(ILogger<MezonWorker> logger)
     {
         _logger = logger;
-        _startTime = DateTime.UtcNow;
+        _startTime = DateTimeOffset.UtcNow;
 
         var config = new MezonSocketClientConfiguration("dev-mezon.nccsoft.vn", "8088", true);
         config.LogLevel = Mezon.NET.Logging.LogLevel.Trace;
