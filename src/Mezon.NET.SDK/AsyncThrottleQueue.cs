@@ -176,12 +176,12 @@ namespace Mezon.NET.SDK
         /// <returns>True if all tasks completed within the timeout; otherwise false</returns>
         public async Task<bool> WaitForCompletionAsync(TimeSpan? timeout = null)
         {
-            var startTime = DateTime.UtcNow;
-            var timeoutTime = timeout.HasValue ? startTime.Add(timeout.Value) : DateTime.MaxValue;
+            var startTime = DateTimeOffset.UtcNow;
+            var timeoutTime = timeout.HasValue ? startTime.Add(timeout.Value) : DateTimeOffset.MaxValue;
 
             while (_queue.Count > 0)
             {
-                if (DateTime.UtcNow >= timeoutTime)
+                if (DateTimeOffset.UtcNow >= timeoutTime)
                 {
                     return false;
                 }

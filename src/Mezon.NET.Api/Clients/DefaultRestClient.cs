@@ -177,7 +177,7 @@ namespace Mezon.NET.Api
                 }
             }
 
-            var content = new MultipartFormDataContent("Upload----" + DateTime.Now.ToString(CultureInfo.InvariantCulture));
+            var content = new MultipartFormDataContent("Upload----" + DateTimeOffset.Now.ToString(CultureInfo.InvariantCulture));
 
             static StreamContent GetStreamContent(Stream stream)
             {
@@ -304,7 +304,7 @@ namespace Mezon.NET.Api
         //            if (requestHeaders != null)
         //                foreach (var header in requestHeaders)
         //                    restRequest.Headers.Add(header.Key, header.Value);
-        //            var content = new MultipartFormDataContent("Upload----" + DateTime.Now.ToString(CultureInfo.InvariantCulture));
+        //            var content = new MultipartFormDataContent("Upload----" + DateTimeOffset.Now.ToString(CultureInfo.InvariantCulture));
 
         //            static StreamContent GetStreamContent(Stream stream)
         //            {

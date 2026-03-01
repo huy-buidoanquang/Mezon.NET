@@ -83,7 +83,7 @@ namespace Mezon.NET.Api
                 return false;
             }
 
-            return DateTimeOffset.FromUnixTimeSeconds(ExpiresAt) < DateTime.UtcNow.AddSeconds(seconds);
+            return DateTimeOffset.FromUnixTimeSeconds(ExpiresAt) < DateTimeOffset.UtcNow.AddSeconds(seconds);
         }
 
         public bool IsRefreshExpiredSoon(int seconds)
@@ -93,7 +93,7 @@ namespace Mezon.NET.Api
                 return false;
             }
 
-            return DateTimeOffset.FromUnixTimeSeconds(RefreshExpiresAt) < DateTime.UtcNow.AddSeconds(seconds);
+            return DateTimeOffset.FromUnixTimeSeconds(RefreshExpiresAt) < DateTimeOffset.UtcNow.AddSeconds(seconds);
         }
 
         public bool IsExpired()
@@ -103,7 +103,7 @@ namespace Mezon.NET.Api
                 return false;
             }
 
-            return DateTimeOffset.FromUnixTimeSeconds(ExpiresAt) < DateTime.UtcNow;
+            return DateTimeOffset.FromUnixTimeSeconds(ExpiresAt) < DateTimeOffset.UtcNow;
         }
 
         public bool IsRefreshExpired()
@@ -113,7 +113,7 @@ namespace Mezon.NET.Api
                 return false;
             }
 
-            return DateTimeOffset.FromUnixTimeSeconds(RefreshExpiresAt) < DateTime.UtcNow;
+            return DateTimeOffset.FromUnixTimeSeconds(RefreshExpiresAt) < DateTimeOffset.UtcNow;
         }
 
         public static Session Restore(AuthenticationResponse authenticationResponse)

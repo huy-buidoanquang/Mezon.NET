@@ -19,6 +19,7 @@ using Mezon.NET.Utils;
 using Mezon.Protobuf.Api;
 using Newtonsoft.Json;
 using PbSession = Mezon.Protobuf.Api.Session;
+using PbRealtime = Mezon.Protobuf.Realtime;
 
 namespace Mezon.NET.Api
 {
@@ -1793,237 +1794,2463 @@ namespace Mezon.NET.Api
         //}
         //#endregion
 
-        #region Messages (Advanced)
-        //public Task<SearchMessageResponse> SearchMessageAsync(string bearerToken, SearchMessageRequest body) =>
-        //    SendRequestAsync<SearchMessageResponse>("/v2/message/search", HttpMethod.Post, bearerToken: bearerToken, body: body);
+        #region Emoji & Stickers
 
-        //public Task<ChannelMessageHeaderResponse> CreatePinMessageAsync(string bearerToken, PinMessageRequest body) =>
-        //    SendRequestAsync<ChannelMessageHeaderResponse>("/v2/message/pin", HttpMethod.Post, bearerToken: bearerToken, body: body);
+        public async Task CreateClanEmojiAsync(Mezon.Protobuf.Api.ClanEmojiCreateRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
 
-        //public Task<PinMessagesListResponse> GetPinMessagesListAsync(string bearerToken, string channelId, string clanId)
-        //{
-        //    var queryParams = new Dictionary<string, object> { { "channel_id", channelId }, { "clan_id", clanId } };
-        //    return SendRequestAsync<PinMessagesListResponse>("/v2/message/pin", HttpMethod.Get, bearerToken: bearerToken, queryParams: queryParams);
-        //}
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.CreateClanEmojiAsync(req, opts),
+                () => "/v2/emoji/create",
+                bucket);
+        }
 
-        //public Task DeletePinMessageAsync(string bearerToken, string messageId, string channelId, string clanId)
-        //{
-        //    var queryParams = new Dictionary<string, object> { { "message_id", messageId }, { "channel_id", channelId }, { "clan_id", clanId } };
-        //    return SendRequestAsync<object>("/v2/message/pin", HttpMethod.Delete, bearerToken: bearerToken, queryParams: queryParams);
-        //}
+        public async Task UpdateClanEmojiByIdAsync(Mezon.Protobuf.Api.ClanEmojiUpdateRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
 
-        //public Task MarkAsReadAsync(string bearerToken, MarkAsReadRequest body) =>
-        //    SendRequestAsync<object>("/v2/message/read", HttpMethod.Post, bearerToken: bearerToken, body: body);
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.UpdateClanEmojiByIdAsync(req, opts),
+                () => $"/v2/emoji/{body.Id}",
+                bucket);
+        }
+
+        public async Task DeleteClanEmojiByIdAsync(long emojiId, long clanId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.ClanEmojiDeleteRequest();
+            request.Id = emojiId;
+            request.ClanId = clanId;
+
+            await SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.DeleteByIdClanEmojiAsync(req, opts),
+                () => $"/v2/emoji/{emojiId}",
+                bucket);
+        }
+
+        public async Task AddClanStickerAsync(Mezon.Protobuf.Api.ClanStickerAddRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.AddClanStickerAsync(req, opts),
+                () => "/v2/sticker",
+                bucket);
+        }
+
+        public async Task UpdateClanStickerByIdAsync(Mezon.Protobuf.Api.ClanStickerUpdateByIdRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.UpdateClanStickerByIdAsync(req, opts),
+                () => $"/v2/sticker/{body.Id}",
+                bucket);
+        }
+
+        public async Task DeleteClanStickerByIdAsync(long stickerId, long clanId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.ClanStickerDeleteRequest();
+            request.Id = stickerId;
+            request.ClanId = clanId;
+
+            await SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.DeleteClanStickerByIdAsync(req, opts),
+                () => $"/v2/sticker/{stickerId}",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.EmojiListedResponse> GetListEmojisByUserIdAsync(RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(new Empty(),
+                (req, opts) => GRPCClient.Client.GetListEmojisByUserIdAsync(req, opts),
+                () => "/v2/emojis",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.StickerListedResponse> GetListStickersByUserIdAsync(RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(new Empty(),
+                (req, opts) => GRPCClient.Client.GetListStickersByUserIdAsync(req, opts),
+                () => "/v2/stickers",
+                bucket);
+        }
+
         #endregion
 
-        //#region Emoji & Stickers
-        //public Task CreateClanEmojiAsync(string bearerToken, ClanEmojiCreateRequest body) =>
-        //    SendRequestAsync<object>("/v2/emoji", HttpMethod.Post, bearerToken: bearerToken, body: body);
+        #region Webhooks
 
-        //public Task UpdateClanEmojiByIdAsync(string bearerToken, string emojiId, UpdateClanEmojiRequest body)
-        //{
-        //    Check.NotNullOrEmpty(emojiId, nameof(emojiId));
-        //    var urlPath = $"/v2/emoji/{Uri.EscapeDataString(emojiId)}";
-        //    return SendRequestAsync<object>(urlPath, HttpMethod.Put, bearerToken: bearerToken, body: body);
-        //}
+        public Task<Mezon.Protobuf.Api.WebhookGenerateResponse> GenerateWebhookAsync(Mezon.Protobuf.Api.WebhookCreateRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
 
-        //public Task DeleteClanEmojiByIdAsync(string bearerToken, string emojiId, string clanId)
-        //{
-        //    Check.NotNullOrEmpty(emojiId, nameof(emojiId));
-        //    var queryParams = new Dictionary<string, object> { { "clan_id", clanId } };
-        //    var urlPath = $"/v2/emoji/{Uri.EscapeDataString(emojiId)}";
-        //    return SendRequestAsync<object>(urlPath, HttpMethod.Delete, bearerToken: bearerToken, queryParams: queryParams);
-        //}
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.GenerateWebhookAsync(req, opts),
+                () => "/v2/webhooks/generate",
+                bucket);
+        }
 
-        //public Task AddClanStickerAsync(string bearerToken, ClanStickerAddRequest body) =>
-        //    SendRequestAsync<object>("/v2/sticker", HttpMethod.Post, bearerToken: bearerToken, body: body);
+        public Task<Mezon.Protobuf.Api.WebhookListResponse> ListWebhookByChannelIdAsync(long channelId, long clanId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
 
-        //public Task UpdateClanStickerByIdAsync(string bearerToken, string stickerId, UpdateClanStickerRequest body)
-        //{
-        //    Check.NotNullOrEmpty(stickerId, nameof(stickerId));
-        //    var urlPath = $"/v2/sticker/{Uri.EscapeDataString(stickerId)}";
-        //    return SendRequestAsync<object>(urlPath, HttpMethod.Put, bearerToken: bearerToken, body: body);
-        //}
+            var request = new Mezon.Protobuf.Api.WebhookListRequest();
+            request.ChannelId = channelId;
+            request.ClanId = clanId;
 
-        //public Task DeleteClanStickerByIdAsync(string bearerToken, string stickerId, string clanId)
-        //{
-        //    Check.NotNullOrEmpty(stickerId, nameof(stickerId));
-        //    var queryParams = new Dictionary<string, object> { { "clan_id", clanId } };
-        //    var urlPath = $"/v2/sticker/{Uri.EscapeDataString(stickerId)}";
-        //    return SendRequestAsync<object>(urlPath, HttpMethod.Delete, bearerToken: bearerToken, queryParams: queryParams);
-        //}
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.ListWebhookByChannelIdAsync(req, opts),
+                () => $"/v2/webhooks/{channelId}",
+                bucket);
+        }
 
-        //public Task<EmojiListedResponse> GetListEmojisByUserIdAsync(string bearerToken) =>
-        //    SendRequestAsync<EmojiListedResponse>("/v2/emoji/user", HttpMethod.Get, bearerToken: bearerToken);
+        public async Task UpdateWebhookByIdAsync(Mezon.Protobuf.Api.WebhookUpdateRequestById body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
 
-        //public Task<StickerListedResponse> GetListStickersByUserIdAsync(string bearerToken) =>
-        //    SendRequestAsync<StickerListedResponse>("/v2/sticker/user", HttpMethod.Get, bearerToken: bearerToken);
-        //#endregion
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.UpdateWebhookByIdAsync(req, opts),
+                () => $"/v2/webhooks/update/{body.Id}",
+                bucket);
+        }
 
-        //#region Webhooks
-        //public Task<WebhookGenerateResponse> GenerateWebhookAsync(string bearerToken, WebhookCreateRequest body) =>
-        //    SendRequestAsync<WebhookGenerateResponse>("/v2/webhook", HttpMethod.Post, bearerToken: bearerToken, body: body);
+        public async Task DeleteWebhookByIdAsync(Mezon.Protobuf.Api.WebhookDeleteRequestById body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
 
-        //public Task<WebhookListResponse> ListWebhookByChannelIdAsync(string bearerToken, string channelId, string clanId)
-        //{
-        //    var queryParams = new Dictionary<string, object> { { "channel_id", channelId }, { "clan_id", clanId } };
-        //    return SendRequestAsync<WebhookListResponse>("/v2/webhook", HttpMethod.Get, bearerToken: bearerToken, queryParams: queryParams);
-        //}
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.DeleteWebhookByIdAsync(req, opts),
+                () => $"/v2/webhooks/{body.Id}",
+                bucket);
+        }
 
-        //public Task UpdateWebhookByIdAsync(string bearerToken, string webhookId, UpdateWebhookRequest body)
-        //{
-        //    Check.NotNullOrEmpty(webhookId, nameof(webhookId));
-        //    var urlPath = $"/v2/webhook/{Uri.EscapeDataString(webhookId)}";
-        //    return SendRequestAsync<object>(urlPath, HttpMethod.Put, bearerToken: bearerToken, body: body);
-        //}
+        #endregion
 
-        //public Task DeleteWebhookByIdAsync(string bearerToken, string webhookId, DeleteWebhookRequest body)
-        //{
-        //    Check.NotNullOrEmpty(webhookId, nameof(webhookId));
-        //    // The body suggests it's not a standard DELETE, but a POST/PUT for soft-delete. Assuming PUT.
-        //    var urlPath = $"/v2/webhook/{Uri.EscapeDataString(webhookId)}/disable";
-        //    return SendRequestAsync<object>(urlPath, HttpMethod.Put, bearerToken: bearerToken, body: body);
-        //}
-        //#endregion
+        #region System Messages
 
-        //#region System Messages
-        //public Task<SystemMessagesListResponse> GetSystemMessagesListAsync(string bearerToken) =>
-        //    SendRequestAsync<SystemMessagesListResponse>("/v2/system-message", HttpMethod.Get, bearerToken: bearerToken);
+        public async Task CreateSystemMessageAsync(Mezon.Protobuf.Api.SystemMessageRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
 
-        //public Task<SystemMessageResponse> GetSystemMessageByClanIdAsync(string bearerToken, string clanId)
-        //{
-        //    Check.NotNullOrEmpty(clanId, nameof(clanId));
-        //    var urlPath = $"/v2/system-message/{Uri.EscapeDataString(clanId)}";
-        //    return SendRequestAsync<SystemMessageResponse>(urlPath, HttpMethod.Get, bearerToken: bearerToken);
-        //}
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.CreateSystemMessageAsync(req, opts),
+                () => "/v2/systemmessages",
+                bucket);
+        }
 
-        //public Task CreateSystemMessageAsync(string bearerToken, SystemMessageRequest body) =>
-        //    SendRequestAsync<object>("/v2/system-message", HttpMethod.Post, bearerToken: bearerToken, body: body);
+        public async Task UpdateSystemMessageAsync(Mezon.Protobuf.Api.SystemMessageRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
 
-        //public Task UpdateSystemMessageAsync(string bearerToken, string clanId, UpdateSystemMessageRequest body)
-        //{
-        //    Check.NotNullOrEmpty(clanId, nameof(clanId));
-        //    var urlPath = $"/v2/system-message/{Uri.EscapeDataString(clanId)}";
-        //    return SendRequestAsync<object>(urlPath, HttpMethod.Put, bearerToken: bearerToken, body: body);
-        //}
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.UpdateSystemMessageAsync(req, opts),
+                () => $"/v2/systemmessages/{body.ClanId}",
+                bucket);
+        }
 
-        //public Task DeleteSystemMessageAsync(string bearerToken, string clanId)
-        //{
-        //    Check.NotNullOrEmpty(clanId, nameof(clanId));
-        //    var urlPath = $"/v2/system-message/{Uri.EscapeDataString(clanId)}";
-        //    return SendRequestAsync<object>(urlPath, HttpMethod.Delete, bearerToken: bearerToken);
-        //}
-        //#endregion
+        public Task<Mezon.Protobuf.Api.SystemMessage> GetSystemMessageByClanIdAsync(long clanId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
 
-        //#region Ordering
-        //public Task UpdateRoleOrderAsync(string bearerToken, UpdateRoleOrderRequest body) =>
-        //    SendRequestAsync<object>("/v2/role/orders", HttpMethod.Put, bearerToken: bearerToken, body: body);
+            var request = new Mezon.Protobuf.Api.GetSystemMessage();
+            request.ClanId = clanId;
 
-        //public Task UpdateClanOrderAsync(string bearerToken, UpdateClanOrderRequest body) =>
-        //    SendRequestAsync<object>("/v2/clan/orders", HttpMethod.Put, bearerToken: bearerToken, body: body);
-        //#endregion
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.GetSystemMessageByClanIdAsync(req, opts),
+                () => $"/v2/systemmessages/{clanId}",
+                bucket);
+        }
 
-        //#region Encryption
-        //public Task<ChanEncryptionMethodResponse> GetChanEncryptionMethodAsync(string bearerToken, string channelId)
-        //{
-        //    Check.NotNullOrEmpty(channelId, nameof(channelId));
-        //    var urlPath = $"/v2/encryption/channel/{Uri.EscapeDataString(channelId)}";
-        //    return SendRequestAsync<ChanEncryptionMethodResponse>(urlPath, HttpMethod.Get, bearerToken: bearerToken);
-        //}
+        public async Task DeleteSystemMessageAsync(long clanId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
 
-        //public Task SetChanEncryptionMethodAsync(string bearerToken, string channelId, SetChanEncryptionMethodRequest body)
-        //{
-        //    Check.NotNullOrEmpty(channelId, nameof(channelId));
-        //    var urlPath = $"/v2/encryption/channel/{Uri.EscapeDataString(channelId)}";
-        //    return SendRequestAsync<object>(urlPath, HttpMethod.Post, bearerToken: bearerToken, body: body);
-        //}
+            var request = new Mezon.Protobuf.Api.DeleteSystemMessage();
+            request.ClanId = clanId;
 
-        //public Task<GetPubKeysResponse> GetPublicKeysAsync(string bearerToken, IEnumerable<string> userIds)
-        //{
-        //    var queryParams = new Dictionary<string, object> { { "user_ids", userIds } };
-        //    return SendRequestAsync<GetPubKeysResponse>("/v2/encryption/pubkeys", HttpMethod.Get, bearerToken: bearerToken, queryParams: queryParams);
-        //}
+            await SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.DeleteSystemMessageAsync(req, opts),
+                () => $"/v2/systemmessages/{clanId}",
+                bucket);
+        }
 
-        //public Task PushPublicKeyAsync(string bearerToken, PushPublicKeyRequest body) =>
-        //    SendRequestAsync<object>("/v2/encryption/pubkey", HttpMethod.Post, bearerToken: bearerToken, body: body);
+        #endregion
 
-        //public Task<GetKeyServerResponse> GetKeyServerAsync(string bearerToken) =>
-        //    SendRequestAsync<GetKeyServerResponse>("/v2/encryption/keyserver", HttpMethod.Get, bearerToken: bearerToken);
-        //#endregion
+        #region Ordering
 
-        //#region Onboarding
-        //public Task<ListOnboardingResponse> ListOnboardingAsync(string bearerToken, string clanId, int? guideType = null)
-        //{
-        //    var queryParams = new Dictionary<string, object> { { "clan_id", clanId }, { "guide_type", guideType } };
-        //    return SendRequestAsync<ListOnboardingResponse>("/v2/onboarding", HttpMethod.Get, bearerToken: bearerToken, queryParams: queryParams);
-        //}
+        public async Task UpdateRoleOrderAsync(Mezon.Protobuf.Api.UpdateRoleOrderRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
 
-        //public Task<OnboardingItemResponse> GetOnboardingDetailAsync(string bearerToken, string id, string clanId)
-        //{
-        //    Check.NotNullOrEmpty(id, nameof(id));
-        //    var queryParams = new Dictionary<string, object> { { "clan_id", clanId } };
-        //    var urlPath = $"/v2/onboarding/{Uri.EscapeDataString(id)}";
-        //    return SendRequestAsync<OnboardingItemResponse>(urlPath, HttpMethod.Get, bearerToken: bearerToken, queryParams: queryParams);
-        //}
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.UpdateRoleOrderAsync(req, opts),
+                () => "/v2/role/orders",
+                bucket);
+        }
 
-        //public Task CreateOnboardingAsync(string bearerToken, CreateOnboardingRequest body) =>
-        //    SendRequestAsync<object>("/v2/onboarding", HttpMethod.Post, bearerToken: bearerToken, body: body);
+        public async Task UpdateClanOrderAsync(Mezon.Protobuf.Api.UpdateClanOrderRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
 
-        //public Task UpdateOnboardingAsync(string bearerToken, string id, UpdateOnboardingRequest body)
-        //{
-        //    Check.NotNullOrEmpty(id, nameof(id));
-        //    var urlPath = $"/v2/onboarding/{Uri.EscapeDataString(id)}";
-        //    return SendRequestAsync<object>(urlPath, HttpMethod.Put, bearerToken: bearerToken, body: body);
-        //}
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.UpdateClanOrderAsync(req, opts),
+                () => "/v2/updateclanorder",
+                bucket);
+        }
 
-        //public Task DeleteOnboardingAsync(string bearerToken, string id, string clanId)
-        //{
-        //    Check.NotNullOrEmpty(id, nameof(id));
-        //    var queryParams = new Dictionary<string, object> { { "clan_id", clanId } };
-        //    var urlPath = $"/v2/onboarding/{Uri.EscapeDataString(id)}";
-        //    return SendRequestAsync<object>(urlPath, HttpMethod.Delete, bearerToken: bearerToken, queryParams: queryParams);
-        //}
-        //#endregion
+        #endregion
 
-        //#region Wallet & Transactions
-        //public Task GiveCoffeeAsync(string bearerToken, GiveCoffeeRequest body) =>
-        //    SendRequestAsync<object>("/v2/wallet/givecoffee", HttpMethod.Post, bearerToken: bearerToken, body: body);
+        #region Encryption
 
-        //public Task SendTokenAsync(string bearerToken, TokenSentRequest body) =>
-        //    SendRequestAsync<object>("/v2/wallet/sendtoken", HttpMethod.Post, bearerToken: bearerToken, body: body);
+        public Task<Mezon.Protobuf.Api.ChanEncryptionMethod> GetChanEncryptionMethodAsync(long channelId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
 
-        //public Task<TransactionDetailResponse> ListTransactionDetailAsync(string bearerToken, string transId)
-        //{
-        //    Check.NotNullOrEmpty(transId, nameof(transId));
-        //    var urlPath = $"/v2/wallet/transaction/{Uri.EscapeDataString(transId)}";
-        //    return SendRequestAsync<TransactionDetailResponse>(urlPath, HttpMethod.Get, bearerToken: bearerToken);
-        //}
+            var request = new Mezon.Protobuf.Api.ChanEncryptionMethod();
+            request.ChannelId = channelId;
 
-        //public Task<WalletLedgerListResponse> ListWalletLedgerAsync(string bearerToken, int? limit = null, int? filter = null, int? page = null)
-        //{
-        //    var queryParams = new Dictionary<string, object> { { "limit", limit }, { "filter", filter }, { "page", page } };
-        //    return SendRequestAsync<WalletLedgerListResponse>("/v2/wallet/ledger", HttpMethod.Get, bearerToken: bearerToken, queryParams: queryParams);
-        //}
-        //#endregion
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.GetChanEncryptionMethodAsync(req, opts),
+                () => $"/v2/channel/{channelId}/encrypt_method",
+                bucket);
+        }
 
-        //#region Mezon Meet
-        //public Task<GenerateMeetTokenResponse> GenerateMeetTokenAsync(string bearerToken, GenerateMeetTokenRequest body) =>
-        //    SendRequestAsync<GenerateMeetTokenResponse>("/v2/meet/token", HttpMethod.Post, bearerToken: bearerToken, body: body);
+        public async Task SetChanEncryptionMethodAsync(Mezon.Protobuf.Api.ChanEncryptionMethod body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
 
-        //public Task<GenerateMezonMeetResponse> CreateExternalMezonMeetAsync(string bearerToken) =>
-        //    SendRequestAsync<GenerateMezonMeetResponse>("/v2/meet/external", HttpMethod.Post, bearerToken: bearerToken);
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.SetChanEncryptionMethodAsync(req, opts),
+                () => $"/v2/channel/{body.ChannelId}/encrypt_method",
+                bucket);
+        }
 
-        //public Task<GenerateMeetTokenExternalResponse> GenerateMeetTokenExternalAsync(string basePath, string token, string displayName, bool? isGuest)
-        //{
-        //    var queryParams = new Dictionary<string, object> { { "token", token }, { "display_name", displayName }, { "is_guest", isGuest } };
-        //    // This is likely a gateway request without authentication
-        //    return SendGatewayRequestAsync<GenerateMeetTokenExternalResponse>("/v2/meet/token/external", HttpMethod.Get, queryParams: queryParams);
-        //}
-        //#endregion
+        public Task<Mezon.Protobuf.Api.GetPubKeysResponse> GetPublicKeysAsync(IEnumerable<long> userIds, RequestOptions? options = null)
+        {
+            Check.NotNull(userIds, nameof(userIds));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
 
-        //#region Ownership
-        //public Task TransferOwnershipAsync(string bearerToken, TransferOwnershipRequest body) =>
-        //    SendRequestAsync<object>("/v2/clan/transfer-ownership", HttpMethod.Post, bearerToken: bearerToken, body: body);
-        //#endregion
+            var request = new Mezon.Protobuf.Api.GetPubKeysRequest();
+            foreach (var userId in userIds)
+            {
+                request.UserIds.Add(userId);
+            }
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.GetPubKeysAsync(req, opts),
+                () => "/v2/pubkey",
+                bucket);
+        }
+
+        public async Task PushPublicKeyAsync(Mezon.Protobuf.Api.PushPubKeyRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.PushPubKeyAsync(req, opts),
+                () => "/v2/pubkey/push",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.GetKeyServerResp> GetKeyServerAsync(RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(new Empty(),
+                (req, opts) => GRPCClient.Client.GetKeyServerAsync(req, opts),
+                () => "/v2/e2ee/key_server",
+                bucket);
+        }
+
+        #endregion
+
+        #region Onboarding
+
+        public Task<Mezon.Protobuf.Api.ListOnboardingResponse> ListOnboardingAsync(long clanId, int? guideType = null, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.ListOnboardingRequest();
+            request.ClanId = clanId;
+            if (guideType.HasValue)
+            {
+                request.GuideType = guideType.Value;
+            }
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.ListOnboardingAsync(req, opts),
+                () => "/v2/onboarding",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.OnboardingItem> GetOnboardingDetailAsync(long id, long clanId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.OnboardingRequest();
+            request.Id = id;
+            request.ClanId = clanId;
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.GetOnboardingDetailAsync(req, opts),
+                () => $"/v2/onboarding/{id}",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.ListOnboardingResponse> CreateOnboardingAsync(Mezon.Protobuf.Api.CreateOnboardingRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.CreateOnboardingAsync(req, opts),
+                () => "/v2/onboarding",
+                bucket);
+        }
+
+        public async Task UpdateOnboardingAsync(Mezon.Protobuf.Api.UpdateOnboardingRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.UpdateOnboardingAsync(req, opts),
+                () => $"/v2/onboarding/{body.Id}",
+                bucket);
+        }
+
+        public async Task DeleteOnboardingAsync(long id, long clanId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.OnboardingRequest();
+            request.Id = id;
+            request.ClanId = clanId;
+
+            await SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.DeleteOnboardingAsync(req, opts),
+                () => $"/v2/onboarding/{id}",
+                bucket);
+        }
+
+        #endregion
+
+        #region Activity
+
+        public Task<Mezon.Protobuf.Api.ListUserActivity> ListActivityAsync(RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(new Empty(),
+                (req, opts) => GRPCClient.Client.ListActivityAsync(req, opts),
+                () => "/v2/activity",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.UserActivity> CreateActivityAsync(Mezon.Protobuf.Api.CreateActivityRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.CreateActiviyAsync(req, opts),
+                () => "/v2/activity",
+                bucket);
+        }
+
+        #endregion
+
+        #region Mezon Meet
+
+        public Task<Mezon.Protobuf.Api.GenerateMezonMeetResponse> CreateExternalMezonMeetAsync(RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(new Empty(),
+                (req, opts) => GRPCClient.Client.CreateExternalMezonMeetAsync(req, opts),
+                () => "/v2/meet/external/create",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.GenerateMeetTokenResponse> GenerateMeetTokenAsync(Mezon.Protobuf.Api.GenerateMeetTokenRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.GenerateMeetTokenAsync(req, opts),
+                () => "/v2/meet/generate",
+                bucket);
+        }
+
+        #endregion
+
+        #region Ownership
+
+        public async Task TransferOwnershipAsync(Mezon.Protobuf.Api.TransferOwnershipRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.TransferOwnershipAsync(req, opts),
+                () => "/v2/transfer/ownership",
+                bucket);
+        }
+
+        #endregion
+
+        #region Permissions
+
+        public Task<Mezon.Protobuf.Api.PermissionList> GetListPermissionAsync(RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(new Empty(),
+                (req, opts) => GRPCClient.Client.GetListPermissionAsync(req, opts),
+                () => "/v2/permissions",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.PermissionList> ListRolePermissionsAsync(long roleId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.ListPermissionsRequest();
+            request.RoleId = roleId;
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.ListRolePermissionsAsync(req, opts),
+                () => $"/v2/roles/{roleId}/permissions",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.RoleUserList> ListRoleUsersAsync(long roleId, int? limit = null, string? cursor = null, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.ListRoleUsersRequest();
+            request.RoleId = roleId;
+            if (limit.HasValue)
+            {
+                request.Limit = limit.Value;
+            }
+
+            if (!string.IsNullOrEmpty(cursor))
+            {
+                request.Cursor = cursor;
+            }
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.ListRoleUsersAsync(req, opts),
+                () => $"/v2/roles/{roleId}/users",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.UserPermissionInChannelListResponse> ListUserPermissionInChannelAsync(long clanId, long channelId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.UserPermissionInChannelListRequest();
+            request.ClanId = clanId;
+            request.ChannelId = channelId;
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.ListUserPermissionInChannelAsync(req, opts),
+                () => "/v2/users/clans/channels",
+                bucket);
+        }
+
+        #endregion
+
+        #region Notifications
+
+        public async Task DeleteNotificationsAsync(IEnumerable<long>? ids = null, int? category = null, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.DeleteNotificationsRequest();
+            if (ids != null)
+            {
+                foreach (var id in ids)
+                {
+                    request.Ids.Add(id);
+                }
+            }
+
+            if (category.HasValue)
+            {
+                request.Category = category.Value;
+            }
+
+            await SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.DeleteNotificationsAsync(req, opts),
+                () => "/v2/notification",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.NotificationList> ListNotificationsAsync(long? clanId = null, long? notificationId = null, int? limit = null, int? direction = null, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.ListNotificationsRequest();
+            if (clanId.HasValue)
+            {
+                request.ClanId = clanId.Value;
+            }
+
+            if (notificationId.HasValue)
+            {
+                request.NotificationId = notificationId.Value;
+            }
+
+            if (limit.HasValue)
+            {
+                request.Limit = limit.Value;
+            }
+
+            if (direction.HasValue)
+            {
+                request.Direction = direction.Value;
+            }
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.ListNotificationsAsync(req, opts),
+                () => "/v2/notification",
+                bucket);
+        }
+
+        #endregion
+
+        #region Category
+
+        public Task<Mezon.Protobuf.Api.CategoryDesc> CreateCategoryDescAsync(Mezon.Protobuf.Api.CreateCategoryDescRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.CreateCategoryDescAsync(req, opts),
+                () => "/v2/createcategory",
+                bucket);
+        }
+
+        public async Task DeleteCategoryDescAsync(long categoryId, long clanId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.DeleteCategoryDescRequest();
+            request.CategoryId = categoryId;
+            request.ClanId = clanId;
+
+            await SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.DeleteCategoryDescAsync(req, opts),
+                () => $"/v2/deletecategory/category_id/{categoryId}/clan_id/{clanId}",
+                bucket);
+        }
+
+        public async Task UpdateCategoryAsync(Mezon.Protobuf.Api.UpdateCategoryDescRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.UpdateCategoryAsync(req, opts),
+                () => $"/v2/updatecategory/{body.ClanId}",
+                bucket);
+        }
+
+        public async Task UpdateCategoryOrderAsync(Mezon.Protobuf.Api.UpdateCategoryOrderRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.UpdateCategoryOrderAsync(req, opts),
+                () => "/v2/category/orders",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.CategoryDescList> ListCategoryDescsAsync(long clanId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.CategoryDesc();
+            request.ClanId = clanId;
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.ListCategoryDescsAsync(req, opts),
+                () => $"/v2/categorydesc/{clanId}",
+                bucket);
+        }
+
+        #endregion
+
+        #region Invites
+
+        public Task<Mezon.Protobuf.Api.LinkInviteUser> CreateLinkInviteUserAsync(Mezon.Protobuf.Api.LinkInviteUserRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.CreateLinkInviteUserAsync(req, opts),
+                () => "/v2/invite",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.InviteUserRes> InviteUserAsync(long inviteId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.InviteUserRequest();
+            request.InviteId = inviteId;
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.InviteUserAsync(req, opts),
+                () => $"/v2/invite/{inviteId}",
+                bucket);
+        }
+
+        #endregion
+
+        #region Notification Settings
+
+        public async Task SetNotificationClanSettingAsync(Mezon.Protobuf.Api.SetDefaultNotificationRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.SetNotificationClanSettingAsync(req, opts),
+                () => "/v2/notificationclan/set",
+                bucket);
+        }
+
+        public async Task SetNotificationChannelSettingAsync(Mezon.Protobuf.Api.SetNotificationRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.SetNotificationChannelSettingAsync(req, opts),
+                () => "/v2/notificationchannel/set",
+                bucket);
+        }
+
+        public async Task SetMuteNotificationCategoryAsync(Mezon.Protobuf.Api.SetMuteRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.SetMuteCategoryAsync(req, opts),
+                () => "/v2/mutenotificationcategory/set",
+                bucket);
+        }
+
+        public async Task SetMuteNotificationChannelAsync(Mezon.Protobuf.Api.SetMuteRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.SetMuteChannelAsync(req, opts),
+                () => "/v2/mutenotificationchannel/set",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.NotificationChannelCategorySettingList> GetChannelCategoryNotificationSettingsAsync(long clanId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.NotificationClan();
+            request.ClanId = clanId;
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.GetChannelCategoryNotiSettingsListAsync(req, opts),
+                () => "/v2/getchannelcategorynotisettingslist",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.NotificationSetting> GetClanNotificationSettingAsync(long clanId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.NotificationClan();
+            request.ClanId = clanId;
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.GetNotificationClanAsync(req, opts),
+                () => "/v2/getnotificationclan",
+                bucket);
+        }
+
+        #endregion
+
+        #region User Status
+
+        public Task<Mezon.Protobuf.Api.UserStatus> GetUserStatusAsync(RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(new Empty(),
+                (req, opts) => GRPCClient.Client.GetUserStatusAsync(req, opts),
+                () => "/v2/userstatus",
+                bucket);
+        }
+
+        public async Task UpdateUserStatusAsync(Mezon.Protobuf.Api.UserStatusUpdate body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.UpdateUserStatusAsync(req, opts),
+                () => "/v2/userstatus",
+                bucket);
+        }
+
+        #endregion
+
+        #region Apps
+
+        public Task<Mezon.Protobuf.Api.App> AddAppAsync(Mezon.Protobuf.Api.AddAppRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.AddAppAsync(req, opts),
+                () => "/v2/apps/add",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.AppList> ListAppsAsync(string? filter = null, bool? tombstones = null, string? cursor = null, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.ListAppsRequest();
+            if (!string.IsNullOrEmpty(filter))
+            {
+                request.Filter = filter;
+            }
+
+            if (tombstones.HasValue)
+            {
+                request.Tombstones = tombstones.Value;
+            }
+
+            if (!string.IsNullOrEmpty(cursor))
+            {
+                request.Cursor = cursor;
+            }
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.ListAppsAsync(req, opts),
+                () => "/v2/apps/app",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.App> GetAppAsync(long id, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.AppId();
+            request.Id = id;
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.GetAppAsync(req, opts),
+                () => $"/v2/apps/app/{id}",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.App> UpdateAppAsync(Mezon.Protobuf.Api.UpdateAppRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.UpdateAppAsync(req, opts),
+                () => $"/v2/apps/app/{body.Id}",
+                bucket);
+        }
+
+        public async Task DeleteAppAsync(long id, bool? recordDeletion = null, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.AppDeleteRequest();
+            request.Id = id;
+            if (recordDeletion.HasValue)
+            {
+                request.RecordDeletion = recordDeletion.Value;
+            }
+
+            await SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.DeleteAppAsync(req, opts),
+                () => $"/v2/apps/app/{id}",
+                bucket);
+        }
+
+        public async Task AddAppToClanAsync(long appId, long clanId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.AppClan();
+            request.AppId = appId;
+            request.ClanId = clanId;
+
+            await SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.AddAppToClanAsync(req, opts),
+                () => $"/v2/apps/app/{appId}/clan/{clanId}",
+                bucket);
+        }
+
+        #endregion
+
+        #region Audit Log
+
+        public Task<Mezon.Protobuf.Api.ListAuditLog> ListAuditLogAsync(long? clanId = null, string? actionLog = null, long? userId = null, string? dateLog = null, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.ListAuditLogRequest();
+            if (clanId.HasValue)
+            {
+                request.ClanId = clanId.Value;
+            }
+
+            if (!string.IsNullOrEmpty(actionLog))
+            {
+                request.ActionLog = actionLog;
+            }
+
+            if (userId.HasValue)
+            {
+                request.UserId = userId.Value;
+            }
+
+            if (!string.IsNullOrEmpty(dateLog))
+            {
+                request.DateLog = dateLog;
+            }
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.ListAuditLogAsync(req, opts),
+                () => "/v2/audit_log",
+                bucket);
+        }
+
+        #endregion
+
+        #region Storage
+
+        public Task<Mezon.Protobuf.Api.UploadAttachment> UploadAttachmentFileAsync(Mezon.Protobuf.Api.UploadAttachmentRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.UploadAttachmentFileAsync(req, opts),
+                () => "/v2/uploadattachmentfile",
+                bucket);
+        }
+
+        #endregion
+
+        #region User Events
+
+        public async Task AddUserEventAsync(Mezon.Protobuf.Api.UserEventRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.AddUserEventAsync(req, opts),
+                () => "/v2/userevent",
+                bucket);
+        }
+
+        public async Task DeleteUserEventAsync(long clanId, long eventId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.UserEventRequest();
+            request.ClanId = clanId;
+            request.EventId = eventId;
+
+            await SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.DeleteUserEventAsync(req, opts),
+                () => "/v2/userevent",
+                bucket);
+        }
+
+        #endregion
+
+        #region Healthcheck
+
+        public async Task HealthcheckAsync(RequestOptions? options = null)
+        {
+            options = RequestOptions.CreateOrClone(options);
+            options.IgnoreState = true;
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(new Empty(),
+                (req, opts) => GRPCClient.Client.HealthcheckAsync(req, opts),
+                () => "/healthcheck",
+                bucket);
+        }
+
+        #endregion
+
+        #region Channel Descs
+
+        public Task<Mezon.Protobuf.Api.ChannelDescList> ListChannelDescsAsync(long clanId, int? limit = null, int? state = null, string? cursor = null, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.ListChannelDescsRequest();
+            request.ClanId = clanId;
+            if (limit.HasValue)
+            {
+                request.Limit = limit.Value;
+            }
+
+            if (state.HasValue)
+            {
+                request.State = state.Value;
+            }
+
+            if (!string.IsNullOrEmpty(cursor))
+            {
+                request.Cursor = cursor;
+            }
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.ListChannelDescsAsync(req, opts),
+                () => "/v2/channeldesc",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.ChannelDescription> GetChannelDetailAsync(long channelId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.ListChannelDetailRequest();
+            request.ChannelId = channelId;
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.ListChannelDetailAsync(req, opts),
+                () => $"/v2/channeldesc/{channelId}",
+                bucket);
+        }
+
+        #endregion
+
+        #region Banned Users
+
+        public Task<Mezon.Protobuf.Api.BannedUserList> ListBannedUsersAsync(long clanId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.BannedUserListRequest();
+            request.ClanId = clanId;
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.ListBannedUsersAsync(req, opts),
+                () => "/v2/banned",
+                bucket);
+        }
+
+        public async Task UnbanClanUsersAsync(long clanId, IEnumerable<long> userIds, RequestOptions? options = null)
+        {
+            Check.NotNull(userIds, nameof(userIds));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.BanClanUsersRequest();
+            request.ClanId = clanId;
+            foreach (var userId in userIds)
+            {
+                request.UserIds.Add(userId);
+            }
+
+            await SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.UnbanClanUsersAsync(req, opts),
+                () => $"/v2/clandesc/{clanId}/unban",
+                bucket);
+        }
+
+        #endregion
+
+        #region FCM Device Token
+
+        public Task<Mezon.Protobuf.Api.RegistFcmDeviceTokenResponse> RegistFCMDeviceTokenAsync(Mezon.Protobuf.Api.RegistFcmDeviceTokenRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.RegistFCMDeviceTokenAsync(req, opts),
+                () => "/v2/devicetoken",
+                bucket);
+        }
+
+        #endregion
+
+        #region User Clans
+
+        public Task<Mezon.Protobuf.Api.AllUserClans> ListUserClansByUserIdAsync(RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(new Empty(),
+                (req, opts) => GRPCClient.Client.ListUserClansByUserIdAsync(req, opts),
+                () => "/v2/users/clans",
+                bucket);
+        }
+
+        #endregion
+
+        #region Channel Apps
+
+        public Task<Mezon.Protobuf.Api.ListChannelAppsResponse> ListChannelAppsAsync(long? clanId = null, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.ListChannelAppsRequest();
+            if (clanId.HasValue)
+            {
+                request.ClanId = clanId.Value;
+            }
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.ListChannelAppsAsync(req, opts),
+                () => "/v2/channel-apps",
+                bucket);
+        }
+
+        #endregion
+
+        #region Direct Messages
+
+        public async Task CloseDMByChannelIdAsync(long channelId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.DeleteChannelDescRequest();
+            request.ChannelId = channelId;
+
+            await SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.CloseDMByChannelIdAsync(req, opts),
+                () => "/v2/direct/close",
+                bucket);
+        }
+
+        public async Task OpenDMByChannelIdAsync(long channelId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.DeleteChannelDescRequest();
+            request.ChannelId = channelId;
+
+            await SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.OpenDMByChannelIdAsync(req, opts),
+                () => "/v2/direct/open",
+                bucket);
+        }
+
+        #endregion
+
+        #region User Profile
+
+        public Task<Mezon.Protobuf.Api.ClanProfile> GetUserProfileOnClanAsync(long clanId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.ClanProfileRequest();
+            request.ClanId = clanId;
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.GetUserProfileOnClanAsync(req, opts),
+                () => $"/v2/getclanprofile/{clanId}",
+                bucket);
+        }
+
+        public async Task UpdateUserProfileByClanAsync(Mezon.Protobuf.Api.UpdateClanProfileRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.UpdateUserProfileByClanAsync(req, opts),
+                () => $"/v2/updateclanprofile/{body.ClanId}",
+                bucket);
+        }
+
+        #endregion
+
+        #region Thread
+
+        public async Task LeaveThreadAsync(long channelId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.LeaveThreadRequest();
+            request.ChannelId = channelId;
+
+            await SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.LeaveThreadAsync(req, opts),
+                () => $"/v2/channel/{channelId}/leave",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.ChannelDescListNoPool> ListThreadDescsAsync(long channelId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.ListThreadRequest();
+            request.ChannelId = channelId;
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.ListThreadDescsAsync(req, opts),
+                () => $"/v2/thread/{channelId}",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.ChannelDescList> SearchThreadAsync(Mezon.Protobuf.Api.SearchThreadRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.SearchThreadAsync(req, opts),
+                () => "/v2/searchthread",
+                bucket);
+        }
+
+        #endregion
+
+        #region Account Linking
+
+        public Task<Mezon.Protobuf.Api.LinkAccountConfirmRequest> LinkSMSAsync(Mezon.Protobuf.Api.AccountMezon body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.LinkSMSAsync(req, opts),
+                () => "/v2/account/link/mezon",
+                bucket);
+        }
+
+        public async Task ConfirmLinkMezonOTPAsync(Mezon.Protobuf.Api.LinkAccountConfirmRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.ConfirmLinkMezonOTPAsync(req, opts),
+                () => "/v2/account/link/confirm",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.LinkAccountConfirmRequest> LinkEmailAsync(Mezon.Protobuf.Api.AccountEmail body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.LinkEmailAsync(req, opts),
+                () => "/v2/account/link/email",
+                bucket);
+        }
+
+        public async Task UnlinkMezonAsync(Mezon.Protobuf.Api.AccountMezon body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.UnlinkMezonAsync(req, opts),
+                () => "/v2/account/unlink/mezon",
+                bucket);
+        }
+
+        public async Task UnlinkEmailAsync(Mezon.Protobuf.Api.AccountEmail body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.UnlinkEmailAsync(req, opts),
+                () => "/v2/account/unlink/email",
+                bucket);
+        }
+
+        #endregion
+
+        #region Banned Check
+
+        public Task<Mezon.Protobuf.Api.IsBannedResponse> IsBannedAsync(long channelId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.IsBannedRequest();
+            request.ChannelId = channelId;
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.IsBannedAsync(req, opts),
+                () => $"/v2/channel/{channelId}/isban",
+                bucket);
+        }
+
+        #endregion
+
+        #region Role Channel Permission
+
+        public async Task AddRolesChannelDescAsync(Mezon.Protobuf.Api.AddRoleChannelDescRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.AddRolesChannelDescAsync(req, opts),
+                () => "/v2/rolechannel/addrole",
+                bucket);
+        }
+
+        public async Task DeleteRoleChannelDescAsync(long roleId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.DeleteRoleRequest();
+            request.RoleId = roleId;
+
+            await SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.DeleteRoleChannelDescAsync(req, opts),
+                () => "/v2/rolechannel/delete",
+                bucket);
+        }
+
+        public async Task SetRoleChannelPermissionAsync(Mezon.Protobuf.Api.UpdateRoleChannelRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.SetRoleChannelPermissionAsync(req, opts),
+                () => "/v2/permissionrolechannel/set",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.RoleList> GetRoleOfUserInTheClanAsync(long clanId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.ListPermissionOfUsersRequest();
+            request.ClanId = clanId;
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.GetRoleOfUserInTheClanAsync(req, opts),
+                () => $"/v2/roleuserinclan/{clanId}",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.PermissionRoleChannelListEventResponse> GetPermissionByRoleIdChannelIdAsync(Mezon.Protobuf.Api.PermissionRoleChannelListEventRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.GetPermissionByRoleIdChannelIdAsync(req, opts),
+                () => "/v2/permissions/roles/channels/users",
+                bucket);
+        }
+
+        #endregion
+
+        #region Channel Attachments
+
+        public Task<Mezon.Protobuf.Api.ChannelAttachmentList> ListChannelAttachmentAsync(long channelId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.ListChannelAttachmentRequest();
+            request.ChannelId = channelId;
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.ListChannelAttachmentAsync(req, opts),
+                () => $"/v2/channel/{channelId}/attachment",
+                bucket);
+        }
+
+        #endregion
+
+        #region Voice Channel Users
+
+        public Task<Mezon.Protobuf.Api.VoiceChannelUserList> ListChannelVoiceUsersAsync(long clanId, long channelId, int channelType, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.ListChannelUsersRequest();
+            request.ClanId = clanId;
+            request.ChannelId = channelId;
+            request.ChannelType = channelType;
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.ListChannelVoiceUsersAsync(req, opts),
+                () => "/v2/channelvoice",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.StreamingChannelUserList> ListStreamingChannelUsersAsync(long clanId, long channelId, int channelType, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.ListChannelUsersRequest();
+            request.ClanId = clanId;
+            request.ChannelId = channelId;
+            request.ChannelType = channelType;
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.ListStreamingChannelUsersAsync(req, opts),
+                () => "/v2/streaming-channels/users",
+                bucket);
+        }
+
+        #endregion
+
+        #region Channel By User
+
+        public Task<Mezon.Protobuf.Api.ChannelDescListNoPool> ListChannelByUserIdAsync(RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(new Empty(),
+                (req, opts) => GRPCClient.Client.ListChannelByUserIdAsync(req, opts),
+                () => "/v2/listchannelbyuserid",
+                bucket);
+        }
+
+        #endregion
+
+        #region Notification Category
+
+        public Task<Mezon.Protobuf.Api.NotificationUserChannel> GetNotificationChannelAsync(Mezon.Protobuf.Api.NotificationChannel body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.GetNotificationChannelAsync(req, opts),
+                () => "/v2/getnotificationchannel",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.NotificationUserChannel> GetNotificationCategoryAsync(Mezon.Protobuf.Api.DefaultNotificationCategory body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.GetNotificationCategoryAsync(req, opts),
+                () => "/v2/getnotificationcategory",
+                bucket);
+        }
+
+        public async Task SetNotificationCategorySettingAsync(Mezon.Protobuf.Api.SetNotificationRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.SetNotificationCategorySettingAsync(req, opts),
+                () => "/v2/notificationucategory/set",
+                bucket);
+        }
+
+        public async Task DeleteNotificationCategorySettingAsync(Mezon.Protobuf.Api.DefaultNotificationCategory body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.DeleteNotificationCategorySettingAsync(req, opts),
+                () => "/v2/notificationusercategory/delete",
+                bucket);
+        }
+
+        public async Task DeleteNotificationChannelAsync(Mezon.Protobuf.Api.NotificationChannel body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.DeleteNotificationChannelAsync(req, opts),
+                () => "/v2/notificationuserchannel/delete",
+                bucket);
+        }
+
+        #endregion
+
+        #region Inbox Messages
+
+        public Task<Mezon.Protobuf.Api.ChannelMessage> CreateMessage2InboxAsync(Mezon.Protobuf.Api.Message2InboxRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.CreateMessage2InboxAsync(req, opts),
+                () => "/v2/pinmessage/inbox",
+                bucket);
+        }
+
+        #endregion
+
+        #region Channel Settings
+
+        public Task<Mezon.Protobuf.Api.ChannelSettingListResponse> ListChannelSettingAsync(long clanId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.ChannelSettingListRequest();
+            request.ClanId = clanId;
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.ListChannelSettingAsync(req, opts),
+                () => $"/v2/channelsetting/{clanId}",
+                bucket);
+        }
+
+        #endregion
+
+        #region Username
+
+        public Task<Mezon.Protobuf.Api.Session> UpdateUsernameAsync(Mezon.Protobuf.Api.UpdateUsernameRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.UpdateUsernameAsync(req, opts),
+                () => "/v2/username",
+                bucket);
+        }
+
+        #endregion
+
+        #region Channel Private
+
+        public async Task UpdateChannelPrivateAsync(Mezon.Protobuf.Api.ChangeChannelPrivateRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.UpdateChannelPrivateAsync(req, opts),
+                () => "/v2/updatechannelprivate",
+                bucket);
+        }
+
+        #endregion
+
+        #region Channel Category
+
+        public async Task ChangeChannelCategoryAsync(Mezon.Protobuf.Api.ChangeChannelCategoryRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.ChangeChannelCategoryAsync(req, opts),
+                () => $"/v2/channel/category/{body.NewCategoryId}",
+                bucket);
+        }
+
+        #endregion
+
+        #region Emoji Recent
+
+        public Task<Mezon.Protobuf.Api.EmojiRecentList> EmojiRecentListAsync(RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(new Empty(),
+                (req, opts) => GRPCClient.Client.EmojiRecentListAsync(req, opts),
+                () => "/v2/emojirecents",
+                bucket);
+        }
+
+        #endregion
+
+        #region Channel Users UC
+
+        public Task<Mezon.Protobuf.Api.AllUsersAddChannelResponse> ListChannelUsersUCAsync(Mezon.Protobuf.Api.AllUsersAddChannelRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.ListChannelUsersUCAsync(req, opts),
+                () => "/v2/channeldesc/users",
+                bucket);
+        }
+
+        #endregion
+
+        #region Channel Canvas
+
+        public Task<Mezon.Protobuf.Api.EditChannelCanvasResponse> EditChannelCanvasesAsync(Mezon.Protobuf.Api.EditChannelCanvasRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.EditChannelCanvasesAsync(req, opts),
+                () => "/v2/canvases/editor",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.ChannelCanvasListResponse> GetChannelCanvasListAsync(long channelId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.ChannelCanvasListRequest();
+            request.ChannelId = channelId;
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.GetChannelCanvasListAsync(req, opts),
+                () => $"/v2/channel-canvases/{channelId}",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.ChannelCanvasDetailResponse> GetChannelCanvasDetailAsync(long id, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.ChannelCanvasDetailRequest();
+            request.Id = id;
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.GetChannelCanvasDetailAsync(req, opts),
+                () => $"/v2/canvases/{id}",
+                bucket);
+        }
+
+        public async Task DeleteChannelCanvasAsync(long canvasId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.DeleteChannelCanvasRequest();
+            request.CanvasId = canvasId;
+
+            await SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.DeleteChannelCanvasAsync(req, opts),
+                () => $"/v2/canvases/{canvasId}",
+                bucket);
+        }
+
+        #endregion
+
+        #region Favorite Channel
+
+        public Task<Mezon.Protobuf.Api.ListFavoriteChannelResponse> GetListFavoriteChannelAsync(long clanId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.ListFavoriteChannelRequest();
+            request.ClanId = clanId;
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.GetListFavoriteChannelAsync(req, opts),
+                () => $"/v2/channel/favorite/{clanId}",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.AddFavoriteChannelResponse> AddChannelFavoriteAsync(Mezon.Protobuf.Api.AddFavoriteChannelRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.AddChannelFavoriteAsync(req, opts),
+                () => "/v2/channel/favorite",
+                bucket);
+        }
+
+        public async Task RemoveChannelFavoriteAsync(long channelId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.RemoveFavoriteChannelRequest();
+            request.ChannelId = channelId;
+
+            await SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.RemoveChannelFavoriteAsync(req, opts),
+                () => $"/v2/channel/favorite/{channelId}",
+                bucket);
+        }
+
+        #endregion
+
+        #region Clan Webhook
+
+        public Task<Mezon.Protobuf.Api.GenerateClanWebhookResponse> GenerateClanWebhookAsync(Mezon.Protobuf.Api.GenerateClanWebhookRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.GenerateClanWebhookAsync(req, opts),
+                () => "/v2/clanwebhooks",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.ListClanWebhookResponse> ListClanWebhookAsync(long clanId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.ListClanWebhookRequest();
+            request.ClanId = clanId;
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.ListClanWebhookAsync(req, opts),
+                () => $"/v2/clanwebhooks/{clanId}",
+                bucket);
+        }
+
+        public async Task UpdateClanWebhookByIdAsync(Mezon.Protobuf.Api.UpdateClanWebhookRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.UpdateClanWebhookByIdAsync(req, opts),
+                () => $"/v2/clanwebhooks/{body.Id}",
+                bucket);
+        }
+
+        public async Task DeleteClanWebhookByIdAsync(long id, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.ClanWebhookRequest();
+            request.Id = id;
+
+            await SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.DeleteClanWebhookByIdAsync(req, opts),
+                () => $"/v2/clanwebhooks/{id}",
+                bucket);
+        }
+
+        #endregion
+
+        #region Onboarding Step
+
+        public Task<Mezon.Protobuf.Api.ListOnboardingStepResponse> ListOnboardingStepAsync(long clanId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.ListOnboardingStepRequest();
+            request.ClanId = clanId;
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.ListOnboardingStepAsync(req, opts),
+                () => "/v2/onboardingsteps",
+                bucket);
+        }
+
+        public async Task UpdateOnboardingStepAsync(Mezon.Protobuf.Api.UpdateOnboardingStepRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.UpdateOnboardingStepAsync(req, opts),
+                () => $"/v2/onboardingsteps/{body.ClanId}",
+                bucket);
+        }
+
+        #endregion
+
+        #region Clan Unread Message Indicator
+
+        public Task<Mezon.Protobuf.Api.ListClanUnreadMsgIndicatorResponse> ListClanUnreadMsgIndicatorAsync(long clanId, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.ListClanUnreadMsgIndicatorRequest();
+            request.ClanId = clanId;
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.ListClanUnreadMsgIndicatorAsync(req, opts),
+                () => $"/v2/{clanId}/indicator",
+                bucket);
+        }
+
+        #endregion
+
+        #region Quick Menu Access
+
+        public async Task DeleteQuickMenuAccessAsync(Mezon.Protobuf.Api.QuickMenuAccess body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.DeleteQuickMenuAccessAsync(req, opts),
+                () => "/v2/quickmenuaccess",
+                bucket);
+        }
+
+        public async Task AddQuickMenuAccessAsync(Mezon.Protobuf.Api.QuickMenuAccess body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.AddQuickMenuAccessAsync(req, opts),
+                () => "/v2/quickmenuaccess",
+                bucket);
+        }
+
+        public async Task UpdateQuickMenuAccessAsync(Mezon.Protobuf.Api.QuickMenuAccess body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.UpdateQuickMenuAccessAsync(req, opts),
+                () => "/v2/quickmenuaccess",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.QuickMenuAccessList> ListQuickMenuAccessAsync(long botId, long channelId, int? menuType = null, RequestOptions? options = null)
+        {
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            var request = new Mezon.Protobuf.Api.ListQuickMenuAccessRequest();
+            request.BotId = botId;
+            request.ChannelId = channelId;
+            if (menuType.HasValue)
+            {
+                request.MenuType = menuType.Value;
+            }
+
+            return SendRPCAsync(request,
+                (req, opts) => GRPCClient.Client.ListQuickMenuAccessAsync(req, opts),
+                () => "/v2/quickmenuaccess",
+                bucket);
+        }
+
+        #endregion
+
+        #region Follower
+
+        public Task<Mezon.Protobuf.Api.IsFollowerResponse> IsFollowerAsync(Mezon.Protobuf.Api.IsFollowerRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.IsFollowerAsync(req, opts),
+                () => "/v2/follower",
+                bucket);
+        }
+
+        #endregion
+
+        #region Channel Messages
+
+        public Task<PbRealtime.ChannelMessageAck> SendChannelMessageAsync(PbRealtime.ChannelMessageSend body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.SendChannelMessageAsync(req, opts),
+                () => "/v2/message/send",
+                bucket);
+        }
+
+        public async Task UpdateChannelMessageAsync(PbRealtime.ChannelMessageUpdate body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.UpdateChannelMessageAsync(req, opts),
+                () => "/v2/message/update",
+                bucket);
+        }
+
+        public async Task DeleteChannelMessageAsync(PbRealtime.ChannelMessageRemove body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.DeleteChannelMessageAsync(req, opts),
+                () => "/v2/message/delete",
+                bucket);
+        }
+
+        #endregion
+
+        #region Mezon Meet Participant
+
+        public async Task RemoveParticipantMezonMeetAsync(Mezon.Protobuf.Api.MeetParticipantRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.RemoveParticipantMezonMeetAsync(req, opts),
+                () => "/v2/meet/participant/remove",
+                bucket);
+        }
+
+        public async Task MuteParticipantMezonMeetAsync(Mezon.Protobuf.Api.MeetParticipantRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.MuteParticipantMezonMeetAsync(req, opts),
+                () => "/v2/meet/participant/mute",
+                bucket);
+        }
+
+        #endregion
+
+        #region Room Channel Apps
+
+        public Task<Mezon.Protobuf.Api.CreateRoomChannelApps> CreateRoomChannelAppsAsync(Mezon.Protobuf.Api.CreateRoomChannelApps body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.CreateRoomChannelAppsAsync(req, opts),
+                () => "/v2/channel-apps/createroom",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.GenerateHashChannelAppsResponse> GenerateHashChannelAppsAsync(Mezon.Protobuf.Api.GenerateHashChannelAppsRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.GenerateHashChannelAppsAsync(req, opts),
+                () => "/v2/channel-apps/hash",
+                bucket);
+        }
+
+        #endregion
+
+        #region OAuth Client
+
+        public Task<Mezon.Protobuf.Api.MezonOauthClient> GetMezonOauthClientAsync(Mezon.Protobuf.Api.GetMezonOauthClientRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.GetMezonOauthClientAsync(req, opts),
+                () => "/v2/mznoauthclient",
+                bucket);
+        }
+
+        public async Task DeleteMezonOauthClientAsync(Mezon.Protobuf.Api.MezonOauthClient body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.DeleteMezonOauthClientAsync(req, opts),
+                () => "/v2/mznoauthclient",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.MezonOauthClient> UpdateMezonOauthClientAsync(Mezon.Protobuf.Api.MezonOauthClient body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.UpdateMezonOauthClientAsync(req, opts),
+                () => "/v2/mznoauthclient",
+                bucket);
+        }
+
+        #endregion
+
+        #region SD Topics
+
+        public Task<Mezon.Protobuf.Api.SdTopicList> ListSdTopicAsync(Mezon.Protobuf.Api.ListSdTopicRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.ListSdTopicAsync(req, opts),
+                () => "/v2/sdmtopic",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.SdTopic> GetTopicDetailAsync(Mezon.Protobuf.Api.SdTopicDetailRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.GetTopicDetailAsync(req, opts),
+                () => "/v2/sdmtopic/detail",
+                bucket);
+        }
+
+        public Task<Mezon.Protobuf.Api.SdTopic> CreateSdTopicAsync(Mezon.Protobuf.Api.SdTopicRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.CreateSdTopicAsync(req, opts),
+                () => "/v2/sdmtopic",
+                bucket);
+        }
+
+        public async Task DeleteSdTopicAsync(Mezon.Protobuf.Api.DeleteSdTopicRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.DeleteSdTopicAsync(req, opts),
+                () => "/v2/sdmtopic",
+                bucket);
+        }
+
+        #endregion
+
+        #region Interactive
+
+        public async Task MessageButtonClickAsync(PbRealtime.MessageButtonClicked body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.MessageButtonClickAsync(req, opts),
+                () => "/v2/interactive/buttonclick",
+                bucket);
+        }
+
+        public async Task DropdownBoxSelectedAsync(PbRealtime.DropdownBoxSelected body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.DropdownBoxSelectedAsync(req, opts),
+                () => "/v2/interactive/dropdownselect",
+                bucket);
+        }
+
+        #endregion
+
+        #region Voice State
+
+        public async Task UpdateMezonVoiceStateAsync(PbRealtime.HandleParticipantMeetStateEvent body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.UpdateMezonVoiceStateAsync(req, opts),
+                () => "/v2/voice/update",
+                bucket);
+        }
+
+        #endregion
+
+        #region Archived Thread
+
+        public async Task ActiveArchivedThreadAsync(PbRealtime.ActiveArchivedThread body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.ActiveArchivedThreadAsync(req, opts),
+                () => "/v2/thread/activearchive",
+                bucket);
+        }
+
+        #endregion
+
+        #region AI Agent
+
+        public async Task AddAgentToChannelAsync(Mezon.Protobuf.Api.UpdateAIAgentRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.AddAgentToChannelAsync(req, opts),
+                () => "/v2/agent/addtochannel",
+                bucket);
+        }
+
+        public async Task DisconnectAgentAsync(Mezon.Protobuf.Api.UpdateAIAgentRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.DisconnectAgentAsync(req, opts),
+                () => "/v2/agent/disconnect",
+                bucket);
+        }
+
+        #endregion
+
+        #region Report Message
+
+        public async Task ReportMessageAbuseAsync(Mezon.Protobuf.Api.ReportMessageAbuseReqest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.ReportMessageAbuseAsync(req, opts),
+                () => "/v2/message/report",
+                bucket);
+        }
+
+        #endregion
+
+        #region Registration
+
+        public async Task<AuthenticationResponse> RegistrationEmailAsync(string basicAuthUsername, string basicAuthPassword, Mezon.Protobuf.Api.RegistrationEmailRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            options = RequestOptions.CreateOrClone(options);
+            options.IgnoreState = true;
+            AddBasicAuthHeader(basicAuthUsername, basicAuthPassword, options);
+            var bucket = new BucketIds();
+            options.RequestHeaders.Add("Accept", new[] { "application/x-protobuf" });
+            var response = PbSession.Parser.ParseFrom(await SendJsonAsync("POST", () => "/v2/account/registry", body, bucket, options: options));
+            return new AuthenticationResponse
+            {
+                ApiUrl = response.ApiUrl,
+                Created = response.Created,
+                IsRemember = response.IsRemember,
+                RefreshToken = response.RefreshToken,
+                Token = response.Token,
+                UserId = response.UserId,
+            };
+        }
+
+        #endregion
+
+        #region OAuth File Upload
+
+        public Task<Mezon.Protobuf.Api.UploadAttachment> UploadOauthFileAsync(Mezon.Protobuf.Api.UploadAttachmentRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.UploadOauthFileAsync(req, opts),
+                () => "/v2/uploadoauthfile",
+                bucket);
+        }
+
+        #endregion
+
+        #region Account Update
+
+        public async Task UpdateAccountAsync(Mezon.Protobuf.Api.UpdateAccountRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.UpdateAccountAsync(req, opts),
+                () => "/v2/account",
+                bucket);
+        }
+
+        #endregion
+
+        #region Streaming Callback
+
+        public Task<Mezon.Protobuf.Api.StreamHttpCallbackResponse> StreamingServerCallbackAsync(Mezon.Protobuf.Api.StreamHttpCallbackRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.StreamingServerCallbackAsync(req, opts),
+                () => "/v2/stream/callback",
+                bucket);
+        }
+
+        #endregion
+
+        #region For Sale Items
+
+        public Task<Mezon.Protobuf.Api.ForSaleItemList> ListForSaleItemsAsync(Mezon.Protobuf.Api.ListForSaleItemsRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            return SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.ListForSaleItemsAsync(req, opts),
+                () => "/v2/forsale",
+                bucket);
+        }
+
+        #endregion
+
+        #region Clan Webhook Handler
+
+        public async Task HandleClanWebhookAsync(Mezon.Protobuf.Api.ClanWebhookHandlerRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            GRPCClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            options = RequestOptions.CreateOrClone(options);
+            var bucket = new BucketIds();
+
+            await SendRPCAsync(body,
+                (req, opts) => GRPCClient.Client.HandleClanWebhookAsync(req, opts),
+                () => $"/v2/clanwebhooks/{body.Token}/{body.Username}",
+                bucket);
+        }
+
+        #endregion
     }
 }

@@ -79,14 +79,14 @@ namespace Mezon.NET.Logging
 
             if (prependTimestamp)
             {
-                DateTime now;
+                DateTimeOffset now;
                 if (timestampKind == DateTimeKind.Utc)
                 {
-                    now = DateTime.UtcNow;
+                    now = DateTimeOffset.UtcNow;
                 }
                 else
                 {
-                    now = DateTime.Now;
+                    now = DateTimeOffset.Now;
                 }
 
                 string format = "yyyy-MM-dd HH:mm:ss";
