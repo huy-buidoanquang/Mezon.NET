@@ -53,14 +53,14 @@ A high-performance, thread-safe throttle queue that automatically limits the num
 ## Installation
 
 ```bash
-# The AsyncThrottleQueue is part of Mezon.NET.SDK
+# The AsyncThrottleQueue is part of Mezon.Net.SDK
 # No additional packages required - uses only .NET Standard 2.1 APIs
 ```
 
 ## Quick Start
 
 ```csharp
-using Mezon.NET.SDK;
+using Mezon.Net.SDK;
 
 // Create a queue with 50 operations per second limit
 using var queue = new AsyncThrottleQueue(maxPerSecond: 50);
@@ -389,10 +389,10 @@ Gets whether the queue is currently at maximum capacity.
 ```
 Base: ~200 bytes (queue, semaphore, cancellation token)
 Per pending task: ~80 bytes (QueuedTask + TaskCompletionSource)
-Timestamps: ~8 bytes × maxPerSecond
+Timestamps: ~8 bytes Ã— maxPerSecond
 
 Example with 1000 pending tasks and maxPerSecond=100:
-200 + (80 × 1000) + (8 × 100) = ~80KB
+200 + (80 Ã— 1000) + (8 Ã— 100) = ~80KB
 ```
 
 ## Threading Model
@@ -640,4 +640,4 @@ queue.ClearQueue();
 
 ## License
 
-Part of the Mezon.NET.SDK project.
+Part of the Mezon.Net.SDK project.

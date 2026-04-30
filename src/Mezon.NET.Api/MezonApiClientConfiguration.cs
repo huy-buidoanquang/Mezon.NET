@@ -1,7 +1,7 @@
-using Mezon.NET.Core;
-using Mezon.NET.Abstractions;
+using Mezon.Net.Core;
+using Mezon.Net.Abstractions;
 
-namespace Mezon.NET.Api
+namespace Mezon.Net.Api
 {
 
     /// <summary>

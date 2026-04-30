@@ -1,4 +1,4 @@
-namespace Mezon.NET.Core
+namespace Mezon.Net.Core
 {
     /// <summary> Specifies the state of the client's login status. </summary>
     public enum LoginState : byte

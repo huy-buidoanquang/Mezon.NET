@@ -4,18 +4,18 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Mezon.NET.Api;
-using Mezon.NET.Core;
-using Mezon.NET.Abstractions;
+using Mezon.Net.Abstractions;
+using Mezon.Net.Api;
+using Mezon.Net.Core;
 
-namespace Mezon.NET.Queue
+namespace Mezon.Net.Queue
 {
-    internal class MezonRequestQueue : IDisposable, IAsyncDisposable
+    internal class RequestQueue : IDisposable, IAsyncDisposable
     {
         public event Func<BucketId, RateLimitInfo?, string, Task> RateLimitTriggered;
 
         private readonly ConcurrentDictionary<BucketId, object> _buckets;
-        private readonly SemaphoreSlim _tokenLock;
+        private readonly SemaphoreSlim _semaphoreLock;
         private readonly CancellationTokenSource _cancelTokenSource;
         private CancellationTokenSource _clearToken;
         private CancellationToken _parentToken;
@@ -24,36 +24,34 @@ namespace Mezon.NET.Queue
         private DateTimeOffset _waitUntil;
 
         // Gateway rate limiters (WebSocket only)
-        private readonly GatewayRateLimiter _unbucketedLimiter;
-        private readonly GatewayRateLimiter _identifyLimiter;
-        private readonly GatewayRateLimiter _presenceUpdateLimiter;
+        private readonly SocketRateLimiter _unbucketedLimiter;
+        private readonly SocketRateLimiter _identifyLimiter;
+        private readonly SocketRateLimiter _presenceUpdateLimiter;
 
         private Task _cleanupTask;
 
 #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
-        public MezonRequestQueue()
+        public RequestQueue()
 #pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
         {
-            _tokenLock = new SemaphoreSlim(1, 1);
+            _semaphoreLock = new SemaphoreSlim(1, 1);
 
             _clearToken = new CancellationTokenSource();
             _cancelTokenSource = new CancellationTokenSource();
             _requestCancelToken = CancellationToken.None;
             _parentToken = CancellationToken.None;
-
             _buckets = new ConcurrentDictionary<BucketId, object>();
 
-            // Initialize gateway rate limiters
-            _unbucketedLimiter = new GatewayRateLimiter(BucketType.Unbucketed, 117, 60);
-            _identifyLimiter = new GatewayRateLimiter(BucketType.Identify, 1, 5);
-            _presenceUpdateLimiter = new GatewayRateLimiter(BucketType.PresenceUpdate, 5, 60);
+            _unbucketedLimiter = new SocketRateLimiter(SocketBucketType.Unbucketed, 117, 60);
+            _identifyLimiter = new SocketRateLimiter(SocketBucketType.Identify, 1, 5);
+            _presenceUpdateLimiter = new SocketRateLimiter(SocketBucketType.PresenceUpdate, 5, 60);
 
             _cleanupTask = RunCleanup();
         }
 
         public async Task SetCancelTokenAsync(CancellationToken cancelToken)
         {
-            await _tokenLock.WaitAsync().ConfigureAwait(false);
+            await _semaphoreLock.WaitAsync().ConfigureAwait(false);
             try
             {
                 _parentToken = cancelToken;
@@ -63,13 +61,13 @@ namespace Mezon.NET.Queue
             }
             finally
             {
-                _tokenLock.Release();
+                _semaphoreLock.Release();
             }
         }
 
         public async Task ClearAsync()
         {
-            await _tokenLock.WaitAsync().ConfigureAwait(false);
+            await _semaphoreLock.WaitAsync().ConfigureAwait(false);
             try
             {
                 _clearToken?.Cancel();
@@ -81,7 +79,7 @@ namespace Mezon.NET.Queue
             }
             finally
             {
-                _tokenLock.Release();
+                _semaphoreLock.Release();
             }
         }
 
@@ -168,11 +166,9 @@ namespace Mezon.NET.Queue
                 request.Options.CancelToken = _requestCancelToken;
             }
 
-            // WebSocket uses GatewayRateLimiter directly, no need for RequestBucket
+            // WebSocket uses SocketRateLimiter directly, no need for RequestBucket
             // Rate limiting is handled in EnterGlobalAsync
             await EnterGlobalAsync(0, request).ConfigureAwait(false);
-
-            // Send without retry logic (WebSocket doesn't need complex retry like HTTP)
             await request.SendAsync().ConfigureAwait(false);
 
             createdTokenSource?.Dispose();
@@ -180,24 +176,23 @@ namespace Mezon.NET.Queue
 
         internal async Task EnterGlobalAsync(int id, WebSocketRequest request)
         {
-            if (request.Options.BucketType == null)
+            var requestBucket = SocketBucket.Get(request.Options.BucketId);
+            //if (requestBucket == default(SocketBucket))
+            //{
+            //    await _unbucketedLimiter.WaitAsync(request.Options.CancelToken).ConfigureAwait(false);
+            //    return;
+            //}
+
+            if (requestBucket.Type != SocketBucketType.Unbucketed)
             {
                 await _unbucketedLimiter.WaitAsync(request.Options.CancelToken).ConfigureAwait(false);
-                return;
             }
 
-            var bucketType = request.Options.BucketType.Value;
-
-            if (bucketType != BucketType.Unbucketed)
+            var limiter = requestBucket.Type switch
             {
-                await _unbucketedLimiter.WaitAsync(request.Options.CancelToken).ConfigureAwait(false);
-            }
-
-            var limiter = bucketType switch
-            {
-                BucketType.Unbucketed => _unbucketedLimiter,
-                BucketType.Identify => _identifyLimiter,
-                BucketType.PresenceUpdate => _presenceUpdateLimiter,
+                SocketBucketType.Unbucketed => _unbucketedLimiter,
+                SocketBucketType.Identify => _identifyLimiter,
+                SocketBucketType.PresenceUpdate => _presenceUpdateLimiter,
                 _ => _unbucketedLimiter
             };
 
@@ -214,7 +209,7 @@ namespace Mezon.NET.Queue
             _waitUntil = DateTimeOffset.UtcNow.AddMilliseconds(info.RetryAfter.Value + (info.Lag?.TotalMilliseconds ?? 0.0));
         }
 
-        private MezonRequestBucket GetOrCreateBucket(RequestOptions options, IRequest request)
+        private RequestQueueBucket GetOrCreateBucket(RequestOptions options, IRequest request)
         {
             if (options.BucketId == null)
             {
@@ -222,24 +217,24 @@ namespace Mezon.NET.Queue
             }
 
             var bucketId = options.BucketId;
-            object obj = _buckets.GetOrAdd(bucketId, x => new MezonRequestBucket(this, request, x));
+            object obj = _buckets.GetOrAdd(bucketId, x => new RequestQueueBucket(this, request, x));
             if (obj is BucketId hashBucket)
             {
                 options.BucketId = hashBucket;
-                return (MezonRequestBucket)_buckets.GetOrAdd(hashBucket, x => new MezonRequestBucket(this, request, x));
+                return (RequestQueueBucket)_buckets.GetOrAdd(hashBucket, x => new RequestQueueBucket(this, request, x));
             }
-            return (MezonRequestBucket)obj;
+            return (RequestQueueBucket)obj;
         }
 
         internal Task RaiseRateLimitTriggered(BucketId bucketId, RateLimitInfo? info, string endpoint)
             => RateLimitTriggered(bucketId, info, endpoint);
 
-        internal (MezonRequestBucket?, BucketId?) UpdateBucketHash(BucketId id, string mezonHash)
+        internal (RequestQueueBucket?, BucketId?) UpdateBucketHash(BucketId id, string mezonHash)
         {
             if (!id.IsHashBucket)
             {
                 var bucket = BucketId.Create(mezonHash, id);
-                var hashReqQueue = (MezonRequestBucket)_buckets.GetOrAdd(bucket, _buckets[id]);
+                var hashReqQueue = (RequestQueueBucket)_buckets.GetOrAdd(bucket, _buckets[id]);
                 _buckets.AddOrUpdate(id, bucket, (oldBucket, oldObj) => bucket);
                 return (hashReqQueue, bucket);
             }
@@ -261,7 +256,7 @@ namespace Mezon.NET.Queue
                 while (!_cancelTokenSource.IsCancellationRequested)
                 {
                     var now = DateTimeOffset.UtcNow;
-                    foreach (var bucket in _buckets.Where(x => x.Value is MezonRequestBucket).Select(x => (MezonRequestBucket)x.Value))
+                    foreach (var bucket in _buckets.Where(x => x.Value is RequestQueueBucket).Select(x => (RequestQueueBucket)x.Value))
                     {
                         if ((now - bucket.LastAttemptAt).TotalMinutes > 1.0)
                         {
@@ -291,7 +286,7 @@ namespace Mezon.NET.Queue
                 _cancelTokenSource.Dispose();
                 _cleanupTask.GetAwaiter().GetResult();
             }
-            _tokenLock?.Dispose();
+            _semaphoreLock?.Dispose();
             _clearToken?.Dispose();
             _requestCancelTokenSource?.Dispose();
         }
@@ -304,7 +299,7 @@ namespace Mezon.NET.Queue
                 _cancelTokenSource.Dispose();
                 await _cleanupTask.ConfigureAwait(false);
             }
-            _tokenLock?.Dispose();
+            _semaphoreLock?.Dispose();
             _clearToken?.Dispose();
             _requestCancelTokenSource?.Dispose();
         }

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace Mezon.NET.SDK
+namespace Mezon.Net.SDK
 {
     /// <summary> Specifies the connection state of a client. </summary>
     public enum ConnectionState : byte

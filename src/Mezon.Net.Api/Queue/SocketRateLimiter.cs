@@ -2,25 +2,24 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Mezon.NET.Core;
 
-namespace Mezon.NET.Api
+namespace Mezon.Net.Queue
 {
     /// <summary>
     ///     Simple rate limiter for WebSocket gateway operations.
     /// </summary>
-    internal class GatewayRateLimiter
+    internal class SocketRateLimiter
     {
         private readonly int _maxCount;
         private readonly int _windowSeconds;
         private readonly Queue<DateTimeOffset> _timestamps;
         private readonly SemaphoreSlim _lock;
 
-        public BucketType Type { get; }
+        public SocketBucketType Type { get; }
         public int WindowCount => _maxCount;
         public int WindowSeconds => _windowSeconds;
 
-        public GatewayRateLimiter(BucketType type, int maxCount, int windowSeconds)
+        public SocketRateLimiter(SocketBucketType type, int maxCount, int windowSeconds)
         {
             Type = type;
             _maxCount = maxCount;

@@ -1,4 +1,4 @@
-namespace Mezon.NET.Core
+namespace Mezon.Net.Core
 {
     /// <summary> Specifies the connection state of a client. </summary>
     public enum ConnectionState : byte

@@ -1,7 +1,7 @@
-﻿using System;
+using System;
 using System.Threading;
 
-namespace Mezon.NET.Core
+namespace Mezon.Net.Core
 {
     /// <summary>
     ///     Provides a series of helper methods for handling and generating snowflake identifiers.

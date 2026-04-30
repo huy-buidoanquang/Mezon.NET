@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using Grpc.Core;
 
-namespace Mezon.NET.Core
+namespace Mezon.Net.Core
 {
     internal class RPCException : RpcException
     {

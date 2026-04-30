@@ -1,12 +1,13 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo("Mezon.NET.Api")]
-[assembly: InternalsVisibleTo("Mezon.NET.WebSocket")]
-[assembly: InternalsVisibleTo("Mezon.NET.Tests")]
+[assembly: InternalsVisibleTo("Mezon.Net.Api")]
+[assembly: InternalsVisibleTo("Mezon.Net.WebSocket")]
+[assembly: InternalsVisibleTo("Mezon.Net.Tests")]
+[assembly: InternalsVisibleTo("Mezon.Net.Transport")]
 
 
-namespace Mezon.NET.Core
+namespace Mezon.Net.Core
 {
     public static class AssemblyReference
     {

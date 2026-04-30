@@ -1,4 +1,4 @@
-namespace Mezon.NET.Abstractions
+namespace Mezon.Net.Abstractions
 {
     public interface IWebSocketClientProvider
     {

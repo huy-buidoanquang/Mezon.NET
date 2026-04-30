@@ -1,7 +1,7 @@
 using System;
 using System.Diagnostics;
 
-namespace Mezon.NET.Core
+namespace Mezon.Net.Core
 {
     //Based on https://github.com/dotnet/coreclr/blob/master/src/mscorlib/src/System/Nullable.cs
     [DebuggerDisplay(@"{DebuggerDisplay,nq}")]

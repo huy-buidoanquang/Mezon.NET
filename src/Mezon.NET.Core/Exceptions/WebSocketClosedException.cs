@@ -1,6 +1,6 @@
 using System;
 
-namespace Mezon.NET.Core
+namespace Mezon.Net.Core
 {
     /// <summary>
     ///     The exception that is thrown when the WebSocket session is closed by Mezon.

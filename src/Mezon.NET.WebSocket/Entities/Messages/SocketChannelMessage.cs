@@ -1,8 +1,8 @@
 using System.Collections.Generic;
-using Mezon.NET.Core.Entities.Channels;
+using Mezon.Net.Core.Entities.Channels;
 using Mezon.Protobuf.Api;
 
-namespace Mezon.NET.WebSocket
+namespace Mezon.Net.WebSocket
 {
     public class SocketChannelMessage : SocketEntity<ulong>, IChannelMessage
     {

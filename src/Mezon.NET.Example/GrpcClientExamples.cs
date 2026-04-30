@@ -2,11 +2,11 @@
 //using System.Threading;
 //using System.Threading.Tasks;
 //using Grpc.Core;
-//using Mezon.NET.Core;
-//using Mezon.NET.Abstractions;
+//using Mezon.Net.Core;
+//using Mezon.Net.Abstractions;
 //using Google.Protobuf.WellKnownTypes;
 
-//namespace Mezon.NET.Example
+//namespace Mezon.Net.Example
 //{
 //    /// <summary>
 //    /// Example demonstrating the usage of SetHeader and SetCancelToken methods

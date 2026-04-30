@@ -1,6 +1,6 @@
 using System;
 
-namespace Mezon.NET.Abstractions
+namespace Mezon.Net.Abstractions
 {
     /// <summary>
     ///     Represents a generic ratelimit info.

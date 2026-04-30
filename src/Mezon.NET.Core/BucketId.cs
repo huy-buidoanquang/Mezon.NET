@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Mezon.NET.Core
+namespace Mezon.Net.Core
 {
     /// <summary>
     ///     Represents a ratelimit bucket.
@@ -133,28 +133,28 @@ namespace Mezon.NET.Core
 
     internal class BucketIds
     {
-        public ulong GuildId { get; internal set; }
+        public ulong ClanId { get; internal set; }
         public ulong ChannelId { get; internal set; }
         public ulong WebhookId { get; internal set; }
         public string? HttpMethod { get; internal set; }
 
-        internal BucketIds(ulong guildId = 0, ulong channelId = 0, ulong webhookId = 0, string? httpMethod = null)
+        internal BucketIds(ulong clanId = 0, ulong channelId = 0, ulong webhookId = 0, string? httpMethod = null)
         {
-            GuildId = guildId;
+            ClanId = clanId;
             ChannelId = channelId;
             WebhookId = webhookId;
             HttpMethod = httpMethod;
         }
 
         internal object[] ToArray()
-            => new object[] { HttpMethod ?? string.Empty, GuildId, ChannelId, WebhookId };
+            => new object[] { HttpMethod ?? string.Empty, ClanId, ChannelId, WebhookId };
 
         internal Dictionary<string, string> ToMajorParametersDictionary()
         {
             var dict = new Dictionary<string, string>();
-            if (GuildId != 0)
+            if (ClanId != 0)
             {
-                dict["GuildId"] = GuildId.ToString();
+                dict["GuildId"] = ClanId.ToString();
             }
 
             if (ChannelId != 0)

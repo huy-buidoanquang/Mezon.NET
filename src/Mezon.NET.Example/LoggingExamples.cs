@@ -1,14 +1,14 @@
-//using Mezon.NET.Api;
-//using Mezon.NET.Logging;
+//using Mezon.Net.Api;
+//using Mezon.Net.Logging;
 //using System;
 //using System.IO;
 //using System.Linq;
 //using System.Threading.Tasks;
 
-//namespace Mezon.NET.Example
+//namespace Mezon.Net.Example
 //{
 //    /// <summary>
-//    ///     Examples demonstrating different ways to configure logging with Mezon.NET
+//    ///     Examples demonstrating different ways to configure logging with Mezon.Net
 //    /// </summary>
 //    public static class LoggingExamples
 //    {

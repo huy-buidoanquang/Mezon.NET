@@ -1,6 +1,6 @@
 using System;
 
-namespace Mezon.NET.Core
+namespace Mezon.Net.Core
 {
     internal static class Check
     {

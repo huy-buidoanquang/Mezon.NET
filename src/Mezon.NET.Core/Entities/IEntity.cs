@@ -1,6 +1,6 @@
-﻿using System;
+using System;
 
-namespace Mezon.NET.Core
+namespace Mezon.Net.Core
 {
     public interface IEntity<TId>
         where TId : IEquatable<TId>

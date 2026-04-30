@@ -1,6 +1,6 @@
-﻿using System;
+using System;
 
-namespace Mezon.NET.Core
+namespace Mezon.Net.Core
 {
     /// <summary> Represents a Mezon snowflake entity. </summary>
     public interface ISnowflakeEntity : IEntity<ulong>

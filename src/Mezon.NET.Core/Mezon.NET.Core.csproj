@@ -27,11 +27,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Protobuf Include="Protobuf\Api\api.proto" GrpcServices="Api" />
-    <Protobuf Include="Protobuf\Realtime\realtime.proto" GrpcServices="Realtime">
+    <Protobuf Include="Protobuf\Api\api.proto" GrpcServices="None"/>
+    <Protobuf Include="Protobuf\Realtime\realtime.proto" GrpcServices="Client">
       <AdditionalImportDirs>Protobuf/;$(PkgGoogle_Api_CommonProtos)/content/protos</AdditionalImportDirs>
     </Protobuf>
-    <Protobuf Include="Protobuf\apigrpc.proto" GrpcServices="MezonService">
+   <Protobuf Include="Protobuf\apigrpc.proto" GrpcServices="Client">
       <AdditionalImportDirs>Protobuf/;$(PkgGoogle_Api_CommonProtos)/content/protos</AdditionalImportDirs>
     </Protobuf>
   </ItemGroup>

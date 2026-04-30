@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace Mezon.NET.SDK.Abstractions
+namespace Mezon.Net.SDK.Abstractions
 {
     /// <summary>
     /// Interface for Mezon Client SDK

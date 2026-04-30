@@ -1,4 +1,4 @@
-namespace Mezon.NET.Logging
+namespace Mezon.Net.Logging
 {
     /// <summary>
     ///     Specifies the level of the log message.

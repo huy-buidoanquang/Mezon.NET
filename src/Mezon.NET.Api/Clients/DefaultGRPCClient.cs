@@ -7,11 +7,11 @@ using System.Threading.Tasks;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Grpc.Net.Client.Web;
-using Mezon.NET.Core;
-using Mezon.NET.Abstractions;
+using Mezon.Net.Core;
+using Mezon.Net.Abstractions;
 using MezonRPC = Mezon.Protobuf.Service.Mezon;
 
-namespace Mezon.NET.Api
+namespace Mezon.Net.Api
 {
     internal sealed class DefaultGRPCClient : IGRPCClient, IDisposable
     {

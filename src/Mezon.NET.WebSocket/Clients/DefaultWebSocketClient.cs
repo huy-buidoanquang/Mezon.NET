@@ -6,9 +6,9 @@ using System.Net;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
-using Mezon.NET.Abstractions;
+using Mezon.Net.Abstractions;
 
-namespace Mezon.NET.WebSocket
+namespace Mezon.Net.WebSocket
 {
     internal partial class DefaultWebSocketClient : IWebSocketClient, IDisposable, IAsyncDisposable
     {

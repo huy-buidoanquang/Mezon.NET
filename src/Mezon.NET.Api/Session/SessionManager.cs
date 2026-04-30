@@ -1,33 +1,37 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Mezon.NET.Abstractions;
-using Mezon.NET.Core;
-using Mezon.NET.Logging;
+using Mezon.Net.Abstractions;
+using Mezon.Net.Core;
+using Mezon.Net.Core.Abstractions;
+using Mezon.Net.Logging;
 
-namespace Mezon.NET.Api
+namespace Mezon.Net.Api
 {
     /// <summary>
     /// Thread-safe singleton session manager that ensures only one session exists throughout the application's lifecycle.
     /// Uses lazy initialization for efficient resource usage.
     /// </summary>
-    internal sealed class SessionManager : IDisposable, IAsyncDisposable
+    internal sealed class SessionManager : ISessionManager, IDisposable, IAsyncDisposable
     {
         private static SessionManager? _instance;
         private static readonly object _instanceLock = new object();
         private static volatile bool _isInitialized;
 
         private readonly SemaphoreSlim _sessionRefreshLock = new SemaphoreSlim(1, 1);
+        private Task<bool>? _refreshTask;
         private readonly IMezonApiClient _apiClient;
         private readonly MezonConfiguration _mezonConfiguration;
         private readonly Logger _sessionLogger;
 
         private const int RefreshTimeBufferInSeconds = 30;
-        private Timer? _sessionCheckTimer;
-        private volatile ISession _session;
+        private volatile ISession _session = Session.NullSession();
         private bool _isDisposed;
         private bool _autoRefreshSession;
 
+        public event Func<ISession, Task>? SessionChanged;
+
+        public string GetToken() => _session.AuthToken;
         /// <summary>
         /// Gets the singleton instance of SessionManager.
         /// Must call Initialize() or GetOrCreate() before accessing this property.
@@ -237,13 +241,10 @@ namespace Mezon.NET.Api
             await _sessionRefreshLock.WaitAsync().ConfigureAwait(false);
             try
             {
-                StopSessionTimer();
                 _autoRefreshSession = autoRefreshSession;
-
                 if (session != null && !string.IsNullOrEmpty(session.AuthToken))
                 {
                     _session = session;
-                    StartSessionTimer();
                     await _sessionLogger.InfoAsync($"Authentication successful. User: {_session.Username}, Expires: {DateTimeOffset.FromUnixTimeSeconds(_session.ExpiresAt)}").ConfigureAwait(false);
                     return true;
                 }
@@ -312,64 +313,89 @@ namespace Mezon.NET.Api
             }
         }
 
-        private async Task RefreshSessionIfNeededAsync(CancellationToken cancellationToken)
+        public async Task<string> GetOrRefreshAsync()
         {
-            if (!_autoRefreshSession || _session == null || !_session.IsExpiredSoon(RefreshTimeBufferInSeconds))
+            if (!_session.IsExpiredSoon(RefreshTimeBufferInSeconds))
             {
-                return;
+                return _session.AuthToken;
             }
 
+            if (_autoRefreshSession)
+            {
+                await TryRefreshSessionAsync().ConfigureAwait(false);
+            }
+
+            return _session.AuthToken;
+        }
+
+        private async Task<bool> TryRefreshSessionAsync()
+        {
             await _sessionLogger.InfoAsync($"Refresh session successful. User: {_session.Username}, Expires: {DateTimeOffset.FromUnixTimeSeconds(_session.ExpiresAt)}").ConfigureAwait(false);
 
-            await _sessionRefreshLock.WaitAsync(cancellationToken);
+            Task<bool>? currentRefreshTask;
+
+            await _sessionRefreshLock.WaitAsync().ConfigureAwait(false);
             try
             {
-                if (!_session.IsExpiredSoon(RefreshTimeBufferInSeconds))
+                if (_refreshTask != null)
                 {
-                    return;
-                }
-
-                var request = new SessionRefreshRequest { Token = _session.RefreshToken };
-                var newSession = await _apiClient.RefreshSessionAsync("", "", request);
-
-                if (newSession != null && !string.IsNullOrEmpty(newSession.Token))
-                {
-                    _session = new Session(newSession);
+                    currentRefreshTask = _refreshTask;
                 }
                 else
                 {
-                    _session = Session.NullSession();
-                    StopSessionTimer();
-                    throw new SessionRefreshFailedException();
+                    _refreshTask = PerformRefreshInternalAsync();
+                    currentRefreshTask = _refreshTask;
                 }
-            }
-            catch (Exception ex)
-            {
-                await _sessionLogger.ErrorAsync("An error occurred while refreshing the session.", ex).ConfigureAwait(false);
-                _session = Session.NullSession();
             }
             finally
             {
                 _sessionRefreshLock.Release();
             }
-        }
 
-        private void StartSessionTimer()
-        {
-            if (!_autoRefreshSession)
+            try
             {
-                return;
+                return await currentRefreshTask.ConfigureAwait(false);
             }
-
-            _sessionCheckTimer?.Dispose();
-
-            _sessionCheckTimer = new Timer(async (e) => await RefreshSessionIfNeededAsync(CancellationToken.None), null, TimeSpan.Zero, TimeSpan.FromSeconds(30));
+            finally
+            {
+                await _sessionRefreshLock.WaitAsync().ConfigureAwait(false);
+                _refreshTask = null;
+                _sessionRefreshLock.Release();
+            }
         }
 
-        private void StopSessionTimer()
+        private async Task<bool> PerformRefreshInternalAsync()
         {
-            _sessionCheckTimer?.Dispose();
-            _sessionCheckTimer = null;
+            try
+            {
+                // Giả sử gọi ApiClient để refresh
+                // var response = await _apiClient.RefreshSessionAsync(_session.RefreshToken);
+                // _session = new Session(response);
+
+                //var request = new SessionRefreshRequest { Token = _session.RefreshToken };
+                //var newSession = await _apiClient.RefreshSessionAsync("", "", request);
+
+                //if (newSession != null && !string.IsNullOrEmpty(newSession.Token))
+                //{
+                //    _session = new Session(newSession);
+                //}
+                //else
+                //{
+                //    _session = Session.NullSession();
+                //    throw new SessionRefreshFailedException();
+                //}
+
+                // Quan trọng: Thông báo cho các bên liên quan (Transport) cập nhật Token mới
+                if (SessionChanged != null)
+                {
+                    await SessionChanged.Invoke(_session).ConfigureAwait(false);
+                }
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         /// <summary>

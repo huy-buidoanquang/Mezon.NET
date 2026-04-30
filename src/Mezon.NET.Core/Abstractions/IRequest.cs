@@ -1,7 +1,7 @@
 using System;
-using Mezon.NET.Core;
+using Mezon.Net.Core;
 
-namespace Mezon.NET.Abstractions
+namespace Mezon.Net.Abstractions
 {
     public interface IRequest
     {

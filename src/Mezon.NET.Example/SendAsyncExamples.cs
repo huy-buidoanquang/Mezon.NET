@@ -1,10 +1,10 @@
-//using Mezon.NET.Core;
+//using Mezon.Net.Core;
 //using Mezon.Protobuf.Api;
 //using System;
 //using System.Threading;
 //using System.Threading.Tasks;
 
-//namespace Mezon.NET.Example
+//namespace Mezon.Net.Example
 //{
 //    /// <summary>
 //    /// Examples demonstrating the use of SendAsync methods in DefaultGRPCClient.

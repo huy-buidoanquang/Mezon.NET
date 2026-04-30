@@ -5,7 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Mezon.NET.SDK
+namespace Mezon.Net.SDK
 {
     /// <summary>
     /// A high-performance, thread-safe throttle queue that limits the number of operations per second.

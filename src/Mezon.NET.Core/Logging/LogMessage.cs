@@ -1,7 +1,7 @@
 using System;
 using System.Text;
 
-namespace Mezon.NET.Logging
+namespace Mezon.Net.Logging
 {
     /// <summary>
     ///     Provides a message object used for logging purposes.

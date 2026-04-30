@@ -2,10 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
-using Mezon.NET.Abstractions;
+using Grpc.Core;
+using Mezon.Net.Abstractions;
 using Newtonsoft.Json;
 
-namespace Mezon.NET.Api
+namespace Mezon.Net.Api
 {
     /// <summary>
     ///     Represents a REST-Based ratelimit info.
@@ -38,6 +39,19 @@ namespace Mezon.NET.Api
 
         /// <inheritdoc/>
         public string Endpoint { get; }
+
+        internal RateLimitInfo(Metadata headers, string endpoint)
+        {
+            Endpoint = endpoint;
+            IsGlobal = false;
+            Limit = 50;
+            Remaining = null;
+            Reset = null;
+            RetryAfter = null;
+            ResetAfter = null;
+            Bucket = string.Empty;
+            Lag = null;
+        }
 
         internal RateLimitInfo(Dictionary<string, string> headers, string endpoint)
         {

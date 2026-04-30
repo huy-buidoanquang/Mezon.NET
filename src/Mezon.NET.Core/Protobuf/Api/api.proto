@@ -21,13 +21,13 @@ package mezon.api;
 
 import "google/protobuf/wrappers.proto";
 
-option go_package = "mezon-api/v2/common/api";
+option go_package = "github.com/mezonai/mezon-protocol/v2/api";
 
 option java_multiple_files = true;
 option java_outer_classname = "MezonApi";
 option java_package = "com.mezon.mezon.api";
 
-option csharp_namespace = "Mezon.Protobuf.Api";
+option csharp_namespace = "Mezon.Net.Internal.Api";
 
 // A user with additional account details. Always the current user.
 message Account {
@@ -305,7 +305,7 @@ message MessageRef {
   // original message sendre username
   string message_sender_username = 7;
   // original message sender avatar
-  string mesages_sender_avatar = 8;
+  string message_sender_avatar = 8;
   // original sender clan nick name
   string message_sender_clan_nick = 9;
   // original sender display name
@@ -539,7 +539,7 @@ message RegistFcmDeviceTokenResponse {
   // The token
   string token = 1;
   //
-  int64 device_id = 2;
+  string device_id = 2;
   //
   string platform = 3;
 }
@@ -638,6 +638,22 @@ message ListChannelAttachmentRequest {
 message ListClanUsersRequest {
   // The clan ID to list from.
   int64 clan_id = 1;
+}
+
+// List clan members' custom status strings (user_status) by clan.
+message ListClanUsersStatusRequest {
+  // The clan ID to list from.
+  int64 clan_id = 1;
+}
+
+message ClanUserStatusEntry {
+  int64 user_id = 1;
+  string user_status = 2;
+}
+
+// User id and custom status text for members of a clan.
+message ClanUserStatusList {
+  repeated ClanUserStatusEntry clan_user_statuses = 1;
 }
 
 // Get a list of unexpired notifications.
@@ -766,6 +782,8 @@ message Session {
   string id_token = 7;
   // ws_url
   string ws_url = 8;
+  // session id
+  string session_id = 9;
 }
 
 // Update username
@@ -1241,7 +1259,7 @@ message ChannelDescription {
   // last seen message id
   ChannelMessageHeader last_seen_message = 13;
   // DM status
-  repeated bool onlines = 14;
+  repeated bool onlines = 14 [packed=true];
   // meeting code
   string meeting_code = 15;
   // count message unread
@@ -1321,6 +1339,8 @@ message ListChannelDescsRequest {
   int32 channel_type = 5;
   // is mobile
   bool is_mobile = 6;
+  // page
+  int32 page = 7;
 }
 
 // List channel description detail
@@ -1472,6 +1492,23 @@ message LeaveThreadRequest {
   int64 channel_id = 2;
 }
 
+// Archive channel/thread inactive (archived).
+message ArchiveChannelRequest {
+  int64 clan_id = 1;
+  // Channel (thread) ID to inactive.
+  int64 channel_id = 2;
+}
+
+message ListArchivedChannelDescsRequest {
+  // The clan of this list archived channels
+  int64 clan_id = 1;
+}
+
+message ListArchivedChannelDescsResponse {
+  // A list of channel.
+  repeated ChannelDescription channeldesc = 1;
+}
+
 // Role record
 message Role {
   // Role id
@@ -1583,7 +1620,7 @@ message NotificationUserChannel {
   //
   int32 notification_setting_type = 2;
   //
-  uint32 time_mute_seconds = 3;
+  int32 time_mute_seconds = 3;
   //
   int32 active = 4;
   //
@@ -1919,6 +1956,25 @@ message UploadAttachment {
   string url = 2;
 }
 
+message MultipartUploadAttachment {
+  // The name of file that need to upload
+  string filename = 1;
+  // The url
+  repeated string urls = 2;
+  // the upload id
+  string upload_id = 3;
+}
+
+message MultipartUploadAttachmentPart {
+	int32 part_number = 1;
+	string e_tag = 2;       
+}
+
+message MultipartUploadAttachmentFinishRequest {
+	string upload_id = 1;
+	repeated MultipartUploadAttachmentPart parts = 2;
+}
+
 // Operator that can be used to override the one set in the leaderboard.
 enum Operator {
   // Do not override the leaderboard operator.
@@ -2075,7 +2131,7 @@ message AllUsersAddChannelResponse {
   repeated string usernames = 4;
   repeated string display_names = 5;
   repeated string avatars = 6;
-  repeated bool onlines = 7;
+  repeated bool onlines = 7 [packed=true];
 }
 
 message ClanEmojiCreateRequest {
@@ -2171,6 +2227,16 @@ message CheckDuplicateClanNameRequest {
 }
 
 message CheckDuplicateClanNameResponse {
+  bool is_duplicate = 1;
+}
+
+message CheckDuplicateNameRequest {
+  string name = 1;
+  int32 type = 2;
+  int64 condition_id = 3;
+}
+
+message CheckDuplicateNameResponse {
   bool is_duplicate = 1;
 }
 
@@ -3394,7 +3460,7 @@ message DirectFcmProto {
   repeated int32 position_e = 15;
   string attachment_type = 16;
   bool has_more_attachment = 17;
-  repeated bool is_mention_role = 18;
+  repeated bool is_mention_role = 18 [packed=true];
   int64  message_id = 19;
 }
 
@@ -3414,12 +3480,25 @@ message MessageReactionList {
   repeated MessageReaction reactions = 1;
 }
 
-message ListClanBadgeCountRequest {
+message ListChannelBadgeCountRequest {
   int64 clan_id = 1;
+  int32 limit = 2;
+  int32 page = 3;
+}
+
+message ListChannelBadgeCountResponse {
+  repeated ChannelDescription channeldesc = 1;
+  int32 total_count = 2;
+}
+
+message ClanBadgeCount {
+  int64 clan_id = 1;
+  int32 badge = 2;
+  bool has_unread = 3;
 }
 
 message ListClanBadgeCountResponse {
-  int32 badge_count = 1;
+  repeated ClanBadgeCount list_badge = 1;
 }
 
 message ClanDiscover {
@@ -3502,5 +3581,204 @@ message ParticipantInfo {
   string sid = 1;
   string identity = 2;
   State state = 3;
+  bool is_publisher = 13;
+  Kind kind = 14;
 }
 
+// Channel Timeline Attachment
+message ChannelTimelineAttachment {
+  int64 id = 1;
+  string file_name = 2;
+  string file_url = 3;
+  string file_type = 4;
+  int64 file_size = 5;
+  int32 width = 6;
+  int32 height = 7;
+  string thumbnail = 8;
+  int32 duration = 9;
+  int64 message_id = 10;
+}
+
+// Channel Timeline Attachment List
+message ListChannelTimelineAttachment {
+  repeated ChannelTimelineAttachment attachments = 1;
+}
+
+// Channel Timeline
+message ChannelTimeline {
+  int64 id = 1;
+  int64 clan_id = 2;
+  int64 channel_id = 3;
+  uint32 start_time_seconds = 4;
+  string title = 5;
+  string description = 6;
+  uint32 end_time_seconds = 7;
+  string location = 8;
+  int32 status = 9;
+  int64 creator_id = 10;
+  uint32 create_time_seconds = 11;
+  uint32 update_time_seconds = 12;
+  int32 type = 13;
+  bytes attachments = 14;
+  bytes preview_imgs = 15;
+}
+
+// List Channel Timeline Request
+message ListChannelTimelineRequest {
+  int64 clan_id = 1;
+  int64 channel_id = 2;
+  int32 year = 3;
+  uint32 start_time = 4;
+  uint32 end_time = 5;
+  int32 limit = 6;
+}
+
+// List Channel Timeline Response
+message ListChannelTimelineResponse {
+  repeated ChannelTimeline events = 1;
+}
+
+// Create Channel Timeline Request
+message CreateChannelTimelineRequest {
+  int64 clan_id = 1;
+  int64 channel_id = 2;
+  uint32 start_time_seconds = 3;
+  string title = 4;
+  string description = 5;
+  uint32 end_time_seconds = 6;
+  string location = 7;
+  int32 type = 8;
+  repeated ChannelTimelineAttachment attachments = 9;
+}
+
+message CreateChannelTimelineResponse {
+  ChannelTimeline event = 1;
+}
+
+// Update Channel Timeline Request
+message UpdateChannelTimelineRequest {
+  int64 clan_id = 1;
+  int64 channel_id = 2;
+  int64 id = 3;
+  uint32 start_time_seconds = 4;
+  string title = 5;
+  string description = 6;
+  string location = 7;
+  int32 type = 8;
+  repeated ChannelTimelineAttachment attachments = 9;
+}
+
+message UpdateChannelTimelineResponse {
+  ChannelTimeline event = 1;
+}
+
+message ChannelTimelineDetailRequest {
+  int64 clan_id = 1;
+  int64 channel_id = 2;
+  int64 id = 3;
+  uint32 start_time_seconds = 4;
+}
+
+message ChannelTimelineDetailResponse {
+  ChannelTimeline event = 1;
+}
+
+message ListMutedChannelRequest {
+  int64 clan_id = 1;
+}
+
+message MutedChannelList {
+  repeated int64 muted_list = 1;
+}
+
+message NotificationBatchRequest {
+  map<int64, NotificationList> notifications = 1;
+}
+
+// Poll type: SINGLE = one choice, MULTIPLE = multiple choices.
+enum PollType {
+  SINGLE = 0;
+  MULTIPLE = 1;
+}
+
+message CreatePollRequest {
+  int64 channel_id = 1;
+  int64 clan_id = 2;
+  string question = 3;
+  repeated string answers = 4;
+  int32 expire_hours = 5;
+  PollType type = 6;
+}
+
+message CreatePollResponse {
+  int64 poll_id = 1;
+  int64 message_id = 2;
+  string question = 3;
+  repeated PollAnswer answers = 4;
+  repeated int32 answer_counts = 5;
+  int64 exp = 6;
+  bool is_closed = 7;
+  int64 creator_id = 8;
+  PollType type = 9;
+  int32 total_votes = 10;
+}
+
+message VotePollRequest {
+  int64 poll_id = 1;
+  int64 message_id = 2;
+  int64 channel_id = 3;
+  repeated int32 answer_indices = 4;
+}
+
+message VotePollResponse {
+  repeated int32 my_answer_indices = 1;
+}
+
+message ClosePollRequest {
+  int64 poll_id = 1;
+  int64 message_id = 2;
+  int64 channel_id = 3;
+}
+
+message GetPollRequest {
+  int64 poll_id = 1;
+  int64 message_id = 2;
+  int64 channel_id = 3;
+}
+
+message PollAnswer {
+  int32 index = 1;
+  string label = 2;
+}
+
+message PollVoterDetail {
+  int32 answer_index = 1;
+  repeated int64 user_ids = 2;
+}
+
+message GetPollResponse {
+  int64 poll_id = 1;
+  int64 message_id = 2;
+  string question = 3;
+  repeated PollAnswer answers = 4;
+  repeated int32 answer_counts = 5;
+  int64 exp = 6;
+  bool is_closed = 7;
+  int64 creator_id = 8;
+  PollType type = 9;
+  int32 total_votes = 10;
+  repeated PollVoterDetail voter_details = 11;
+}
+
+message ListUserOnlineRequest {
+  int64 clan_id = 1;
+  int32 limit = 2;
+  int32 page = 3;
+}
+
+message ListUserOnlineResponse {
+  repeated User users = 1;
+  int32 total_count = 2;
+}
+
+message NoParams {}

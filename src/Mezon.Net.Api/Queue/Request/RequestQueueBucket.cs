@@ -5,44 +5,43 @@ using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using Grpc.Core;
-using Mezon.NET.Core;
-using Mezon.NET.Abstractions;
-using Mezon.NET.Queue;
-using Mezon.NET.Utils;
+using Mezon.Net.Core;
+using Mezon.Net.Abstractions;
+using Mezon.Net.Utils;
 using Newtonsoft.Json;
+using Mezon.Net.Api;
 
-namespace Mezon.NET.Api
+namespace Mezon.Net.Queue
 {
-    internal class MezonRequestBucket
+    internal class RequestQueueBucket
     {
+        private static int nextId = 0;
         private const int MinimumSleepTimeMs = 750;
 
         private readonly object _lock;
-        private readonly MezonRequestQueue _queue;
+        private readonly RequestQueue _queue;
         private int _semaphore;
         private DateTimeOffset? _resetTick;
-        private MezonRequestBucket? _redirectBucket;
+        private RequestQueueBucket? _redirectBucket;
 
         public BucketId Id { get; private set; }
         public int WindowCount { get; private set; }
         public DateTimeOffset LastAttemptAt { get; private set; }
 
-        public MezonRequestBucket(MezonRequestQueue queue, IRequest request, BucketId id)
+        public RequestQueueBucket(RequestQueue queue, IRequest request, BucketId id)
         {
             _queue = queue;
             Id = id;
 
             _lock = new object();
 
-            if (request.Options.IsClientBucket)
+            if (request.Options.IsApiBucket)
             {
-                WindowCount = request.Options.BucketId != null ? ClientBucket.Get(request.Options.BucketId).WindowCount : 1;
+                WindowCount = ApiBucket.Get(request.Options.BucketId).WindowCount;
             }
-            else if (request.Options.IsGatewayBucket)
+            else if (request.Options.IsSocketBucket)
             {
-                // Gateway buckets are handled by GatewayRateLimiter in MezonRequestQueue
-                // Set WindowCount to -1 to disable bucket-level rate limiting
-                WindowCount = -1;
+                WindowCount = SocketBucket.Get(request.Options.BucketId).WindowCount;
             }
             else
             {
@@ -54,7 +53,6 @@ namespace Mezon.NET.Api
             LastAttemptAt = DateTimeOffset.UtcNow;
         }
 
-        static int nextId = 0;
         public async Task<Stream> SendAsync(ApiRequest request)
         {
             int id = Interlocked.Increment(ref nextId);
@@ -74,8 +72,8 @@ namespace Mezon.NET.Api
 #if DEBUG_LIMITS
                 Debug.WriteLine($"[{id}] Sending...");
 #endif
-                HttpResponse response = default(HttpResponse);
-                RateLimitInfo info = default(RateLimitInfo);
+                HttpResponse response = default;
+                RateLimitInfo info = default;
                 try
                 {
                     response = await request.SendAsync().ConfigureAwait(false);
@@ -201,15 +199,15 @@ namespace Mezon.NET.Api
                 Debug.WriteLine($"[{id}] Sending...");
 #endif
                 AsyncUnaryCall<TResponse>? response = default;
-                Status status = new Status();
-                RateLimitInfo info = default(RateLimitInfo);
+                Status status = default;
+                RateLimitInfo info = default;
                 try
                 {
                     response = await request.SendRPCAsync().ConfigureAwait(false);
                     var rs = await response.ResponseAsync.ConfigureAwait(false);
                     var headers = await response.ResponseHeadersAsync.ConfigureAwait(false);
                     status = response.GetStatus();
-                    //info = new RateLimitInfo(response, request.Endpoint);
+                    info = new RateLimitInfo(headers, request.Endpoint);
 
                     request.Options.ExecuteRatelimitCallback(info);
 
@@ -489,7 +487,7 @@ namespace Mezon.NET.Api
 
                 if (info.Bucket != null && !redirected)
                 {
-                    (MezonRequestBucket?, BucketId?) hashBucket = _queue.UpdateBucketHash(Id, info.Bucket);
+                    (RequestQueueBucket?, BucketId?) hashBucket = _queue.UpdateBucketHash(Id, info.Bucket);
                     if (!(hashBucket.Item1 is null) && !(hashBucket.Item2 is null))
                     {
                         if (hashBucket.Item1 == this) //this bucket got promoted to a hash queue
@@ -581,9 +579,9 @@ namespace Mezon.NET.Api
                     Debug.WriteLine($"[{id}] X-RateLimit-Reset: {info.Reset.Value.ToUnixTimeSeconds()} ({diff} ms, {info.Lag?.TotalMilliseconds} ms lag)");
 #endif
                 }
-                else if (request.Options.IsClientBucket && Id != null)
+                else if (request.Options.IsApiBucket && Id != null)
                 {
-                    resetTick = DateTimeOffset.UtcNow.AddSeconds(ClientBucket.Get(Id).WindowSeconds);
+                    resetTick = DateTimeOffset.UtcNow.AddSeconds(ApiBucket.Get(Id).WindowSeconds);
 #if DEBUG_LIMITS
                     Debug.WriteLine($"[{id}] Client Bucket ({ClientBucket.Get(Id).WindowSeconds * 1000} ms)");
 #endif
@@ -614,6 +612,7 @@ namespace Mezon.NET.Api
                 }
             }
         }
+
         private async Task QueueReset(int id, int millis, IRequest request)
         {
             while (true)

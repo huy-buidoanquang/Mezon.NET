@@ -1,6 +1,6 @@
 using System;
 
-namespace Mezon.NET.Core
+namespace Mezon.Net.Core
 {
     public class SessionRefreshFailedException : Exception
     {

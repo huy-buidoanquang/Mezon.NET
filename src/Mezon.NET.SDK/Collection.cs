@@ -3,7 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Mezon.NET.SDK
+namespace Mezon.Net.SDK
 {
     /// <summary>
     /// A specialized collection class that extends Dictionary with additional utility methods

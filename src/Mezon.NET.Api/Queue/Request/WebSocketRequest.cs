@@ -2,10 +2,10 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Mezon.NET.Core;
-using Mezon.NET.Abstractions;
+using Mezon.Net.Core;
+using Mezon.Net.Abstractions;
 
-namespace Mezon.NET.Queue
+namespace Mezon.Net.Queue
 {
     public struct WebSocketRequest : IRequest
     {

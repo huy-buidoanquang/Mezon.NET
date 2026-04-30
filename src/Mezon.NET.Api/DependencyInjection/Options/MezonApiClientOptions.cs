@@ -1,4 +1,4 @@
-namespace Mezon.NET.DependencyInjection
+namespace Mezon.Net.DependencyInjection
 {
     public class MezonApiClientOptions
     {

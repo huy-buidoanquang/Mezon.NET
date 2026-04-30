@@ -1,4 +1,4 @@
-namespace Mezon.NET.Api
+namespace Mezon.Net.Api
 {
     internal class GetClanDescriptionsParams
     {

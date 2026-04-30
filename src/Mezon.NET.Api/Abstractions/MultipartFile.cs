@@ -1,6 +1,6 @@
 using System.IO;
 
-namespace Mezon.NET.Abstractions
+namespace Mezon.Net.Abstractions
 {
     internal struct MultipartFile
     {

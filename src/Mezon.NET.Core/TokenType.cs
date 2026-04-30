@@ -1,4 +1,4 @@
-namespace Mezon.NET.Core
+namespace Mezon.Net.Core
 {
     /// <summary> Specifies the type of token to use with the client. </summary>
     public enum TokenType

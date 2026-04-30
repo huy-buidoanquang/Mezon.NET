@@ -4,7 +4,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 
-namespace Mezon.NET.SDK.Examples
+namespace Mezon.Net.SDK.Examples
 {
     /// <summary>
     /// Examples demonstrating the usage of AsyncThrottleQueue

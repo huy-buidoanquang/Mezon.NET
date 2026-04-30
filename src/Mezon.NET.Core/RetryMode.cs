@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace Mezon.NET.Core
+namespace Mezon.Net.Core
 {
     /// <summary> Specifies how a request should act in the case of an error. </summary>
     [Flags]
