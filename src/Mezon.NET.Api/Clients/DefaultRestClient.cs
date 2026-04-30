@@ -11,12 +11,12 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using JetBrains.Annotations;
-using Mezon.NET.Abstractions;
-using Mezon.NET.Core;
-using Mezon.NET.Utils;
+using Mezon.Net.Abstractions;
+using Mezon.Net.Core;
+using Mezon.Net.Utils;
 using Newtonsoft.Json;
 
-namespace Mezon.NET.Api
+namespace Mezon.Net.Api
 {
     internal sealed class DefaultRestClient : IRestClient, IDisposable
     {

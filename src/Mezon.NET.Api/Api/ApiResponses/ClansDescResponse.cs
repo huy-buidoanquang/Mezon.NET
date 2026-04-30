@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Newtonsoft.Json;
 
-namespace Mezon.NET.Api
+namespace Mezon.Net.Api
 {
     /// <summary>
     /// Represents a list of clan sort by desc.

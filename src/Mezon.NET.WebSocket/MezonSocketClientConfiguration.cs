@@ -1,8 +1,8 @@
-using Mezon.NET.Api;
-using Mezon.NET.Abstractions;
-using Mezon.NET.WebSocket.Providers;
+using Mezon.Net.Api;
+using Mezon.Net.Abstractions;
+using Mezon.Net.WebSocket.Providers;
 
-namespace Mezon.NET.WebSocket
+namespace Mezon.Net.WebSocket
 {
     public class MezonSocketClientConfiguration : MezonApiClientConfiguration
     {

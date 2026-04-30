@@ -1,7 +1,7 @@
 using System;
-using Mezon.NET.Core;
+using Mezon.Net.Core;
 
-namespace Mezon.NET.WebSocket
+namespace Mezon.Net.WebSocket
 {
     public abstract class SocketEntity<T> : IEntity<T>
         where T : IEquatable<T>

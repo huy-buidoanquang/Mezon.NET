@@ -1,8 +1,8 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace Mezon.NET.Core
+namespace Mezon.Net.Core
 {
     internal interface IMessage
     {

@@ -1,9 +1,9 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Mezon.NET.SDK.Abstractions;
+using Mezon.Net.SDK.Abstractions;
 
-namespace Mezon.NET.SDK
+namespace Mezon.Net.SDK
 {
     /// <summary>
     /// A generic cache manager that stores data in memory with automatic fetching capability,

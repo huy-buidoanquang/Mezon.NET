@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 
-namespace Mezon.NET.Abstractions
+namespace Mezon.Net.Abstractions
 {
     public struct HttpResponse
     {

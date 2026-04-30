@@ -1,7 +1,7 @@
 using System;
 using System.Threading.Tasks;
 
-namespace Mezon.NET.Logging
+namespace Mezon.Net.Logging
 {
     public class Logger
     {

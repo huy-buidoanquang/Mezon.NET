@@ -1,7 +1,7 @@
 using System.Reflection;
-using Mezon.NET.Logging;
+using Mezon.Net.Logging;
 
-namespace Mezon.NET.Core
+namespace Mezon.Net.Core
 {
     public class MezonConfiguration
     {
@@ -79,6 +79,8 @@ namespace Mezon.NET.Core
         public int ApiTimeoutInMilliseconds { get; set; } = DefaultApiTimeoutInMilliseconds;
 
         public int SocketTimeoutInMilliseconds { get; set; } = DefaultSocketTimeoutInMilliseconds;
+
+        public TransportType TransportType { get; set; } = TransportType.Auto;
 
         public MezonConfiguration()
         {

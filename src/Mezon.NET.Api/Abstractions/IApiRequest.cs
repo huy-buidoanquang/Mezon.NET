@@ -1,8 +1,8 @@
 using System.IO;
 using System.Threading.Tasks;
-using Mezon.NET.Abstractions;
+using Mezon.Net.Abstractions;
 
-namespace Mezon.NET.Abstractions
+namespace Mezon.Net.Abstractions
 {
     public interface IApiRequest : IRequest
     {

@@ -1,9 +1,9 @@
 using System;
 using System.Threading.Tasks;
-using Mezon.NET.Core;
-using Mezon.Protobuf.Realtime;
+using Mezon.Net.Core;
+using Mezon.Net.Internal.Protos;
 
-namespace Mezon.NET.Abstractions
+namespace Mezon.Net.Abstractions
 {
     public interface IMezonSocketClient : IMezonApiClient
     {

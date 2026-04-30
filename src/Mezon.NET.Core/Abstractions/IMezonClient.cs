@@ -1,8 +1,8 @@
 using System;
 using System.Threading.Tasks;
-using Mezon.NET.Core;
+using Mezon.Net.Core;
 
-namespace Mezon.NET.Abstractions
+namespace Mezon.Net.Abstractions
 {
     public interface IMezonClient : IDisposable, IAsyncDisposable
     {

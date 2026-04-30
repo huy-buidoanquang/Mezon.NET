@@ -1,7 +1,7 @@
-using Mezon.NET.Core;
+using Mezon.Net.Core;
 using Newtonsoft.Json;
 
-namespace Mezon.NET.Api
+namespace Mezon.Net.Api
 {
     public class PaginationParams
     {

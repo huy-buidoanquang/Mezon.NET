@@ -1,8 +1,8 @@
 using System;
 using System.Threading.Tasks;
-using Mezon.NET.SDK.Abstractions;
+using Mezon.Net.SDK.Abstractions;
 
-namespace Mezon.NET.SDK
+namespace Mezon.Net.SDK
 {
     internal sealed class MezonClient : IMezonClient
     {

@@ -1,7 +1,7 @@
 using System;
-using Mezon.NET.Abstractions;
+using Mezon.Net.Abstractions;
 
-namespace Mezon.NET.Core
+namespace Mezon.Net.Core
 {
     /// <summary>
     ///     The exception that is thrown when the user is being rate limited by Mezon.

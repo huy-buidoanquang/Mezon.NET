@@ -1,10 +1,10 @@
 using System;
 using System.Threading.Tasks;
-using Mezon.NET.Abstractions;
-using Mezon.NET.Core;
-using Mezon.Protobuf.Realtime;
+using Mezon.Net.Abstractions;
+using Mezon.Net.Core;
+using Mezon.Net.Internal.Protos;
 
-namespace Mezon.NET.WebSocket
+namespace Mezon.Net.WebSocket
 {
     public abstract partial class BaseSocketClient : Api.BaseMezonClient, IMezonClient, IApiClientProvider
     {

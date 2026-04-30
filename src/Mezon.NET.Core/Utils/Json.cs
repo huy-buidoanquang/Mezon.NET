@@ -1,6 +1,6 @@
 using Newtonsoft.Json;
 
-namespace Mezon.NET.Utils
+namespace Mezon.Net.Utils
 {
     public static class Json
     {

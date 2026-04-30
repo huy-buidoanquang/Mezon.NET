@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using Grpc.Core;
 using MezonRPC = Mezon.Protobuf.Service.Mezon;
 
-namespace Mezon.NET.Abstractions
+namespace Mezon.Net.Abstractions
 {
     public delegate IGRPCClient GRPCClientProvider(string baseUrl);
 

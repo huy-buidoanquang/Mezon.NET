@@ -1,8 +1,8 @@
 using System.Threading.Tasks;
-using Mezon.NET.Abstractions;
+using Mezon.Net.Abstractions;
 using Mezon.Protobuf.Api;
 
-namespace Mezon.NET.Api
+namespace Mezon.Net.Api
 {
     public class MezonClient : BaseMezonClient, IMezonClient, IApiClientProvider
     {

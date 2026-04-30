@@ -1,8 +1,8 @@
 using System;
 using System.Net;
-using Mezon.NET.Abstractions;
+using Mezon.Net.Abstractions;
 
-namespace Mezon.NET.WebSocket.Providers
+namespace Mezon.Net.WebSocket.Providers
 {
     public static class DefaultWebSocketClientProvider
     {

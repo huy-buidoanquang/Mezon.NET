@@ -1,6 +1,6 @@
 using Newtonsoft.Json;
 
-namespace Mezon.NET.Api
+namespace Mezon.Net.Api
 {
     /// <summary>
     /// Represents the description of a clan.

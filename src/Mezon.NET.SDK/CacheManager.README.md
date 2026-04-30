@@ -186,7 +186,7 @@ However, the Collection class provides:
 
 Extends the CacheManager methods with additional utility operations and provides the underlying storage mechanism.
 
-## Integration with Mezon.NET.SDK
+## Integration with Mezon.Net.SDK
 
 This implementation is designed to work seamlessly with the Mezon SDK:
 
@@ -216,4 +216,4 @@ Potential improvements for future versions:
 
 ## License
 
-Part of the Mezon.NET SDK project.
+Part of the Mezon.Net SDK project.

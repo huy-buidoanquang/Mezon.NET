@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Mezon.NET.Abstractions;
+using Mezon.Net.Abstractions;
 
-namespace Mezon.NET.Core
+namespace Mezon.Net.Core
 {
     /// <summary>
     ///     Represents options that should be used when sending a request.
@@ -67,15 +67,9 @@ namespace Mezon.NET.Core
         public Func<IRateLimitInfo, Task>? RatelimitCallback { get; set; }
 
         internal bool IgnoreState { get; set; }
-        internal BucketId? BucketId { get; set; }
-        internal bool IsClientBucket { get; set; }
-        internal bool IsReactionBucket { get; set; }
-        internal bool IsGatewayBucket { get; set; }
-
-        /// <summary>
-        ///     Gets or sets the gateway bucket type for WebSocket requests.
-        /// </summary>
-        internal BucketType? BucketType { get; set; }
+        internal BucketId BucketId { get; set; }
+        internal bool IsApiBucket { get; set; }
+        internal bool IsSocketBucket { get; set; }
 
         public IDictionary<string, IEnumerable<string>> RequestHeaders { get; }
 
@@ -106,7 +100,9 @@ namespace Mezon.NET.Core
         ///     Initializes a new <see cref="RequestOptions" /> class with the default request timeout set in
         ///     <see cref="MezonConfiguration"/>.
         /// </summary>
+#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
         public RequestOptions()
+#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
         {
             ApiSendTimeout = MezonConfiguration.DefaultApiTimeoutInMilliseconds;
             SocketSendTimeout = MezonConfiguration.DefaultSocketTimeoutInMilliseconds;

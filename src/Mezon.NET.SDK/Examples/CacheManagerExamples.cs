@@ -1,9 +1,9 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using Mezon.NET.SDK.Abstractions;
+using Mezon.Net.SDK.Abstractions;
 
-namespace Mezon.NET.SDK.Examples
+namespace Mezon.Net.SDK.Examples
 {
     /// <summary>
     /// Examples demonstrating the usage of CacheManager and Collection

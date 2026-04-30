@@ -2,10 +2,10 @@ using System;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
-using Mezon.NET.Core;
-using Mezon.NET.Logging;
+using Mezon.Net.Core;
+using Mezon.Net.Logging;
 
-namespace Mezon.NET.WebSocket
+namespace Mezon.Net.WebSocket
 {
     internal class SocketConnectionManager : IDisposable
     {

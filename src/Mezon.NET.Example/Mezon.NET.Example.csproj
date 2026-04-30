@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -19,9 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Mezon.NET.Api\Mezon.NET.Api.csproj" />
-    <ProjectReference Include="..\Mezon.NET.Core\Mezon.NET.Core.csproj" />
-    <ProjectReference Include="..\Mezon.NET.WebSocket\Mezon.NET.WebSocket.csproj" />
+    <ProjectReference Include="..\Mezon.Net.Transport\Mezon.Net.Transport.csproj" />
   </ItemGroup>
 
   <ItemGroup>

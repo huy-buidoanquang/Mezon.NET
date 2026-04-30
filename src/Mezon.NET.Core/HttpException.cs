@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Net;
-using Mezon.NET.Abstractions;
+using Mezon.Net.Abstractions;
 
-namespace Mezon.NET.Core
+namespace Mezon.Net.Core
 {
     /// <summary>
     ///     The exception that is thrown if an error occurs while processing an Mezon HTTP request.

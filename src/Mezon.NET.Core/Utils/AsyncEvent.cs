@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Threading.Tasks;
 
-namespace Mezon.NET.Core
+namespace Mezon.Net.Core
 {
     public class AsyncEvent<T>
         where T : class

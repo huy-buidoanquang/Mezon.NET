@@ -1,8 +1,8 @@
 using System;
 using System.Threading.Tasks;
-using Mezon.NET.Core;
+using Mezon.Net.Core;
 
-namespace Mezon.NET.Logging
+namespace Mezon.Net.Logging
 {
     public class LogManager
     {
@@ -15,7 +15,7 @@ namespace Mezon.NET.Logging
         public LogManager(LogLevel minLevel)
         {
             Level = minLevel;
-            ClientLogger = new Logger(this, "Mezon.NET");
+            ClientLogger = new Logger(this, "Mezon.Net");
         }
 
         public async Task LogAsync(LogLevel severity, string source, Exception? ex)
@@ -89,6 +89,6 @@ namespace Mezon.NET.Logging
             => LogAsync(LogLevel.Trace, source, message, ex);
         public Logger CreateLogger(string name) => new Logger(this, name);
         public Task WriteInitialLog()
-            => ClientLogger.InfoAsync($"Mezon.NET v1.0.1");
+            => ClientLogger.InfoAsync($"Mezon.Net v1.0.1");
     }
 }

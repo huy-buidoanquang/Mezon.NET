@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
-namespace Mezon.NET.DependencyInjection
+namespace Mezon.Net.DependencyInjection
 {
     public class MezonClientOptions : IValidatableObject
     {

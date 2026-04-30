@@ -1,9 +1,9 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using Mezon.NET.SDK;
+using Mezon.Net.SDK;
 
-namespace Mezon.NET.SDK.Tests
+namespace Mezon.Net.SDK.Tests
 {
     /// <summary>
     /// Unit tests for CacheManager and Collection

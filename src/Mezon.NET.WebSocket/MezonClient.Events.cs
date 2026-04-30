@@ -1,8 +1,8 @@
 using System;
 using System.Threading.Tasks;
-using Mezon.NET.Core;
+using Mezon.Net.Core;
 
-namespace Mezon.NET.WebSocket
+namespace Mezon.Net.WebSocket
 {
     public partial class MezonClient
     {

@@ -2,7 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
-namespace Mezon.NET.DependencyInjection
+namespace Mezon.Net.DependencyInjection
 {
     public static class ServiceCollectionExtensions
     {
