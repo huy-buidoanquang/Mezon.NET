@@ -98,7 +98,13 @@ namespace Mezon.Net.Api
             }
         }
 
-        public abstract Task<bool> LoginAsync();
+        public virtual Task<bool> LoginAsync()
+        {
+            var session = _sessionManager.CurrentSession();
+            return string.IsNullOrEmpty(session.AuthToken)
+                ? Task.FromResult(false)
+                : LoginAsync(session);
+        }
 
         internal virtual async Task LoginInternalAsync(TokenType tokenType, string token)
         {
