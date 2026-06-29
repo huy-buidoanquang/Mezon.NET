@@ -1,7 +1,7 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo("Mezon.Net.WebSocket")]
+[assembly: InternalsVisibleTo("Mezon.Net.Client")]
 
 namespace Mezon.Net.Api
 {

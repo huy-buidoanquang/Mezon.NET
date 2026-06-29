@@ -3,7 +3,6 @@ using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net.WebSockets;
-using System.Text;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -11,7 +10,7 @@ using Mezon.Net.Core;
 using Mezon.Net.Core.Abstractions;
 using Mezon.Net.Core.Exceptions;
 
-namespace Mezon.Net.Transport.WebSocket
+namespace Mezon.Net.Transport
 {
     public class MezonNetworkWebSocketTransporter : IMezonNetworkTransporter, IDisposable, IAsyncDisposable
     {
@@ -48,6 +47,7 @@ namespace Mezon.Net.Transport.WebSocket
         public Func<Task>? Ready { get; set; }
         public Func<Exception?, Task>? Closed { get; set; }
         public Func<Exception, Task>? ErrorOccurred { get; set; }
+        Func<MezonMessageType, int, int, ReadOnlyMemory<byte>, ValueTask>? IMezonNetworkTransporter.MessageReceived { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
 
         public void SetCancelToken(CancellationToken cancellationToken)
         {
@@ -349,6 +349,7 @@ namespace Mezon.Net.Transport.WebSocket
                     finalFrame[10] = (byte)(completeData.Length & 0xff);
 
                     completeData.CopyTo(finalFrame.AsMemory(11));
+                    frame = completeData.ToArray();
                     frame = finalFrame.AsMemory(0, 11 + completeData.Length).ToArray();
                 }
                 finally
@@ -547,6 +548,16 @@ namespace Mezon.Net.Transport.WebSocket
                 }
                 _disposed = true;
             }
+        }
+
+        public ValueTask SendAsync(Internal.Realtime.Envelope envelope)
+        {
+            throw new NotImplementedException();
+        }
+
+        public ValueTask SendAsync(MezonMessageType type, int cid, ReadOnlyMemory<byte> data)
+        {
+            throw new NotImplementedException();
         }
     }
 }

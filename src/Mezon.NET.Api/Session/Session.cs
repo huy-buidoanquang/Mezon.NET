@@ -1,8 +1,8 @@
 using System;
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
-using Mezon.Net.Core;
 using Mezon.Net.Abstractions;
+using Mezon.Net.Core;
 
 namespace Mezon.Net.Api
 {
@@ -12,6 +12,7 @@ namespace Mezon.Net.Api
         private const string UserIDClaim = "uid";
         private const string UserNameClaim = "usn";
 
+        public string SessionId { get; private set; }
         public string AuthToken { get; private set; }
         public string RefreshToken { get; private set; }
         public bool Created { get; }
@@ -24,25 +25,26 @@ namespace Mezon.Net.Api
         public string? ApiUrl { get; private set; }
         public string? WsUrl { get; private set; }
 
-#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
-        public Session(AuthenticationResponse authenticationResponse)
-#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
+        public Session(AuthenticationResponse authenticationRes)
         {
-            Created = authenticationResponse.Created;
+            SessionId = authenticationRes.SessionId;
+            Created = authenticationRes.Created;
             CreatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            ApiUrl = authenticationResponse.ApiUrl;
-            WsUrl = authenticationResponse.WsUrl;
-            AuthToken = authenticationResponse.Token ?? string.Empty;
-            RefreshToken = authenticationResponse.RefreshToken ?? string.Empty;
+            ApiUrl = authenticationRes.ApiUrl;
+            WsUrl = authenticationRes.WsUrl;
+            AuthToken = authenticationRes.Token ?? string.Empty;
+            RefreshToken = authenticationRes.RefreshToken ?? string.Empty;
             InitializeSession();
         }
 
         private Session()
         {
+            SessionId = string.Empty;
             AuthToken = string.Empty;
             RefreshToken = string.Empty;
             UserId = string.Empty;
             Username = string.Empty;
+            ExpiresAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         }
 
         public void InitializeSession()

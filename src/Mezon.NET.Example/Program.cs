@@ -1,4 +1,3 @@
-using Mezon.Net.Example;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -7,7 +6,7 @@ public class Program
 {
     public static async Task Main(string[] args)
     {
-        await Transport.Run();
+        //await Transport.Run();
         var host = Host.CreateDefaultBuilder(args)
             .ConfigureAppConfiguration((context, config) =>
             {
@@ -16,8 +15,7 @@ public class Program
             .ConfigureServices((context, services) =>
             {
                 //services.ConfigureMezonApiClient(context.Configuration);
-
-                //services.AddHostedService<MezonWorker>();
+                services.AddHostedService<MezonWorker>();
             })
             .Build();
 

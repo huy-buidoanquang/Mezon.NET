@@ -116,43 +116,6 @@ namespace Mezon.Net.Queue
             return Task.CompletedTask;
         }
 
-        public async Task<TResponse> SendAsync<TRequest, TResponse>(RpcRequest<TRequest, TResponse> request)
-            where TResponse : class
-            where TRequest : class
-        {
-            CancellationTokenSource? createdTokenSource = default;
-            if (request.Options.CancelToken.CanBeCanceled)
-            {
-                createdTokenSource = CancellationTokenSource.CreateLinkedTokenSource(_requestCancelToken, request.Options.CancelToken);
-                request.Options.CancelToken = createdTokenSource.Token;
-            }
-            else
-            {
-                request.Options.CancelToken = _requestCancelToken;
-            }
-
-            var bucket = GetOrCreateBucket(request.Options, request);
-            var result = await bucket.SendAsync(request).ConfigureAwait(false);
-            createdTokenSource?.Dispose();
-            return result;
-        }
-
-        internal Task EnterGlobalAsync<TRequest, TResponse>(int id, RpcRequest<TRequest, TResponse> request)
-            where TResponse : class
-            where TRequest : class
-        {
-            int millis = (int)Math.Ceiling((_waitUntil - DateTimeOffset.UtcNow).TotalMilliseconds);
-            if (millis > 0)
-            {
-#if DEBUG_LIMITS
-                Debug.WriteLine($"[{id}] Sleeping {millis} ms (Pre-emptive) [Global]");
-#endif
-                return Task.Delay(millis);
-            }
-
-            return Task.CompletedTask;
-        }
-
         public async Task SendAsync(WebSocketRequest request)
         {
             CancellationTokenSource? createdTokenSource = null;

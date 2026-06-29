@@ -1,8 +1,8 @@
 using System;
 using System.Buffers;
+using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.IO;
 using System.IO.Pipelines;
 using System.Net.Security;
 using System.Net.Sockets;
@@ -13,22 +13,19 @@ using System.Threading.Tasks;
 using Mezon.Net.Core;
 using Mezon.Net.Core.Abstractions;
 
-namespace Mezon.Net.Transport.Tcp
+namespace Mezon.Net.Transport
 {
     public class MezonNetworkTcpTransporter : IMezonNetworkTransporter, IDisposable, IAsyncDisposable
     {
         private const string TokenHeaderKey = "token";
         private const byte PongPrefix = 0x00;
         private const byte ApiPrefix = 0xff;
-        private const byte AbridgedExtendedPrefix = 0x7f;
-        private const int FinishCode = 0xff;
-        private const int CodeLength = 3;
-        private const int RawHeaderLength = 7;
-        private const int PayloadHeaderLength = 11;
+        private const byte AbridgedTpcExtendedPrefix = 0x7f;
+        private const int FinishFlag = 0xff;
 
         private ConnectionState _state = ConnectionState.Disconnected;
         private TcpClient? _tcpClient;
-        private Stream? _dataStream;
+        private System.IO.Stream? _dataStream;
         private PipeReader? _reader;
         private IDictionary<string, string>? _headers;
         private readonly ConcurrentDictionary<int, ArrayBufferWriter<byte>> _streams = new ConcurrentDictionary<int, ArrayBufferWriter<byte>>();
@@ -38,9 +35,8 @@ namespace Mezon.Net.Transport.Tcp
         private Channel<ReadOnlyMemory<byte>>? _sendChannel;
         private bool _disposed;
 
-        public Func<ReadOnlyMemory<byte>, ValueTask>? MessageReceived { get; set; }
+        public Func<MezonMessageType, int, int, ReadOnlyMemory<byte>, ValueTask>? MessageReceived { get; set; }
         public Func<Task>? Opened { get; set; }
-        public Func<Task>? Ready { get; set; }
         public Func<Exception?, Task>? Closed { get; set; }
         public Func<Exception, Task>? ErrorOccurred { get; set; }
 
@@ -104,33 +100,35 @@ namespace Mezon.Net.Transport.Tcp
             };
 
             await _tcpClient.ConnectAsync(host, port ?? 443).ConfigureAwait(false);
+
             if (Opened != null)
             {
                 await Opened.Invoke().ConfigureAwait(false);
             }
 
-            Stream networkStream = _tcpClient.GetStream();
+            System.IO.Stream networkStream = _tcpClient.GetStream();
             if (useSsl.HasValue && useSsl.Value)
             {
-                var sslStream = new SslStream(
-                    networkStream,
-                    leaveInnerStreamOpen: false,
-                    userCertificateValidationCallback: (s, cert, chain, err) =>
+                var sslStream = new SslStream(networkStream, leaveInnerStreamOpen: false);
+                var sslOptions = new SslClientAuthenticationOptions
+                {
+                    TargetHost = host,
+                    RemoteCertificateValidationCallback = (s, cert, chain, err) =>
                     {
                         // For simplicity, we accept all certificates. In production, you should validate the server certificate properly.
                         return true;
-                    });
-                await sslStream.AuthenticateAsClientAsync(host).ConfigureAwait(false);
+                    },
+                };
+                await sslStream.AuthenticateAsClientAsync(sslOptions, _internalCt).ConfigureAwait(false);
                 _dataStream = sslStream;
             }
             else
             {
                 _dataStream = networkStream;
             }
-
             await HandshakeAsync(host, token).ConfigureAwait(false);
             _reader = PipeReader.Create(_dataStream);
-            _sendChannel = Channel.CreateUnbounded<ReadOnlyMemory<byte>>(new UnboundedChannelOptions
+            _sendChannel = System.Threading.Channels.Channel.CreateUnbounded<ReadOnlyMemory<byte>>(new UnboundedChannelOptions
             {
                 SingleReader = true,
                 SingleWriter = false
@@ -139,11 +137,6 @@ namespace Mezon.Net.Transport.Tcp
             _ = Task.Run(() => SendLoopAsync(_internalCt), _internalCt);
 
             _state = ConnectionState.Connected;
-
-            if (Ready != null)
-            {
-                await Ready.Invoke().ConfigureAwait(false);
-            }
         }
 
         private async Task HandshakeAsync(string host, string? token = null)
@@ -167,18 +160,36 @@ namespace Mezon.Net.Transport.Tcp
                 return;
             }
 
-            var padding = (4 - (tokenBytes.Length % 4)) % 4;
+            var padding = (4 - (tokenBytes.Length % 4)) & 3;
             var totalLen = tokenBytes.Length + padding;
+            var lenDiv4 = totalLen / 4;
 
-            // Handshake buffer: magic byte (0xef) + header length (1 byte) + token bytes + padding
-            byte[] handshakeBuffer = ArrayPool<byte>.Shared.Rent(totalLen + 2);
+            int headerLen = (lenDiv4 < 127) ? 2 : 5;
+            byte[] handshakeBuffer = ArrayPool<byte>.Shared.Rent(headerLen + totalLen);
+
             try
             {
                 handshakeBuffer[0] = 0xef;
-                handshakeBuffer[1] = (byte)(totalLen / 4);
-                Buffer.BlockCopy(tokenBytes, 0, handshakeBuffer, 2, tokenBytes.Length);
 
-                await _dataStream!.WriteAsync(handshakeBuffer.AsMemory(0, totalLen + 2), _internalCt).ConfigureAwait(false);
+                if (lenDiv4 < 127)
+                {
+                    handshakeBuffer[1] = (byte)lenDiv4;
+                }
+                else
+                {
+                    handshakeBuffer[1] = 0x7f;
+                    handshakeBuffer[2] = (byte)lenDiv4;
+                    handshakeBuffer[3] = (byte)(lenDiv4 >> 8);
+                    handshakeBuffer[4] = (byte)(lenDiv4 >> 16);
+                }
+
+                Buffer.BlockCopy(tokenBytes, 0, handshakeBuffer, headerLen, tokenBytes.Length);
+                if (padding > 0)
+                {
+                    Array.Clear(handshakeBuffer, headerLen + tokenBytes.Length, padding);
+                }
+
+                await _dataStream!.WriteAsync(handshakeBuffer.AsMemory(0, headerLen + totalLen), _internalCt).ConfigureAwait(false);
                 await _dataStream.FlushAsync(_internalCt).ConfigureAwait(false);
             }
             finally
@@ -193,20 +204,19 @@ namespace Mezon.Net.Transport.Tcp
             {
                 while (!cancellationToken.IsCancellationRequested && _dataStream != null)
                 {
-                    ReadResult result = await _reader!.ReadAsync(cancellationToken).ConfigureAwait(false);
-                    ReadOnlySequence<byte> buffer = result.Buffer;
-                    while (TryReadFrame(ref buffer, out var frame))
+                    if (MessageReceived != null)
                     {
-                        Console.WriteLine($"Received frame of length {frame.ToString()}");
-                        if (MessageReceived != null)
+                        ReadResult result = await _reader!.ReadAsync(cancellationToken).ConfigureAwait(false);
+                        ReadOnlySequence<byte> buffer = result.Buffer;
+                        while (TryReadFrame(ref buffer, out var type, out var cid, out var code, out var frame))
                         {
-                            await MessageReceived.Invoke(frame).ConfigureAwait(false);
+                            await MessageReceived.Invoke(type, cid, code, type == MezonMessageType.Abridged ? TrimPadding(frame) : frame).ConfigureAwait(false);
                         }
-                    }
-                    _reader.AdvanceTo(buffer.Start, buffer.End);
-                    if (result.IsCompleted)
-                    {
-                        break;
+                        _reader.AdvanceTo(buffer.Start, buffer.End);
+                        if (result.IsCompleted)
+                        {
+                            break;
+                        }
                     }
                 }
             }
@@ -228,8 +238,11 @@ namespace Mezon.Net.Transport.Tcp
             }
         }
 
-        private bool TryReadFrame(ref ReadOnlySequence<byte> buffer, out ReadOnlyMemory<byte> frame)
+        private bool TryReadFrame(ref ReadOnlySequence<byte> buffer, out MezonMessageType type, out int cid, out int code, out ReadOnlyMemory<byte> frame)
         {
+            type = default;
+            cid = default;
+            code = default;
             frame = default;
             if (buffer.IsEmpty)
             {
@@ -250,23 +263,28 @@ namespace Mezon.Net.Transport.Tcp
             {
                 // Pong frame: prefix(1 byte) + CID(2 bytes)
                 case PongPrefix:
-                    if (TryPongFrame(ref reader, prefix, out frame))
+                    if (TryReadPongFrame(ref reader, prefix, out cid, out frame))
                     {
+                        type = MezonMessageType.Heartbeat;
+                        code = 0;
                         buffer = buffer.Slice(reader.Position);
                         return true;
                     }
                     return false;
                 // Raw API data frame: prefix(1 byte) + CID(2 bytes) + Code(4 bytes) + PayloadLen(4 bytes) + Payload
                 case ApiPrefix:
-                    if (TryReadApiFrame(ref reader, prefix, out frame))
+                    if (TryReadApiFrame(ref reader, prefix, out cid, out code, out frame))
                     {
+                        type = MezonMessageType.Api;
                         buffer = buffer.Slice(reader.Position);
                         return true;
                     }
                     return false;
                 default:
-                    if (TryReadAbridgedFrame(ref reader, prefix, out frame))
+                    if (TryReadAbridgedFrame(ref reader, prefix, out cid, out frame))
                     {
+                        type = MezonMessageType.Abridged;
+                        code = 0;
                         buffer = buffer.Slice(reader.Position);
                         return true;
                     }
@@ -274,9 +292,10 @@ namespace Mezon.Net.Transport.Tcp
             }
         }
 
-        private bool TryPongFrame(ref SequenceReader<byte> reader, byte prefix, out ReadOnlyMemory<byte> frame)
+        private bool TryReadPongFrame(ref SequenceReader<byte> reader, byte prefix, out int cid, out ReadOnlyMemory<byte> frame)
         {
             frame = default;
+            cid = default;
             if (prefix != PongPrefix)
             {
                 return false;
@@ -288,17 +307,19 @@ namespace Mezon.Net.Transport.Tcp
                 return false;
             }
 
-            if (!reader.TryRead(out byte cidP1) || !reader.TryRead(out byte cidP2))
+            if (!reader.TryReadBigEndian(out short cidS))
             {
                 return false;
             }
-            frame = new byte[3] { 0x00, cidP1, cidP2 };
+            cid = (int)cidS;
             return true;
         }
 
-        private bool TryReadApiFrame(ref SequenceReader<byte> reader, byte prefix, out ReadOnlyMemory<byte> frame)
+        private bool TryReadApiFrame(ref SequenceReader<byte> reader, byte prefix, out int cid, out int code, out ReadOnlyMemory<byte> frame)
         {
             frame = default;
+            cid = default;
+            code = default;
             if (prefix != ApiPrefix)
             {
                 return false;
@@ -310,77 +331,45 @@ namespace Mezon.Net.Transport.Tcp
                 return false;
             }
 
-            reader.TryReadBigEndian(out short cidShort);
-            int cid = (ushort)cidShort;
-            reader.TryReadBigEndian(out int code);
+            reader.TryReadBigEndian(out short cidFrame);
+            cid = cidFrame;
+
+            // Code is structured as: [ResponseCode (2 bytes)][FinishFlag (2 bytes)]
+            reader.TryReadBigEndian(out int codeFrame);
             reader.TryReadBigEndian(out int payloadLen);
             if (reader.Remaining < payloadLen)
             {
                 return false;
             }
 
-            var payloadSequence = reader.Sequence.Slice(reader.Position, payloadLen);
-            ProcessRawApiData(cid, code, payloadSequence, out frame);
+            var writer = _streams.GetOrAdd(cid, _ => new ArrayBufferWriter<byte>(initialCapacity: 4096));
+            var span = writer.GetSpan(payloadLen);
+            reader.TryCopyTo(span);
+            writer.Advance(payloadLen);
+            code = (codeFrame >> 16) & 0xffff;
+            var finishFlag = codeFrame & 0xffff;
+            if (finishFlag == FinishFlag)
+            {
+                frame = writer.WrittenMemory;
+                _streams.TryRemove(cid, out _);
+            }
             reader.Advance(payloadLen);
             return true;
         }
 
-        private void ProcessRawApiData(int cid, int code, ReadOnlySequence<byte> payload, out ReadOnlyMemory<byte> frame)
+        private bool TryReadAbridgedFrame(ref SequenceReader<byte> reader, byte prefix, out int cid, out ReadOnlyMemory<byte> frame)
         {
             frame = default;
-            var writer = _streams.GetOrAdd(cid, _ => new ArrayBufferWriter<byte>(initialCapacity: 4096));
-            int payloadLen = (int)payload.Length;
-            var span = writer.GetSpan(payloadLen);
-            payload.CopyTo(span);
-            writer.Advance(payloadLen);
-
-            if ((code & 0xffff) == FinishCode)
-            {
-                var completeData = writer.WrittenMemory;
-                int responseCode = (code >> 16) & 0xffff;
-                byte[] finalFrame = ArrayPool<byte>.Shared.Rent(11 + completeData.Length);
-                try
-                {
-                    finalFrame[0] = ApiPrefix;
-                    finalFrame[1] = (byte)(cid >> 8);
-                    finalFrame[2] = (byte)(cid & 0xff);
-
-                    // Code (4 bytes)
-                    finalFrame[3] = (byte)(responseCode >> 24);
-                    finalFrame[4] = (byte)(responseCode >> 16);
-                    finalFrame[5] = (byte)(responseCode >> 8);
-                    finalFrame[6] = (byte)(responseCode & 0xff);
-
-                    // Payload length (4 bytes)
-                    finalFrame[7] = (byte)(completeData.Length >> 24);
-                    finalFrame[8] = (byte)(completeData.Length >> 16);
-                    finalFrame[9] = (byte)(completeData.Length >> 8);
-                    finalFrame[10] = (byte)(completeData.Length & 0xff);
-
-                    completeData.CopyTo(finalFrame.AsMemory(11));
-                    frame = finalFrame.AsMemory(0, 11 + completeData.Length).ToArray();
-                }
-                finally
-                {
-                    ArrayPool<byte>.Shared.Return(finalFrame);
-                    _streams.TryRemove(cid, out _);
-                }
-            }
-        }
-
-        private bool TryReadAbridgedFrame(ref SequenceReader<byte> reader, byte prefix, out ReadOnlyMemory<byte> frame)
-        {
-            frame = default;
+            cid = default;
             int payloadLen = 0;
-
             // TODO: Determine the exact length of the payload by specifying the quantity of 4-byte blocks.
-            if (prefix < AbridgedExtendedPrefix)
+            if (prefix < AbridgedTpcExtendedPrefix)
             {
                 // Case 1: prefix is quantity of 4-byte blocks
                 // payloadLength = prefix * 4
                 payloadLen = prefix * 4;
             }
-            else if (prefix == AbridgedExtendedPrefix)
+            else if (prefix == AbridgedTpcExtendedPrefix)
             {
                 // Case 2: Prefix is 0x7f, the quantity of 4-byte blocks is specified in the next 3 bytes (Little Endian)
                 if (reader.Remaining < 3)
@@ -404,57 +393,158 @@ namespace Mezon.Net.Transport.Tcp
                 return false;
             }
 
-            var payloadSequence = reader.Sequence.Slice(reader.Position, payloadLen);
-            frame = payloadSequence.ToArray();
+            var rawPayloadSequence = reader.Sequence.Slice(reader.Position, payloadLen);
+            if (rawPayloadSequence.IsSingleSegment)
+            {
+                frame = rawPayloadSequence.First.Slice(0, payloadLen);
+            }
+            else
+            {
+                byte[] buffer = ArrayPool<byte>.Shared.Rent(payloadLen);
+                rawPayloadSequence.CopyTo(buffer);
+                frame = new ReadOnlyMemory<byte>(buffer, 0, payloadLen);
+            }
+
             reader.Advance(payloadLen);
             return true;
         }
 
-        public ValueTask SendAsync(ReadOnlyMemory<byte> data)
+        private static ReadOnlyMemory<byte> TrimPadding(ReadOnlyMemory<byte> frame)
+        {
+            var span = frame.Span;
+            int len = span.Length;
+            int maxPadding = len < 3 ? len : 3;
+            int trimmed = 0;
+            while (trimmed < maxPadding && span[len - 1 - trimmed] == 0x00)
+            {
+                trimmed++;
+            }
+
+            return trimmed == 0 ? frame : frame.Slice(0, len - trimmed);
+        }
+
+        public ValueTask SendAsync(MezonMessageType type, int cid, ReadOnlyMemory<byte> data)
         {
             if (_state != ConnectionState.Connected || _tcpClient == null || !_tcpClient.Connected || _sendChannel == null)
             {
-#if NETSTANDARD2_1
-                return new ValueTask();
-#else
-                return ValueTask.CompletedTask;
-#endif
+                return default;
             }
 
-            if (!_sendChannel.Writer.TryWrite(data))
+            switch (type)
             {
-                return new ValueTask(Task.FromException(new Exception("Cannot queue message for sending.")));
+                case MezonMessageType.Heartbeat:
+                    return SendPingAsync((ushort)cid);
+                case MezonMessageType.Api:
+                    return SendDataAsync(data);
+                case MezonMessageType.Abridged:
+                    return SendDataAsync(data);
+                default:
+                    break;
             }
 
-#if NETSTANDARD2_1
-            return new ValueTask();
-#else
-                return ValueTask.CompletedTask;
-#endif
+            return default;
+        }
+
+        private ValueTask SendDataAsync(ReadOnlyMemory<byte> data)
+        {
+            int padding = (4 - (data.Length % 4)) & 3;
+            int payloadWithPadding = data.Length + padding;
+            int lenDiv4 = payloadWithPadding / 4;
+            int headerSize = lenDiv4 < 127 ? 1 : 4;
+            int totalSize = headerSize + payloadWithPadding;
+            byte[] buffer = ArrayPool<byte>.Shared.Rent(totalSize);
+            try
+            {
+                Span<byte> span = buffer.AsSpan(0, totalSize);
+                if (headerSize == 1)
+                {
+                    span[0] = (byte)lenDiv4;
+                }
+                else
+                {
+                    span[0] = AbridgedTpcExtendedPrefix;
+                    span[1] = (byte)lenDiv4;
+                    span[2] = (byte)(lenDiv4 >> 8);
+                    span[3] = (byte)(lenDiv4 >> 16);
+                }
+                data.Span.CopyTo(span.Slice(headerSize));
+                if (padding > 0)
+                {
+                    span.Slice(headerSize + data.Length, padding).Clear();
+                }
+                if (!_sendChannel!.Writer.TryWrite(buffer.AsMemory(0, totalSize)))
+                {
+                    return new ValueTask(Task.FromException(new Exception("Cannot queue message for sending.")));
+                }
+
+                return default;
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+            }
+        }
+
+        private ValueTask SendPingAsync(ushort cid)
+        {
+            byte[] buffer = ArrayPool<byte>.Shared.Rent(3);
+            try
+            {
+                Span<byte> span = buffer.AsSpan(0, 3);
+                span[0] = 0x00;
+                BinaryPrimitives.WriteUInt16BigEndian(span.Slice(1), cid);
+
+                if (!_sendChannel!.Writer.TryWrite(buffer.AsMemory(0, 3)))
+                {
+                    return new ValueTask(Task.FromException(new Exception("Cannot queue ping.")));
+                }
+
+                return default;
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+            }
         }
 
         private async Task SendLoopAsync(CancellationToken cancellationToken)
         {
             try
             {
-                await foreach (var data in _sendChannel!.Reader.ReadAllAsync(cancellationToken))
+                if (_dataStream == null || _sendChannel == null)
                 {
-                    if (_dataStream == null)
+                    if (ErrorOccurred != null)
                     {
-                        if (ErrorOccurred != null)
-                        {
-                            await ErrorOccurred.Invoke(new Exception("Connection is not established.")).ConfigureAwait(false);
-                        }
-                        break;
+                        await ErrorOccurred.Invoke(new Exception("Connection is not established.")).ConfigureAwait(false);
                     }
+                }
 
-                    await _dataStream.WriteAsync(data, cancellationToken).ConfigureAwait(false);
-                    await _dataStream.FlushAsync(cancellationToken).ConfigureAwait(false);
+                while (await _sendChannel!.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    while (_sendChannel!.Reader.TryRead(out var msgSend))
+                    {
+                        try
+                        {
+                            await _dataStream!.WriteAsync(msgSend, cancellationToken).ConfigureAwait(false);
+                            await _dataStream.FlushAsync(cancellationToken).ConfigureAwait(false);
+                        }
+                        catch (Exception)
+                        {
+
+                            throw;
+                        }
+                        finally
+                        {
+                            if (System.Runtime.InteropServices.MemoryMarshal.TryGetArray(msgSend, out var segment) && segment.Array != null && segment.Count > 0)
+                            {
+                                ArrayPool<byte>.Shared.Return(segment.Array);
+                            }
+                        }
+                    }
                 }
             }
             catch (OperationCanceledException)
             {
-
             }
             catch (Exception ex)
             {
@@ -533,7 +623,6 @@ namespace Mezon.Net.Transport.Tcp
                 await Closed.Invoke(null).ConfigureAwait(false);
             }
         }
-
 
         public void Dispose()
         {

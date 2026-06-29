@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Mezon.Net.Core\Mezon.Net.Core.csproj" />
+    <ProjectReference Include="..\Mezon.Net.Transport\Mezon.Net.Transport.csproj" />
   </ItemGroup>
 
 </Project>

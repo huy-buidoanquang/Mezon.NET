@@ -9,42 +9,41 @@ using Mezon.Net.Logging;
 namespace Mezon.Net.Api
 {
     /// <summary>
-    /// Thread-safe singleton session manager that ensures only one session exists throughout the application's lifecycle.
-    /// Uses lazy initialization for efficient resource usage.
+    /// Thread-safe session manager that ensures only one session exists throughout the application's lifecycle.
+    /// Uses lock-free reads for hot paths and coalesces concurrent refresh operations.
     /// </summary>
-    internal sealed class SessionManager : ISessionManager, IDisposable, IAsyncDisposable
+    internal sealed class SessionManager<TOptions> : ISessionManager<TOptions>, IAsyncDisposable where TOptions : MezonOptions
     {
-        private static SessionManager? _instance;
+        private static SessionManager<TOptions>? _instance;
         private static readonly object _instanceLock = new object();
         private static volatile bool _isInitialized;
 
-        private readonly SemaphoreSlim _sessionRefreshLock = new SemaphoreSlim(1, 1);
-        private Task<bool>? _refreshTask;
+        private readonly SemaphoreSlim _sessionLock = new SemaphoreSlim(1, 1);
         private readonly IMezonApiClient _apiClient;
-        private readonly MezonConfiguration _mezonConfiguration;
-        private readonly Logger _sessionLogger;
+        private readonly MezonApiClientOptions _options;
+        private readonly Logger _logger;
 
         private const int RefreshTimeBufferInSeconds = 30;
-        private volatile ISession _session = Session.NullSession();
-        private bool _isDisposed;
-        private bool _autoRefreshSession;
 
-        public event Func<ISession, Task>? SessionChanged;
+        private volatile ISession _session;
+        private volatile Task<bool>? _refreshTask;
+        private volatile bool _autoRefreshSession;
+        private int _isDisposed;
 
-        public string GetToken() => _session.AuthToken;
+        public event Func<ISession, Task>? SessionRefreshed;
+
         /// <summary>
         /// Gets the singleton instance of SessionManager.
-        /// Must call Initialize() or GetOrCreate() before accessing this property.
+        /// Must call GetOrCreate() before accessing this property.
         /// </summary>
-        /// <exception cref="InvalidOperationException">Thrown if Initialize() has not been called</exception>
-        public static SessionManager Instance
+        public static SessionManager<TOptions> Instance
         {
             get
             {
                 if (!_isInitialized || _instance == null)
                 {
                     throw new InvalidOperationException(
-                        "SessionManager has not been initialized. Call Initialize() or GetOrCreate() method first.");
+                        "SessionManager has not been initialized. Call GetOrCreate() method first.");
                 }
 
                 return _instance;
@@ -52,46 +51,15 @@ namespace Mezon.Net.Api
         }
 
         /// <summary>
-        /// Initializes the singleton instance with required dependencies.
-        /// This method is thread-safe and can only be called once.
+        /// Returns the current auth token without allocations on the hot path.
         /// </summary>
-        /// <param name="mezonConfiguration">The Mezon configuration</param>
-        /// <param name="apiClient">The API client instance</param>
-        /// <returns>The initialized SessionManager instance</returns>
-        /// <exception cref="InvalidOperationException">Thrown if already initialized</exception>
-        public static SessionManager Initialize(MezonConfiguration mezonConfiguration, IMezonApiClient apiClient, LogManager logManager)
-        {
-            if (mezonConfiguration == null)
-            {
-                throw new ArgumentNullException(nameof(mezonConfiguration));
-            }
-
-            if (apiClient == null)
-            {
-                throw new ArgumentNullException(nameof(apiClient));
-            }
-
-            lock (_instanceLock)
-            {
-                if (_isInitialized && _instance != null)
-                {
-                    throw new InvalidOperationException("SessionManager has already been initialized.");
-                }
-
-                _instance = new SessionManager(mezonConfiguration, apiClient, logManager);
-                _isInitialized = true;
-                return _instance;
-            }
-        }
+        public string GetToken() => _session.AuthToken;
 
         /// <summary>
         /// Gets the existing instance or creates a new one if not initialized.
-        /// This method is thread-safe and idempotent.
+        /// Thread-safe double-checked locking pattern.
         /// </summary>
-        /// <param name="mezonConfiguration">The Mezon configuration (used only if creating new instance)</param>
-        /// <param name="apiClient">The API client instance (used only if creating new instance)</param>
-        /// <returns>The SessionManager instance</returns>
-        public static SessionManager GetOrCreate(MezonConfiguration mezonConfiguration, IMezonApiClient apiClient, LogManager logManager)
+        public static SessionManager<TOptions> GetOrCreate(MezonApiClientOptions options, LogManager logManager)
         {
             if (_isInitialized && _instance != null)
             {
@@ -105,59 +73,67 @@ namespace Mezon.Net.Api
                     return _instance;
                 }
 
-                _instance = new SessionManager(mezonConfiguration, apiClient, logManager);
+                _instance = new SessionManager<TOptions>(options, logManager);
                 _isInitialized = true;
                 return _instance;
             }
         }
 
         /// <summary>
-        /// Checks if the SessionManager has been initialized.
+        /// Returns the current token, refreshing the session if it is about to expire.
+        /// Lock-free fast path when the session is still valid.
         /// </summary>
+        public async Task<string> GetOrRefreshAsync()
+        {
+            var currentSession = _session;
+
+            if (!currentSession.IsExpiredSoon(RefreshTimeBufferInSeconds))
+            {
+                return currentSession.AuthToken;
+            }
+
+            if (_autoRefreshSession)
+            {
+                await TryRefreshSessionAsync().ConfigureAwait(false);
+            }
+
+            return _session.AuthToken;
+        }
+
         public static bool IsInitialized => _isInitialized && _instance != null;
 
         /// <summary>
-        /// Resets the singleton instance. Use with caution - primarily for testing purposes.
+        /// Resets the singleton instance. Primarily for testing purposes.
         /// </summary>
         internal static void Reset()
         {
             lock (_instanceLock)
             {
-                _instance?.Dispose();
-                _instance = null;
+                if (_instance != null)
+                {
+                    _instance.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                    _instance = null;
+                }
                 _isInitialized = false;
             }
         }
 
-        /// <summary>
-        /// Private constructor to enforce singleton pattern.
-        /// Use Initialize() or GetOrCreate() method to create the instance.
-        /// </summary>
-        private SessionManager(MezonConfiguration mezonConfiguration, IMezonApiClient apiClient, LogManager logManager)
+        internal SessionManager(MezonApiClientOptions options, LogManager logManager)
         {
-            _mezonConfiguration = mezonConfiguration ?? throw new ArgumentNullException(nameof(mezonConfiguration));
-            _sessionLogger = logManager.CreateLogger("SessionManager");
-            _autoRefreshSession = true;
-            _apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
+            _options = options ?? throw new ArgumentNullException(nameof(options));
+            _apiClient = new MezonApiClient(_options.HttpClientProvider, _options.NetworkTransportProvider, _options);
+            _apiClient.ConfigureGatewayBasePath(_options.GatewayBasePath);
+            _logger = logManager?.CreateLogger("SessionManager") ?? throw new ArgumentNullException(nameof(logManager));
+            _autoRefreshSession = _options.AutoRefreshSession;
             _session = Session.NullSession();
         }
 
-        /// <summary>
-        /// Gets the current session instance.
-        /// Thread-safe access to the session object.
-        /// </summary>
-        /// <returns>The current session or a null session if not authenticated</returns>
         public ISession CurrentSession() => _session;
 
-        /// <summary>
-        /// Creates a new session with the stored token.
-        /// This ensures only one session is active at a time.
-        /// </summary>
-        /// <param name="autoRefreshSession">Whether to automatically refresh the session when it expires</param>
-        /// <exception cref="InvalidOperationException">Thrown if authentication fails</exception>
         public async Task LoginAsync(string clientId, string clientSecret, bool autoRefreshSession = true)
         {
-            _apiClient.ConfigureGatewayBasePath(_mezonConfiguration.GatewayBasePath);
+            ThrowIfDisposed();
+            _apiClient.ConfigureGatewayBasePath(_options.GatewayBasePath);
             var success = await LoginInternalAsync(clientId, clientSecret, autoRefreshSession).ConfigureAwait(false);
             if (!success)
             {
@@ -165,15 +141,10 @@ namespace Mezon.Net.Api
             }
         }
 
-        /// <summary>
-        /// Creates a new session with the stored token.
-        /// This ensures only one session is active at a time.
-        /// </summary>
-        /// <param name="autoRefreshSession">Whether to automatically refresh the session when it expires</param>
-        /// <exception cref="InvalidOperationException">Thrown if authentication fails</exception>
         public async Task LoginAsync(ISession session, bool autoRefreshSession = true)
         {
-            _apiClient.ConfigureGatewayBasePath(_mezonConfiguration.GatewayBasePath);
+            ThrowIfDisposed();
+            _apiClient.ConfigureGatewayBasePath(_options.GatewayBasePath);
             var success = await LoginInternalAsync(session, autoRefreshSession).ConfigureAwait(false);
             if (!success)
             {
@@ -181,22 +152,14 @@ namespace Mezon.Net.Api
             }
         }
 
-        /// <summary>
-        /// Authenticates with the provided token and creates a new session.
-        /// Thread-safe operation that ensures only one authentication process runs at a time.
-        /// </summary>
-        /// <param name="token">The authentication token</param>
-        /// <param name="autoRefreshSession">Whether to enable automatic session refresh</param>
-        /// <returns>True if authentication was successful, false otherwise</returns>
-        internal async Task<bool> LoginInternalAsync(string clientId, string clientSecret, bool autoRefreshSession = true)
+        private async Task<bool> LoginInternalAsync(string clientId, string clientSecret, bool autoRefreshSession)
         {
             Check.NotNullOrEmpty(clientId, nameof(clientId));
             Check.NotNullOrEmpty(clientSecret, nameof(clientSecret));
 
-            await _sessionRefreshLock.WaitAsync().ConfigureAwait(false);
+            await _sessionLock.WaitAsync().ConfigureAwait(false);
             try
             {
-                StopSessionTimer();
                 _autoRefreshSession = autoRefreshSession;
 
                 var session = await _apiClient.AuthenticateAppAsync(
@@ -208,87 +171,75 @@ namespace Mezon.Net.Api
                 if (session != null && !string.IsNullOrEmpty(session.Token))
                 {
                     _session = new Session(session);
-                    StartSessionTimer();
-                    await _sessionLogger.InfoAsync($"Authentication successful. User: {_session.Username}, Expires: {DateTimeOffset.FromUnixTimeSeconds(_session.ExpiresAt)}").ConfigureAwait(false);
+                    await _logger.InfoAsync($"Authentication successful. User: {_session.Username}, Expires: {DateTimeOffset.FromUnixTimeSeconds(_session.ExpiresAt)}").ConfigureAwait(false);
                     return true;
                 }
 
-                await _sessionLogger.WarningAsync("Authentication failed. Invalid response from API.").ConfigureAwait(false);
+                await _logger.WarningAsync("Authentication failed. Invalid response from API.").ConfigureAwait(false);
                 _session = Session.NullSession();
                 return false;
             }
             catch (Exception ex)
             {
-                await _sessionLogger.ErrorAsync("Authentication failed with exception.", ex).ConfigureAwait(false);
+                await _logger.ErrorAsync("Authentication failed with exception.", ex).ConfigureAwait(false);
                 _session = Session.NullSession();
                 return false;
             }
             finally
             {
-                _sessionRefreshLock.Release();
+                _sessionLock.Release();
             }
         }
 
-        /// <summary>
-        /// Authenticates with the provided token and creates a new session.
-        /// Thread-safe operation that ensures only one authentication process runs at a time.
-        /// </summary>
-        /// <param name="token">The authentication token</param>
-        /// <param name="autoRefreshSession">Whether to enable automatic session refresh</param>
-        /// <returns>True if authentication was successful, false otherwise</returns>
-        internal async Task<bool> LoginInternalAsync(ISession session, bool autoRefreshSession = true)
+        private async Task<bool> LoginInternalAsync(ISession session, bool autoRefreshSession)
         {
-            await _sessionRefreshLock.WaitAsync().ConfigureAwait(false);
+            await _sessionLock.WaitAsync().ConfigureAwait(false);
             try
             {
                 _autoRefreshSession = autoRefreshSession;
                 if (session != null && !string.IsNullOrEmpty(session.AuthToken))
                 {
                     _session = session;
-                    await _sessionLogger.InfoAsync($"Authentication successful. User: {_session.Username}, Expires: {DateTimeOffset.FromUnixTimeSeconds(_session.ExpiresAt)}").ConfigureAwait(false);
+                    await _logger.InfoAsync($"Authentication successful. User: {_session.Username}, Expires: {DateTimeOffset.FromUnixTimeSeconds(_session.ExpiresAt)}").ConfigureAwait(false);
                     return true;
                 }
 
-                await _sessionLogger.WarningAsync("Authentication failed. Invalid response from API.").ConfigureAwait(false);
+                await _logger.WarningAsync("Authentication failed. Invalid response from API.").ConfigureAwait(false);
                 _session = Session.NullSession();
                 return false;
             }
             catch (Exception ex)
             {
-                await _sessionLogger.ErrorAsync("Authentication failed with exception.", ex).ConfigureAwait(false);
+                await _logger.ErrorAsync("Authentication failed with exception.", ex).ConfigureAwait(false);
                 _session = Session.NullSession();
                 return false;
             }
             finally
             {
-                _sessionRefreshLock.Release();
+                _sessionLock.Release();
             }
         }
 
-        /// <summary>
-        /// Logs out the current session and clears session data.
-        /// Thread-safe operation that ensures clean session termination.
-        /// </summary>
-        /// <returns>True if logout was successful</returns>
         public async Task LogoutAsync()
         {
-            _apiClient.ConfigureGatewayBasePath(_mezonConfiguration.GatewayBasePath);
+            ThrowIfDisposed();
+            _apiClient.ConfigureGatewayBasePath(_options.GatewayBasePath);
             var success = await LogoutInternalAsync().ConfigureAwait(false);
             if (!success)
             {
                 throw new InvalidOperationException("Logout failed.");
             }
 
-            await _sessionLogger.InfoAsync("Session logged out successfully.").ConfigureAwait(false);
+            await _logger.InfoAsync("Session logged out successfully.").ConfigureAwait(false);
         }
 
         internal async Task<bool> LogoutInternalAsync()
         {
-            await _sessionRefreshLock.WaitAsync().ConfigureAwait(false);
+            await _sessionLock.WaitAsync().ConfigureAwait(false);
             try
             {
-                StopSessionTimer();
-                if (_session == null)
+                var currentSession = _session;
+                if (string.IsNullOrEmpty(currentSession.AuthToken))
                 {
                     return true;
                 }
@@ -296,168 +247,126 @@ namespace Mezon.Net.Api
                 var response = await _apiClient.AuthenticateAppLogoutAsync(
                     new AppAuthenticationLogoutRequest
                     {
-                        Token = _session.AuthToken,
-                        RefreshToken = _session.RefreshToken
+                        Token = currentSession.AuthToken,
+                        RefreshToken = currentSession.RefreshToken
                     }
                 ).ConfigureAwait(false);
+
                 if (!response)
                 {
                     return false;
                 }
+
                 _session = Session.NullSession();
                 return true;
             }
             finally
             {
-                _sessionRefreshLock.Release();
+                _sessionLock.Release();
             }
         }
 
-        public async Task<string> GetOrRefreshAsync()
+        /// <summary>
+        /// Coalesces concurrent refresh calls so only one network request is made.
+        /// </summary>
+        private Task<bool> TryRefreshSessionAsync()
         {
-            if (!_session.IsExpiredSoon(RefreshTimeBufferInSeconds))
+            var existingTask = _refreshTask;
+            if (existingTask != null)
             {
-                return _session.AuthToken;
+                return existingTask;
             }
 
-            if (_autoRefreshSession)
-            {
-                await TryRefreshSessionAsync().ConfigureAwait(false);
-            }
-
-            return _session.AuthToken;
+            return RefreshAsync();
         }
 
-        private async Task<bool> TryRefreshSessionAsync()
+        private async Task<bool> RefreshAsync()
         {
-            await _sessionLogger.InfoAsync($"Refresh session successful. User: {_session.Username}, Expires: {DateTimeOffset.FromUnixTimeSeconds(_session.ExpiresAt)}").ConfigureAwait(false);
-
-            Task<bool>? currentRefreshTask;
-
-            await _sessionRefreshLock.WaitAsync().ConfigureAwait(false);
+            await _sessionLock.WaitAsync().ConfigureAwait(false);
             try
             {
                 if (_refreshTask != null)
                 {
-                    currentRefreshTask = _refreshTask;
+                    var joined = _refreshTask;
+                    _sessionLock.Release();
+                    return await joined.ConfigureAwait(false);
                 }
-                else
-                {
-                    _refreshTask = PerformRefreshInternalAsync();
-                    currentRefreshTask = _refreshTask;
-                }
+
+                _refreshTask = RefreshInternalAsync();
             }
             finally
             {
-                _sessionRefreshLock.Release();
+                if (_sessionLock.CurrentCount == 0)
+                {
+                    _sessionLock.Release();
+                }
             }
 
             try
             {
-                return await currentRefreshTask.ConfigureAwait(false);
+                return await _refreshTask!.ConfigureAwait(false);
             }
             finally
             {
-                await _sessionRefreshLock.WaitAsync().ConfigureAwait(false);
                 _refreshTask = null;
-                _sessionRefreshLock.Release();
             }
         }
 
-        private async Task<bool> PerformRefreshInternalAsync()
+        private async Task<bool> RefreshInternalAsync()
         {
             try
             {
-                // Giả sử gọi ApiClient để refresh
-                // var response = await _apiClient.RefreshSessionAsync(_session.RefreshToken);
-                // _session = new Session(response);
+                var request = new SessionRefreshRequest { Token = _session.RefreshToken };
+                var newSession = await _apiClient.RefreshSessionAsync("", "", request).ConfigureAwait(false);
 
-                //var request = new SessionRefreshRequest { Token = _session.RefreshToken };
-                //var newSession = await _apiClient.RefreshSessionAsync("", "", request);
-
-                //if (newSession != null && !string.IsNullOrEmpty(newSession.Token))
-                //{
-                //    _session = new Session(newSession);
-                //}
-                //else
-                //{
-                //    _session = Session.NullSession();
-                //    throw new SessionRefreshFailedException();
-                //}
-
-                // Quan trọng: Thông báo cho các bên liên quan (Transport) cập nhật Token mới
-                if (SessionChanged != null)
+                if (newSession == null || string.IsNullOrEmpty(newSession.Token))
                 {
-                    await SessionChanged.Invoke(_session).ConfigureAwait(false);
+                    _session = Session.NullSession();
+                    await _logger.WarningAsync("Session refresh failed. Received invalid response.").ConfigureAwait(false);
+                    return false;
                 }
+
+                _session = new Session(newSession);
+                await _logger.InfoAsync($"Session refreshed. User: {_session.Username}, Expires: {DateTimeOffset.FromUnixTimeSeconds(_session.ExpiresAt)}").ConfigureAwait(false);
+
+                var handler = SessionRefreshed;
+                if (handler != null)
+                {
+                    await handler.Invoke(_session).ConfigureAwait(false);
+                }
+
                 return true;
             }
-            catch
+            catch (Exception ex)
             {
+                await _logger.ErrorAsync("Session refresh failed with exception.", ex).ConfigureAwait(false);
                 return false;
             }
         }
 
-        /// <summary>
-        /// Disposes the SessionManager and releases all resources.
-        /// Thread-safe cleanup of session resources.
-        /// </summary>
-        internal void Dispose(bool disposing)
-        {
-            if (_isDisposed)
-            {
-                return;
-            }
-
-            if (disposing)
-            {
-                StopSessionTimer();
-                _sessionRefreshLock?.Dispose();
-                _session = Session.NullSession();
-
-                // Note: In a true singleton, we typically don't reset the instance,
-                // but we clean up resources
-                _sessionLogger?.InfoAsync("SessionManager disposed.").GetAwaiter().GetResult();
-            }
-
-            _isDisposed = true;
-        }
-
-        /// <inheritdoc />
         public void Dispose()
         {
-            Dispose(true);
-            GC.SuppressFinalize(this);
+            DisposeAsync().AsTask().GetAwaiter().GetResult();
         }
 
-        /// <summary>
-        /// Asynchronously disposes the SessionManager and releases all resources.
-        /// Thread-safe cleanup of session resources.
-        /// </summary>
-        internal async ValueTask DisposeAsync(bool disposing)
+        public async ValueTask DisposeAsync()
         {
-            if (_isDisposed)
+            if (Interlocked.CompareExchange(ref _isDisposed, 1, 0) != 0)
             {
                 return;
             }
 
-            if (disposing)
-            {
-                StopSessionTimer();
-                _sessionRefreshLock?.Dispose();
-                _session = Session.NullSession();
-
-                await _sessionLogger.InfoAsync("SessionManager disposed asynchronously.").ConfigureAwait(false);
-            }
-
-            _isDisposed = true;
+            _sessionLock.Dispose();
+            _session = Session.NullSession();
+            await _logger.InfoAsync("SessionManager disposed.").ConfigureAwait(false);
         }
 
-        /// <inheritdoc />
-        public async ValueTask DisposeAsync()
+        private void ThrowIfDisposed()
         {
-            await DisposeAsync(true).ConfigureAwait(false);
-            GC.SuppressFinalize(this);
+            if (_isDisposed != 0)
+            {
+                throw new ObjectDisposedException(nameof(SessionManager<TOptions>));
+            }
         }
     }
 }

@@ -30,6 +30,7 @@ namespace Mezon.Net.Abstractions
         ///     A task that represents the asynchronous login operation. The task result indicates whether the login was successful.
         /// </returns>
         Task<bool> LoginAsync(ISession session);
+        Task<bool> LoginAsync();
 
         /// <summary>
         ///     Logouts from Mezon, closing the connection to the Socket and invalidating the current session. After this method is called, the client will be considered logged out.

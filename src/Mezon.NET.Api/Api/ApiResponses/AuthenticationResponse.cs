@@ -26,6 +26,11 @@ namespace Mezon.Net.Api
         public string Token { get; set; } = string.Empty;
 
         /// <summary>
+        /// The session id for the user.
+        /// </summary>
+        public string SessionId { get; set; } = string.Empty;
+
+        /// <summary>
         /// The unique identifier for the user.
         /// </summary>
         [JsonProperty("user_id")]

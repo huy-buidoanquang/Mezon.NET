@@ -1,6 +1,6 @@
 namespace Mezon.Net.Core
 {
-    public class MezonBotClientConfiguration : MezonConfiguration
+    public class MezonBotClientConfiguration : MezonOptions
     {
         public string ClientId { get; set; } = string.Empty;
 

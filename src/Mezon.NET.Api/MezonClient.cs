@@ -1,13 +1,21 @@
 using System.Threading.Tasks;
 using Mezon.Net.Abstractions;
-using Mezon.Protobuf.Api;
+using Mezon.Net.Internal.Api;
 
 namespace Mezon.Net.Api
 {
     public class MezonClient : BaseMezonClient, IMezonClient, IApiClientProvider
     {
         /// <inheritdoc />
-        public MezonClient() : this(new MezonApiClientConfiguration())
+        public MezonClient() : this(new MezonApiClientOptions())
+        {
+        }
+
+        /// <summary>
+        ///     Initializes a new <see cref="MezonClient"/> with the provided configuration.
+        /// </summary>
+        /// <param name="options">The configuration to be used with the client.</param>
+        public MezonClient(MezonApiClientOptions options) : base(options, CreateApiClient(options))
         {
         }
 
@@ -15,24 +23,16 @@ namespace Mezon.Net.Api
         ///     Initializes a new <see cref="MezonClient"/> with the provided configuration.
         /// </summary>
         /// <param name="mezonConfiguration">The configuration to be used with the client.</param>
-        public MezonClient(MezonApiClientConfiguration mezonConfiguration) : base(mezonConfiguration, CreateApiClient(mezonConfiguration))
+        public MezonClient(MezonApiClientOptions options, IMezonApiClient apiClient) : base(options, apiClient)
         {
         }
 
-        /// <summary>
-        ///     Initializes a new <see cref="MezonClient"/> with the provided configuration.
-        /// </summary>
-        /// <param name="mezonConfiguration">The configuration to be used with the client.</param>
-        public MezonClient(MezonApiClientConfiguration mezonConfiguration, IMezonApiClient apiClient) : base(mezonConfiguration, apiClient)
-        {
-        }
-
-        private static IMezonApiClient CreateApiClient(MezonApiClientConfiguration config)
-            => new MezonApiClient(config.HttpClientProvider, config.GRPCClientProvider, config);
+        private static IMezonApiClient CreateApiClient(MezonApiClientOptions options)
+            => new MezonApiClient(options.HttpClientProvider, options.NetworkTransportProvider, options);
 
         public async Task<AuthenticationResponse> AuthenticateEmailAsync(string email, string password)
         {
-            return await ApiClient.AuthenticateEmailAsync(Configuration.ServerKey, "", new EmailAuthenticationRequest
+            return await ApiClient.AuthenticateEmailAsync(Options.ServerKey, "", new EmailAuthenticationRequest
             {
                 Account = new AccountEmailRequest
                 {
@@ -44,7 +44,7 @@ namespace Mezon.Net.Api
 
         public async Task<LoginIDResponse> CreateQRLoginAsync(LoginIDRequest request)
         {
-            return await ApiClient.CreateQRLoginAsync(Configuration.ServerKey, "", request);
+            return await ApiClient.CreateQRLoginAsync(Options.ServerKey, "", request);
         }
 
         public Task<ClanDescList> GetClanDescriptionAsync(PaginationParams paginationParams)

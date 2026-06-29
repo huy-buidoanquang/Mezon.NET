@@ -2,6 +2,7 @@ namespace Mezon.Net.Abstractions
 {
     public interface ISession
     {
+        public string SessionId { get; }
         public string AuthToken { get; }
         public string RefreshToken { get; }
         public bool Created { get; }
