@@ -4,14 +4,20 @@ using Mezon.Net.Abstractions;
 
 namespace Mezon.Net.Core.Abstractions
 {
-    public interface ISessionManager : IDisposable
+    public interface ISessionManager<TOptions> : IDisposable where TOptions : MezonOptions
     {
-        event Func<ISession, Task>? SessionChanged;
+        event Func<ISession, Task>? SessionRefreshed;
 
-        ISession CurrentSession { get; }
+        Task LoginAsync(string clientId, string clientSecret, bool autoRefreshSession = true);
+
+        Task LoginAsync(ISession session, bool autoRefreshSession = true);
+
+        Task LogoutAsync();
+
+        ISession CurrentSession();
 
         string GetToken();
 
-        Task<string> GetOrRefreshAccessTokenAsync();
+        Task<string> GetOrRefreshAsync();
     }
 }

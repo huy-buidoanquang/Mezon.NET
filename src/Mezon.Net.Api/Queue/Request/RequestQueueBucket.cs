@@ -4,12 +4,11 @@ using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
-using Grpc.Core;
-using Mezon.Net.Core;
 using Mezon.Net.Abstractions;
+using Mezon.Net.Api;
+using Mezon.Net.Core;
 using Mezon.Net.Utils;
 using Newtonsoft.Json;
-using Mezon.Net.Api;
 
 namespace Mezon.Net.Queue
 {
@@ -170,130 +169,6 @@ namespace Mezon.Net.Queue
                 finally
                 {
                     UpdateRateLimit(id, request, info, response.StatusCode == (HttpStatusCode)429, body: response.Stream);
-#if DEBUG_LIMITS
-                    Debug.WriteLine($"[{id}] Stop");
-#endif
-                }
-            }
-        }
-
-        public async Task<TResponse> SendAsync<TRequest, TResponse>(RpcRequest<TRequest, TResponse> request)
-            where TResponse : class
-            where TRequest : class
-        {
-            int id = Interlocked.Increment(ref nextId);
-#if DEBUG_LIMITS
-            Debug.WriteLine($"[{id}] Start");
-#endif
-            LastAttemptAt = DateTimeOffset.UtcNow;
-            while (true)
-            {
-                await _queue.EnterGlobalAsync(id, request).ConfigureAwait(false);
-                await EnterAsync(id, request).ConfigureAwait(false);
-                if (_redirectBucket != null)
-                {
-                    return await _redirectBucket.SendAsync(request);
-                }
-
-#if DEBUG_LIMITS
-                Debug.WriteLine($"[{id}] Sending...");
-#endif
-                AsyncUnaryCall<TResponse>? response = default;
-                Status status = default;
-                RateLimitInfo info = default;
-                try
-                {
-                    response = await request.SendRPCAsync().ConfigureAwait(false);
-                    var rs = await response.ResponseAsync.ConfigureAwait(false);
-                    var headers = await response.ResponseHeadersAsync.ConfigureAwait(false);
-                    status = response.GetStatus();
-                    info = new RateLimitInfo(headers, request.Endpoint);
-
-                    request.Options.ExecuteRatelimitCallback(info);
-
-                    if (status.StatusCode != StatusCode.OK)
-                    {
-                        switch (status.StatusCode)
-                        {
-                            case StatusCode.ResourceExhausted:
-                                if (info.IsGlobal)
-                                {
-#if DEBUG_LIMITS
-                                    Debug.WriteLine($"[{id}] (!) 8 [Global]");
-#endif
-                                    _queue.PauseGlobal(info);
-                                }
-                                else
-                                {
-#if DEBUG_LIMITS
-                                    Debug.WriteLine($"[{id}] (!) 8");
-#endif
-                                }
-                                await _queue.RaiseRateLimitTriggered(Id, info, request.Endpoint).ConfigureAwait(false);
-                                continue;
-                            case StatusCode.Unavailable:
-#if DEBUG_LIMITS
-                                Debug.WriteLine($"[{id}] (!) 14");
-#endif
-                                if ((request.Options.RetryMode & RetryMode.Retry502) == 0)
-                                {
-                                    throw new RpcException(status, response.GetTrailers());
-                                }
-
-                                continue;
-                            default:
-                                //MezonErrorResponse? error = null;
-                                //if (response.ResponseAsync != null)
-                                //{
-                                //    try
-                                //    {
-                                //        using var reader = new StreamReader(await response.ResponseAsync.ConfigureAwait(false));
-                                //        using var jsonReader = new JsonTextReader(reader);
-                                //        error = Json.Serializer.Deserialize<MezonErrorResponse>(jsonReader);
-                                //    }
-                                //    catch { }
-                                //}
-                                throw new RpcException(
-                                    status,
-                                    response.GetTrailers());
-                        }
-                    }
-                    else
-                    {
-#if DEBUG_LIMITS
-                        Debug.WriteLine($"[{id}] Success");
-#endif
-                        return await response.ResponseAsync.ConfigureAwait(false);
-                    }
-                }
-                //catch (HttpException) { throw; } //Pass through
-                catch (TimeoutException)
-                {
-#if DEBUG_LIMITS
-                    Debug.WriteLine($"[{id}] Timeout");
-#endif
-                    if ((request.Options.RetryMode & RetryMode.RetryTimeouts) == 0)
-                    {
-                        throw;
-                    }
-
-                    await Task.Delay(500).ConfigureAwait(false);
-                    continue; //Retry
-                }
-                /*catch (Exception)
-                {
-#if DEBUG_LIMITS
-                    Debug.WriteLine($"[{id}] Error");
-#endif
-                    if ((request.Options.RetryMode & RetryMode.RetryErrors) == 0)
-                        throw;
-
-                    await Task.Delay(500);
-                    continue; //Retry
-                }*/
-                finally
-                {
-                    //UpdateRateLimit(id, request, info, status.StatusCode == StatusCode.ResourceExhausted, body: response.Stream);
 #if DEBUG_LIMITS
                     Debug.WriteLine($"[{id}] Stop");
 #endif

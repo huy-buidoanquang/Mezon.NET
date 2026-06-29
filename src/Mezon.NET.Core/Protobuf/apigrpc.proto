@@ -29,7 +29,7 @@ option java_multiple_files = true;
 option java_outer_classname = "MezonApiGrpc";
 option java_package = "com.mezon.api.grpc";
 
-option csharp_namespace = "Mezon.Protobuf.Service";
+option csharp_namespace = "Mezon.Net.Internal.Api";
 
 /**
  * The Mezon RPC protocol service built with GRPC.

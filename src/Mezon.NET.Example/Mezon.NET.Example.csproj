@@ -19,6 +19,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Mezon.Net.Api\Mezon.Net.Api.csproj" />
+    <ProjectReference Include="..\Mezon.Net.Client\Mezon.Net.Client.csproj" />
     <ProjectReference Include="..\Mezon.Net.Transport\Mezon.Net.Transport.csproj" />
   </ItemGroup>
 

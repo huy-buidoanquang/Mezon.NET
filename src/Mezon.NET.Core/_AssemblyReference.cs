@@ -2,7 +2,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo("Mezon.Net.Api")]
-[assembly: InternalsVisibleTo("Mezon.Net.WebSocket")]
+[assembly: InternalsVisibleTo("Mezon.Net.Client")]
 [assembly: InternalsVisibleTo("Mezon.Net.Tests")]
 [assembly: InternalsVisibleTo("Mezon.Net.Transport")]
 

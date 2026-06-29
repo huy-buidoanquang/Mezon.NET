@@ -7,20 +7,16 @@ namespace Mezon.Net.Core.Abstractions
 {
     public interface IMezonNetworkTransporter : IDisposable
     {
-        public delegate IMezonNetworkTransporter MezonNetworkTransportProvider();
+        public delegate IMezonNetworkTransporter MezonNetworkTransportProvider(TransportType transportType);
 
         /// <summary>
         /// Event raised when a binary message is received
         /// </summary>
-        Func<ReadOnlyMemory<byte>, ValueTask>? MessageReceived { get; set; }
+        Func<MezonMessageType, int, int, ReadOnlyMemory<byte>, ValueTask>? MessageReceived { get; set; }
         /// <summary>
         /// Event raised when the network connection is opened
         /// </summary>
         Func<Task>? Opened { get; set; }
-        /// <summary>
-        /// Event raised when the network connection is ready
-        /// </summary>
-        Func<Task>? Ready { get; set; }
         /// <summary>
         /// Event raised when the network connection is closed
         /// </summary>
@@ -67,6 +63,6 @@ namespace Mezon.Net.Core.Abstractions
         /// <param name="data">The binary data to send</param>
         /// <param name="cancellationToken">The cancellation token</param>
         /// <returns>A task that represents the asynchronous send operation</returns>
-        ValueTask SendAsync(ReadOnlyMemory<byte> data);
+        ValueTask SendAsync(MezonMessageType type, int cid, ReadOnlyMemory<byte> data);
     }
 }

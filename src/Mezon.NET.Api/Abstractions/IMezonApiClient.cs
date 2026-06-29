@@ -1,11 +1,10 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Threading.Tasks;
 using Mezon.Net.Api;
 using Mezon.Net.Core;
+using Mezon.Net.Internal.Api;
 using Mezon.Net.Queue;
-using Mezon.Net.Internal.Protos;
 
 namespace Mezon.Net.Abstractions
 {
@@ -49,13 +48,13 @@ namespace Mezon.Net.Abstractions
         ////// Authentication
         //Task<AuthenticationResponse> CheckLoginRequestAsync(string basicAuthUsername, string basicAuthPassword, Api.ConfirmLoginRequest body, RequestOptions? options = null);
         //Task ConfirmLoginAsync(Api.ConfirmLoginRequest body, RequestOptions options);
-        //Task<Api.LoginIDResponse> CreateQRLoginAsync(string basicAuthUsername, string basicAuthPassword, LoginIDRequest body, RequestOptions? options = null);
-        //Task<AuthenticationResponse> AuthenticateEmailAsync(string basicAuthUsername, string basicAuthPassword, EmailAuthenticationRequest body, RequestOptions? options = null);
+        Task<Api.LoginIDResponse> CreateQRLoginAsync(string basicAuthUsername, string basicAuthPassword, LoginIDRequest body, RequestOptions? options = null);
+        Task<AuthenticationResponse> AuthenticateEmailAsync(string basicAuthUsername, string basicAuthPassword, EmailAuthenticationRequest body, RequestOptions? options = null);
         //Task<AuthenticationResponse> AuthenticateMezonAsync(string basicAuthUsername, string basicAuthPassword, AccountMezonRequest body, AccountMezonParams args, RequestOptions? options = null);
         //Task<AccountConfirmResponse> AuthenticateSMSOTPAsync(string basicAuthUsername, string basicAuthPassword, AuthenticateSMSRequest body, RequestOptions? options = null);
-        //Task<AuthenticationResponse> RefreshSessionAsync(string basicAuthUsername, string basicAuthPassword, Api.SessionRefreshRequest body, RequestOptions? options = null);
-        //Task<AuthenticationResponse> AuthenticateAppAsync(string basicAuthUsername, string basicAuthPassword, AppAuthenticationRequest body, RequestOptions? options = null);
-        //Task<bool> AuthenticateAppLogoutAsync(AppAuthenticationLogoutRequest body, RequestOptions? options = null);
+        Task<AuthenticationResponse> RefreshSessionAsync(string basicAuthUsername, string basicAuthPassword, Api.SessionRefreshRequest body, RequestOptions? options = null);
+        Task<AuthenticationResponse> AuthenticateAppAsync(string basicAuthUsername, string basicAuthPassword, AppAuthenticationRequest body, RequestOptions? options = null);
+        Task<bool> AuthenticateAppLogoutAsync(AppAuthenticationLogoutRequest body, RequestOptions? options = null);
 
         //#region Friends
         //Task<Mezon.Net.Internal.Protos.AddFriendsResponse> AddFriendsAsync(IEnumerable<long>? ids = null, IEnumerable<string>? usernames = null, RequestOptions? options = null);
@@ -66,7 +65,7 @@ namespace Mezon.Net.Abstractions
         //#endregion
 
         //#region Clan
-        //Task<ClanDescList> ListClanDescsAsync(PaginationParams args, RequestOptions? options = null);
+        Task<ClanDescList> ListClanDescsAsync(PaginationParams args, RequestOptions? options = null);
         //Task<Mezon.Net.Internal.Protos.ClanDesc> CreateClanDescAsync(string clanName, string? logo = null, string? banner = null, RequestOptions? options = null);
         //Task DeleteClanDescAsync(long clanId, RequestOptions? options = null);
         //Task UpdateClanDescAsync(Mezon.Net.Internal.Protos.UpdateClanDescRequest body, RequestOptions? options = null);

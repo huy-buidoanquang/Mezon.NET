@@ -54,7 +54,7 @@ namespace Mezon.Net.Core
         ///		clock for rate-limiting. Defaults to <see langword="true" />.
         /// </summary>
         /// <remarks>
-        ///		This property can also be set in <see cref="MezonConfiguration"/>.
+        ///		This property can also be set in <see cref="MezonOptions"/>.
         ///		On a per-request basis, the system clock should only be disabled
         ///		when millisecond precision is especially important, and the
         ///		hosting system is known to have a desynced clock.
@@ -98,14 +98,14 @@ namespace Mezon.Net.Core
 
         /// <summary>
         ///     Initializes a new <see cref="RequestOptions" /> class with the default request timeout set in
-        ///     <see cref="MezonConfiguration"/>.
+        ///     <see cref="MezonOptions"/>.
         /// </summary>
 #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
         public RequestOptions()
 #pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
         {
-            ApiSendTimeout = MezonConfiguration.DefaultApiTimeoutInMilliseconds;
-            SocketSendTimeout = MezonConfiguration.DefaultSocketTimeoutInMilliseconds;
+            ApiSendTimeout = MezonOptions.DefaultApiTimeoutInMilliseconds;
+            SocketSendTimeout = MezonOptions.DefaultSocketTimeoutInMilliseconds;
             RequestHeaders = new Dictionary<string, IEnumerable<string>>();
         }
 

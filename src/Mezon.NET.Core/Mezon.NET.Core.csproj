@@ -27,13 +27,17 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Protobuf Include="Protobuf\Api\api.proto" GrpcServices="None"/>
+    <Protobuf Include="Protobuf\Api\api.proto" GrpcServices="None" />
     <Protobuf Include="Protobuf\Realtime\realtime.proto" GrpcServices="Client">
       <AdditionalImportDirs>Protobuf/;$(PkgGoogle_Api_CommonProtos)/content/protos</AdditionalImportDirs>
     </Protobuf>
    <Protobuf Include="Protobuf\apigrpc.proto" GrpcServices="Client">
       <AdditionalImportDirs>Protobuf/;$(PkgGoogle_Api_CommonProtos)/content/protos</AdditionalImportDirs>
     </Protobuf>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Providers\" />
   </ItemGroup>
 
 </Project>
