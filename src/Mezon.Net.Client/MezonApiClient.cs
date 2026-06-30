@@ -625,7 +625,7 @@ namespace Mezon.Net.Api
         //    return SendRequestAsync<AuthenticationResponse>("/v2/account/registry", HttpMethod.Post, bearerToken: bearerToken, body: body);
         //}
 
-        public async Task<AuthenticationResponse> RefreshSessionAsync(string basicAuthUsername, string basicAuthPassword, SessionRefreshRequest body, RequestOptions? options = null)
+        public virtual async Task<AuthenticationResponse> RefreshSessionAsync(string basicAuthUsername, string basicAuthPassword, SessionRefreshRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
             options = RequestOptions.CreateOrClone(options);
@@ -825,7 +825,7 @@ namespace Mezon.Net.Api
             throw new NotImplementedException();
         }
 
-        public Task<ClanDescList> ListClanDescsAsync(PaginationParams args, RequestOptions? options = null)
+        public virtual Task<ClanDescList> ListClanDescsAsync(PaginationParams args, RequestOptions? options = null)
         {
             throw new NotImplementedException();
         }

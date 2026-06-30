@@ -30,12 +30,12 @@ public class MezonWorker : BackgroundService
     {
         try
         {
-            var res = await _mezonClient.RestClient.AuthenticateEmailAsync("", "");
+            var res = await _mezonClient.AuthenticateEmailAsync("", "");
 
             var session = new MezonSession(res);
             await _mezonClient.LoginAsync(session);
             await _mezonClient.ConnectAsync();
-            //await _mezonClient.JoinClanChat(2041858765849890816);
+            await _mezonClient.JoinClanChat(2041858765849890816);
 
             _logger.LogInformation("Successfully initialized. Starting main loop...");
 

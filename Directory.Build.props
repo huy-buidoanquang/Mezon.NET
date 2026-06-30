@@ -1,0 +1,8 @@
+<Project>
+  <PropertyGroup>
+    <_UserNuGetPackages Condition="'$(USERPROFILE)' != ''">$(USERPROFILE)\.nuget\packages\</_UserNuGetPackages>
+    <Protobuf_ProtocFullPath Condition="'$(Protobuf_ProtocFullPath)' == '' and '$(_UserNuGetPackages)' != '' and Exists('$(_UserNuGetPackages)grpc.tools\2.76.0\tools\windows_x64\protoc.exe')">$(_UserNuGetPackages)grpc.tools\2.76.0\tools\windows_x64\protoc.exe</Protobuf_ProtocFullPath>
+    <Protobuf_GrpcFullPath Condition="'$(Protobuf_GrpcFullPath)' == '' and '$(_UserNuGetPackages)' != '' and Exists('$(_UserNuGetPackages)grpc.tools\2.76.0\tools\windows_x64\grpc_csharp_plugin.exe')">$(_UserNuGetPackages)grpc.tools\2.76.0\tools\windows_x64\grpc_csharp_plugin.exe</Protobuf_GrpcFullPath>
+    <Protobuf_GrpcPlugin Condition="'$(Protobuf_GrpcFullPath)' != ''">protoc-gen-grpc=$(Protobuf_GrpcFullPath)</Protobuf_GrpcPlugin>
+  </PropertyGroup>
+</Project>
