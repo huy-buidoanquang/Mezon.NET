@@ -18,8 +18,6 @@ namespace Mezon.Net.Client
 
         internal new MezonSocketApiClient ApiClient => (base.ApiClient as MezonSocketApiClient)!;
 
-        public abstract Api.MezonClient RestClient { get; }
-
         /// <summary>
         ///     Initializes a new <see cref="BaseSocketClient"/> with the provided configuration.
         /// </summary>
@@ -39,6 +37,6 @@ namespace Mezon.Net.Client
 
         public Task JoinClanChat(long clanId) => ApiClient.JoinClanChat(clanId);
 
-        IMezonClient IApiClientProvider.MezonApiClient => RestClient;
+        IMezonClient IApiClientProvider.MezonApiClient => this;
     }
 }

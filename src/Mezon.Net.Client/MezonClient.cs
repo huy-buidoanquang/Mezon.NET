@@ -3,7 +3,9 @@ using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 using Mezon.Net.Abstractions;
+using Mezon.Net.Api;
 using Mezon.Net.Core;
+using Mezon.Net.Internal.Api;
 using Mezon.Net.Logging;
 
 namespace Mezon.Net.Client
@@ -19,7 +21,6 @@ namespace Mezon.Net.Client
         private long _lastMessageTime;
         internal int? HandlerTimeout { get; private set; }
 
-        public override Api.MezonClient RestClient { get; }
         /// <inheritdoc />
         public override long Latency { get; protected set; } = 20000;
         /// <inheritdoc />
@@ -38,7 +39,6 @@ namespace Mezon.Net.Client
             _stateLock = new SemaphoreSlim(1, 1);
             _socketLogger = LogManager.CreateLogger("MezonSocketClient");
             _heartbeatTimes = new ConcurrentQueue<long>();
-            RestClient = new Api.MezonClient(options);
             HandlerTimeout = options.SocketHandlerTimeoutInMilliseconds;
             _connection = new SocketConnectionManager(
                 _stateLock,
@@ -241,6 +241,54 @@ namespace Mezon.Net.Client
         public override async Task DisconnectAsync()
         {
             await _connection.DisconnectAsync().ConfigureAwait(false);
+        }
+
+        public async Task<AuthenticationResponse> AuthenticateEmailAsync(string email, string password)
+        {
+            return await ApiClient.AuthenticateEmailAsync(Options.ServerKey, "", new EmailAuthenticationRequest
+            {
+                Account = new AccountEmailRequest
+                {
+                    Email = email,
+                    Password = password
+                },
+            }).ConfigureAwait(false);
+        }
+
+        public async Task<Mezon.Net.Api.LoginIDResponse> CreateQRLoginAsync(LoginIDRequest request)
+        {
+            return await ApiClient.CreateQRLoginAsync(Options.ServerKey, "", request).ConfigureAwait(false);
+        }
+
+        public Task<TResponse> SendSocketApiAsync<TRequest, TResponse>(
+            string apiName,
+            TRequest request,
+            Google.Protobuf.MessageParser<TResponse> responseParser,
+            RequestOptions? options = null)
+            where TRequest : Google.Protobuf.IMessage<TRequest>
+            where TResponse : Google.Protobuf.IMessage<TResponse>
+        {
+            if (ApiClient is MezonSocketApiClient socketClient)
+            {
+                return socketClient.SendApiAsync(apiName, request, responseParser, options);
+            }
+
+            throw new InvalidOperationException("Socket API requires a connected MezonSocketApiClient.");
+        }
+
+        public Task<Mezon.Net.Internal.Realtime.Envelope> SendRealtimeAsync(Mezon.Net.Internal.Realtime.Envelope envelope, RequestOptions? options = null)
+        {
+            if (ApiClient is MezonSocketApiClient socketClient)
+            {
+                return socketClient.SendEnvelopeAsync(envelope, options);
+            }
+
+            throw new InvalidOperationException("Realtime socket requires MezonSocketApiClient.");
+        }
+
+        public Task<ClanDescList> GetClanDescriptionAsync(PaginationParams paginationParams)
+        {
+            return ApiClient.ListClanDescsAsync(paginationParams);
         }
     }
 }

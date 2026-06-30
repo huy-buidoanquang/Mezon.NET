@@ -11,7 +11,7 @@ using static Mezon.Net.Core.Abstractions.IMezonNetworkTransporter;
 
 namespace Mezon.Net.Client
 {
-    internal class MezonSocketApiClient : MezonApiClient, IMezonSocketClient, IDisposable, IAsyncDisposable
+    internal partial class MezonSocketApiClient : MezonApiClient, IMezonSocketClient, IDisposable, IAsyncDisposable
     {
         private int _nextCid = 1;
         public event Func<string, Task> SocketSentMessageEvent { add { _socketSentMessageEvent.Add(value); } remove { _socketSentMessageEvent.Remove(value); } }
@@ -151,6 +151,7 @@ namespace Mezon.Net.Client
 
         public async Task Heartbeat(RequestOptions? options = null)
         {
+            _lastPingSentMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             options ??= RequestOptions.CreateOrClone(options);
             await SendAsync(MezonMessageType.Heartbeat, new byte[1], options);
         }
@@ -222,36 +223,35 @@ namespace Mezon.Net.Client
 
         private ValueTask WebSocketClient_MessageReceived(MezonMessageType type, int cid, int code, ReadOnlyMemory<byte> data)
         {
-            if (data.Length == 0)
+            if (data.Length == 0 && type != MezonMessageType.Heartbeat)
             {
                 return default;
             }
 
             try
             {
-                if (_receivedMessageEvent.HasSubscribers)
+                Envelope? envelope = null;
+                switch (type)
                 {
+                    case MezonMessageType.Abridged:
+                        envelope = Envelope.Parser.ParseFrom(data.Span);
+                        if (envelope.Pong != null)
+                        {
+                            type = MezonMessageType.Heartbeat;
+                            cid = envelope.Cid;
+                        }
+                        else
+                        {
+                            cid = envelope.Cid;
+                        }
+                        break;
+                }
 
-                    switch (type)
-                    {
-                        case MezonMessageType.Heartbeat:
-                            _receivedMessageEvent.InvokeAsync(MezonMessageType.Heartbeat, cid, code, null, null).ConfigureAwait(false);
-                            break;
-                        case MezonMessageType.Api:
-                            _receivedMessageEvent.InvokeAsync(MezonMessageType.Api, cid, code, data, null).ConfigureAwait(false);
-                            break;
-                        case MezonMessageType.Abridged:
-                            var envelop = Envelope.Parser.ParseFrom(data.ToArray());
-                            if (envelop.Pong != null)
-                            {
-                                _receivedMessageEvent.InvokeAsync(MezonMessageType.Heartbeat, envelop.Cid, code, null, envelop).ConfigureAwait(false);
-                                break;
-                            }
-                            _receivedMessageEvent.InvokeAsync(MezonMessageType.Abridged, envelop.Cid, code, null, envelop).ConfigureAwait(false);
-                            break;
-                        default:
-                            break;
-                    }
+                OnSocketMessageReceived(type, cid, code, data, envelope);
+
+                if (_receivedMessageEvent.HasSubscribers && (cid == 0 || !WasPendingRequest(cid)))
+                {
+                    _ = _receivedMessageEvent.InvokeAsync(type, cid, code, type == MezonMessageType.Api ? data : null, envelope);
                 }
             }
             catch (Exception)
@@ -260,10 +260,12 @@ namespace Mezon.Net.Client
 
 #if NET6_0_OR_GREATER
             return ValueTask.CompletedTask;
-#elif NETSTANDARD2_1
+#else
             return new ValueTask();
 #endif
         }
+
+        private bool WasPendingRequest(int cid) => cid > 0 && _requestHub.Contains(cid);
         #endregion
 
         internal override void Dispose(bool disposing)
