@@ -139,7 +139,7 @@ message ChannelMessage {
   // The channel this message belongs to.
   int64 channel_id = 2;
   // The unique ID of this message.
-  int64  message_id = 3;
+  int64 message_id = 3;
   // The code representing a message type or category.
   int32 code = 4;
   // Message sender, usually a user ID.
@@ -163,7 +163,7 @@ message ChannelMessage {
   // The clan avatar
   string clan_avatar = 14;
   // Emoji reaction
-	bytes reactions = 15;
+  bytes reactions = 15;
   // Message mention
   bytes mentions = 16;
   // Message attachment
@@ -253,7 +253,7 @@ message MessageReaction {
   // channel id
   int64 channel_id = 9;
   // message id
-  int64  message_id = 10;
+  int64 message_id = 10;
   // clan id
   int64 clan_id = 11;
   // mode
@@ -291,7 +291,7 @@ message MessageAttachment {
 // Message reference
 message MessageRef {
   // A message source
-  int64  message_id = 1;
+  int64 message_id = 1;
   // A message reference to
   int64 message_ref_id = 2;
   // content reference
@@ -315,7 +315,7 @@ message MessageRef {
 // Message reference
 message MessageDeleted {
   // A deleted message source
-  int64  message_id = 1;
+  int64 message_id = 1;
   // Who delete it
   string deletor = 2;
 }
@@ -462,6 +462,8 @@ message VoiceChannelUser {
   int64 channel_id = 2;
   // room name
   string room_name = 3;
+  // share screen user
+  repeated string share_screen_ids = 4;
 }
 
 // A list of users belonging to a channel, along with their role.
@@ -487,7 +489,7 @@ message ChannelAttachment {
   // timestamp
   uint32 create_time_seconds = 7;
   // message id.
-  int64  message_id = 8;
+  int64 message_id = 8;
   // width
   int32 width = 9;
   // height
@@ -551,7 +553,7 @@ message ListChannelMessagesRequest {
   // The channel ID to list from.
   int64 channel_id = 2;
   // The current message ID.
-  int64  message_id = 3;
+  int64 message_id = 3;
   // Max number of records to return. Between 1 and 100.
   int32 limit = 4;
   // True if listing should be older messages to newer, false if reverse.
@@ -784,6 +786,8 @@ message Session {
   string ws_url = 8;
   // session id
   string session_id = 9;
+  // abriged url
+  string tcp_url = 10;
 }
 
 // Update username
@@ -916,9 +920,9 @@ enum StoreEnvironment {
 // Clan profile information
 message ClanDescProfile {
   // Clan id
-  int64 clan_id =1;
+  int64 clan_id = 1;
   // Clan creator
-  int64 creator_id  = 2;
+  int64 creator_id = 2;
   // Clan nick name
   string nick_name = 3;
   // Clan profile banner
@@ -932,7 +936,7 @@ message ClanDescProfile {
 // Update Clan profile information
 message UpdateClanDescProfileRequest {
   // Clan id
-  int64 clan_id =1;
+  int64 clan_id = 1;
   // Clan nick name
   string nick_name = 2;
   // Clan profile banner
@@ -946,13 +950,13 @@ message UpdateClanDescProfileRequest {
 // Clan profile information
 message ClanDescProfileRequest {
   // Clan id
-  int64 clan_id =1;
+  int64 clan_id = 1;
 }
 
 // Clan information
 message ClanDesc {
   // Clan creator
-  int64 creator_id  = 1;
+  int64 creator_id = 1;
   // Clan name
   string clan_name = 2;
   // Clan logo
@@ -1001,7 +1005,7 @@ message CreateClanDescRequest {
 
 // Update Clan information
 message UpdateClanDescRequest {
-  int64 clan_id =1;
+  int64 clan_id = 1;
   // Clan name
   string clan_name = 2;
   // Clan logo
@@ -1164,7 +1168,7 @@ message UpdateClanOrderRequest {
 // Category to group the channel
 message CategoryDesc {
   // Category creator
-  int64 creator_id  = 1;
+  int64 creator_id = 1;
   // the Clan that category belong to
   int64 clan_id = 2;
   // Category name
@@ -1203,6 +1207,7 @@ message DeleteCategoryDescRequest {
   int64 clan_id = 2;
   string category_label = 3;
 }
+
 // A list of clan
 message CategoryDescList {
   // A list of channel.
@@ -1259,7 +1264,7 @@ message ChannelDescription {
   // last seen message id
   ChannelMessageHeader last_seen_message = 13;
   // DM status
-  repeated bool onlines = 14 [packed=true];
+  repeated bool onlines = 14 [packed = true];
   // meeting code
   string meeting_code = 15;
   // count message unread
@@ -1379,7 +1384,6 @@ message CreateChannelDescRequest {
   int64 app_id = 9;
 }
 
-
 // Delete a channel the user has access to.
 message DeleteChannelDescRequest {
   // The clan id
@@ -1398,7 +1402,7 @@ message UpdateChannelDescRequest {
   google.protobuf.StringValue channel_label = 3;
   // The category of channel
   int64 category_id = 4;
-    // app url for channel type app
+  // app url for channel type app
   int64 app_id = 5;
   // topic
   string topic = 6;
@@ -1580,7 +1584,7 @@ message DeletePinMessage {
   //
   int64 id = 1;
   //
-  int64  message_id = 2;
+  int64 message_id = 2;
   //
   int64 channel_id = 3;
   //
@@ -1592,7 +1596,7 @@ message PinMessage {
   //
   int64 id = 1;
   //
-  int64  message_id = 2;
+  int64 message_id = 2;
   //
   int64 channel_id = 3;
   //
@@ -1679,7 +1683,7 @@ message SetNotificationRequest {
 
 //
 message PinMessageRequest {
-  int64  message_id = 1;
+  int64 message_id = 1;
   int64 channel_id = 2;
   int64 clan_id = 3;
 }
@@ -1927,6 +1931,14 @@ message PermissionUpdate {
   int32 type = 3;
 }
 
+message UploadBatchAttachmentRequest {
+  repeated UploadAttachmentRequest upload_files = 1;
+}
+
+message UploadAttachmentBatch {
+  repeated UploadAttachment uploaded_files = 1;
+}
+
 message UploadAttachmentRequest {
   // The name of file that need to upload
   string filename = 1;
@@ -1938,6 +1950,8 @@ message UploadAttachmentRequest {
   int32 width = 4;
   // Height
   int32 height = 5;
+  // part count
+  int32 part_count = 6;
 }
 
 message ListMessageMentionRequest {
@@ -1966,13 +1980,14 @@ message MultipartUploadAttachment {
 }
 
 message MultipartUploadAttachmentPart {
-	int32 part_number = 1;
-	string e_tag = 2;       
+  int32 part_number = 1;
+  string e_tag = 2;
 }
 
 message MultipartUploadAttachmentFinishRequest {
-	string upload_id = 1;
-	repeated MultipartUploadAttachmentPart parts = 2;
+  string upload_id = 1;
+  repeated MultipartUploadAttachmentPart parts = 2;
+  string filename = 3;
 }
 
 // Operator that can be used to override the one set in the leaderboard.
@@ -2015,7 +2030,7 @@ message FilterParam {
 
 message SearchMessageDocument {
   // The message ID.
-  string  message_id = 1;
+  string message_id = 1;
   // The channel ID.
   string channel_id = 2;
   // The clan ID.
@@ -2077,7 +2092,7 @@ message RegistrationEmailRequest {
 }
 
 message ClanEmoji {
-  int64 id  = 1;
+  int64 id = 1;
   // src url
   string src = 2;
   // shortname
@@ -2131,7 +2146,7 @@ message AllUsersAddChannelResponse {
   repeated string usernames = 4;
   repeated string display_names = 5;
   repeated string avatars = 6;
-  repeated bool onlines = 7 [packed=true];
+  repeated bool onlines = 7 [packed = true];
 }
 
 message ClanEmojiCreateRequest {
@@ -2154,7 +2169,7 @@ message ClanEmojiDeleteRequest {
 }
 
 message ClanEmojiUpdateRequest {
-  int64 id  = 1;
+  int64 id = 1;
   string shortname = 2;
   int64 clan_id = 3;
 }
@@ -2203,7 +2218,7 @@ message WebhookUpdateRequestById {
 message WebhookDeleteRequestById {
   int64 id = 1;
   int64 clan_id = 2;
-  int64 channel_id =3;
+  int64 channel_id = 3;
 }
 
 message WebhookListRequest {
@@ -2276,7 +2291,6 @@ message ChangeChannelCategoryRequest {
   int64 channel_id = 2;
   int64 new_category_id = 3;
 }
-
 
 // App information.
 message App {
@@ -2453,7 +2467,7 @@ message GetSystemMessage {
   int64 clan_id = 1;
 }
 
-message DeleteCategoryOrderRequest{
+message DeleteCategoryOrderRequest {
   int64 clan_id = 1;
 }
 
@@ -2463,13 +2477,13 @@ message StreamHttpCallbackRequest {
   // client_id
   int64 client_id = 2;
   // clan_id
-	int64 clan_id = 3;
+  int64 clan_id = 3;
   // channel_id
-	int64 channel_id = 4;
+  int64 channel_id = 4;
   // user_id
   int64 user_id = 5;
   // action
-	int32 action = 6;
+  int32 action = 6;
   // is_publisher
   bool is_publisher = 7;
   // token
@@ -2630,7 +2644,7 @@ message PermissionRoleChannelListEventResponse {
   repeated PermissionRoleChannel permission_role_channel = 4;
 }
 
-message ChannelSettingListRequest{
+message ChannelSettingListRequest {
   // clan id
   int64 clan_id = 1;
   // parent id of thread
@@ -2657,21 +2671,21 @@ message ChannelSettingItem {
   // channel id
   int64 id = 1;
   // creator id
-	int64 creator_id = 2;
+  int64 creator_id = 2;
   // parentId
-	int64 parent_id = 3;
+  int64 parent_id = 3;
   //label of channel
-	string channel_label = 4;
+  string channel_label = 4;
   // category id
-	int64 category_id = 5;
+  int64 category_id = 5;
   // meeting code
-	string meeting_code = 6;
+  string meeting_code = 6;
   // channel private
   int32 channel_private = 7;
   // channel type
   int32 channel_type = 8;
   // is active
-	int32 active = 9;
+  int32 active = 9;
   // list user in channel
   repeated int64 user_ids = 10;
   // message count
@@ -2680,7 +2694,7 @@ message ChannelSettingItem {
   ChannelMessageHeader last_sent_message = 12;
 }
 
-message ChannelSettingListResponse{
+message ChannelSettingListResponse {
   // clan id
   int64 clan_id = 1;
   // channel count
@@ -2894,14 +2908,14 @@ message GetPubKeysResponse {
 }
 
 message ChanEncryptionMethod {
-	string method = 1;
+  string method = 1;
   int64 channel_id = 2;
 }
 
 message GetKeyServerResp {
-	string url = 1;
+  string url = 1;
 }
-message AuditLog{
+message AuditLog {
   int64 id = 1;
   int64 user_id = 2;
   int64 clan_id = 3;
@@ -2914,13 +2928,13 @@ message AuditLog{
   string channel_label = 10;
 }
 
-message ListAuditLog{
+message ListAuditLog {
   int32 total_count = 1;
   string date_log = 2;
   repeated AuditLog logs = 3;
 }
 
-message ListAuditLogRequest{
+message ListAuditLogRequest {
   string action_log = 1;
   int64 user_id = 2;
   int64 clan_id = 3;
@@ -2955,7 +2969,7 @@ message UnlockedItemResponse {
   string source = 1;
 }
 
-message ListOnboardingRequest{
+message ListOnboardingRequest {
   // clan id
   int64 clan_id = 1;
   // guide_type: 0 = greeting, 1 = rule, 2 = task, 3 = question
@@ -2994,7 +3008,6 @@ message OnboardingItem {
   // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the message was last updated.
   uint32 update_time_seconds = 11;
 }
-
 
 message OnboardingAnswer {
   // title
@@ -3144,12 +3157,12 @@ message ClanWebhookHandlerRequest {
   string username = 3;
 }
 
-message UserStatus{
+message UserStatus {
   int64 user_id = 1;
   string status = 2;
 }
 
-message UserStatusUpdate{
+message UserStatusUpdate {
   string status = 1;
   int32 minutes = 2;
   bool until_turn_on = 3;
@@ -3190,7 +3203,7 @@ message UpdateOnboardingStepRequest {
 message SdTopic {
   int64 id = 1;
   int64 creator_id = 2;
-  int64  message_id = 3;
+  int64 message_id = 3;
   int64 clan_id = 4;
   int64 channel_id = 5;
   int32 status = 6;
@@ -3201,7 +3214,7 @@ message SdTopic {
 }
 
 message SdTopicRequest {
-  int64  message_id = 1;
+  int64 message_id = 1;
   int64 clan_id = 2;
   int64 channel_id = 3;
 }
@@ -3226,7 +3239,7 @@ message DeleteSdTopicRequest {
   int64 clan_id = 3;
 }
 
-message GenerateMeetTokenRequest  {
+message GenerateMeetTokenRequest {
   int64 channel_id = 1;
   string room_name = 2;
 }
@@ -3329,7 +3342,7 @@ message GenerateHashChannelAppsResponse {
 }
 
 message Message2InboxRequest {
-  int64  message_id = 1;
+  int64 message_id = 1;
   int64 channel_id = 2;
   int64 clan_id = 3;
   string avatar = 4;
@@ -3422,7 +3435,7 @@ message UserIds {
 }
 
 message ReportMessageAbuseReqest {
-  int64  message_id = 1;
+  int64 message_id = 1;
   string abuse_type = 2;
 }
 
@@ -3460,8 +3473,8 @@ message DirectFcmProto {
   repeated int32 position_e = 15;
   string attachment_type = 16;
   bool has_more_attachment = 17;
-  repeated bool is_mention_role = 18 [packed=true];
-  int64  message_id = 19;
+  repeated bool is_mention_role = 18 [packed = true];
+  int64 message_id = 19;
 }
 
 message MessageMentionList {
@@ -3542,6 +3555,17 @@ message UpdateAIAgentRequest {
   string room_name = 2;
 }
 
+enum TrackType {
+  AUDIO = 0;
+  VIDEO = 1;
+  DATA = 2;
+}
+
+message TrackInfo {
+  string sid = 1;
+  TrackType type = 2;
+}
+
 message ParticipantInfo {
   enum State {
     // websocket' connected, but not offered yet
@@ -3581,6 +3605,7 @@ message ParticipantInfo {
   string sid = 1;
   string identity = 2;
   State state = 3;
+  repeated TrackInfo tracks = 4;
   bool is_publisher = 13;
   Kind kind = 14;
 }
