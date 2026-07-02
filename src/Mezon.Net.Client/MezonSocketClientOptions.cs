@@ -6,6 +6,7 @@ namespace Mezon.Net.Client
     {
         public const int DefaultConnectionTimeoutInMilliseconds = 30000;
         public const int DefaultHandlerTimeoutInMilliseconds = 3000;
+        public const int DefaultHeartbeatIntervalInMilliseconds = 10000;
 
         public MezonSocketClientOptions()
         {
@@ -29,6 +30,11 @@ namespace Mezon.Net.Client
         /// <summary>
         ///     Gets or sets the interval, in milliseconds, for the heartbeat.
         /// </summary>
-        public int HeartbeatIntervalInMilliseconds { get; set; } = 30000;
+        public int HeartbeatIntervalInMilliseconds { get; set; } = DefaultHeartbeatIntervalInMilliseconds;
+
+        /// <summary>
+        ///     When true, the socket gateway URL includes <c>status=true</c> on connect (presence bootstrap).
+        /// </summary>
+        public bool CreateStatusOnConnect { get; set; } = true;
     }
 }

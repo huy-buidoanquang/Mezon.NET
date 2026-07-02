@@ -28,4 +28,8 @@
     <ProjectReference Include="..\Mezon.Net.Transport\Mezon.Net.Transport.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Mezon.Net.Client.Tests" />
+  </ItemGroup>
+
 </Project>

@@ -635,12 +635,47 @@ namespace Mezon.Net.Client
         }
         internal readonly AsyncEvent<Func<Task>> _allowAnonymousEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> UpdateLocalcacheEvent
+        public event Func<ApiRequestEvent, Task> UpdateLocalcacheEvent
         {
             add { _updateLocalcacheEvent.Add(value); }
             remove { _updateLocalcacheEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _updateLocalcacheEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<ApiRequestEvent, Task>> _updateLocalcacheEvent = new AsyncEvent<Func<ApiRequestEvent, Task>>();
+
+        public event Func<ApiRequestEvent, Task> ApiRequestReceivedEvent
+        {
+            add { _apiRequestReceivedEvent.Add(value); }
+            remove { _apiRequestReceivedEvent.Remove(value); }
+        }
+        internal readonly AsyncEvent<Func<ApiRequestEvent, Task>> _apiRequestReceivedEvent = new AsyncEvent<Func<ApiRequestEvent, Task>>();
+
+        public event Func<ListChannelUsersBannedEvent, Task> ListChannelUsersBannedEvent
+        {
+            add { _listChannelUsersBannedEvent.Add(value); }
+            remove { _listChannelUsersBannedEvent.Remove(value); }
+        }
+        internal readonly AsyncEvent<Func<ListChannelUsersBannedEvent, Task>> _listChannelUsersBannedEvent = new AsyncEvent<Func<ListChannelUsersBannedEvent, Task>>();
+
+        public event Func<global::Mezon.Net.Internal.Api.Session, Task> RefreshSessionEvent
+        {
+            add { _refreshSessionEvent.Add(value); }
+            remove { _refreshSessionEvent.Remove(value); }
+        }
+        internal readonly AsyncEvent<Func<global::Mezon.Net.Internal.Api.Session, Task>> _refreshSessionEvent = new AsyncEvent<Func<global::Mezon.Net.Internal.Api.Session, Task>>();
+
+        public event Func<ChannelArchiveEvent, Task> ChannelArchiveEvent
+        {
+            add { _channelArchiveEvent.Add(value); }
+            remove { _channelArchiveEvent.Remove(value); }
+        }
+        internal readonly AsyncEvent<Func<ChannelArchiveEvent, Task>> _channelArchiveEvent = new AsyncEvent<Func<ChannelArchiveEvent, Task>>();
+
+        public event Func<TopicInMessageEvent, Task> TopicInMessageEvent
+        {
+            add { _topicInMessageEvent.Add(value); }
+            remove { _topicInMessageEvent.Remove(value); }
+        }
+        internal readonly AsyncEvent<Func<TopicInMessageEvent, Task>> _topicInMessageEvent = new AsyncEvent<Func<TopicInMessageEvent, Task>>();
 
         public event Func<Task> ClanCreatedEvent
         {

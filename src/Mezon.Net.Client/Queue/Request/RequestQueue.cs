@@ -129,26 +129,39 @@ namespace Mezon.Net.Queue
                 request.Options.CancelToken = _requestCancelToken;
             }
 
-            // WebSocket uses SocketRateLimiter directly, no need for RequestBucket
-            // Rate limiting is handled in EnterGlobalAsync
-            await EnterGlobalAsync(0, request).ConfigureAwait(false);
+            var bucketType = request.Options.BucketId != null
+                ? SocketBucket.Get(request.Options.BucketId).Type
+                : SocketBucketType.Unbucketed;
+            await EnterGatewayAsync(request.Options, bucketType).ConfigureAwait(false);
             await request.SendAsync().ConfigureAwait(false);
 
             createdTokenSource?.Dispose();
         }
 
-        internal async Task EnterGlobalAsync(int id, WebSocketRequest request)
+        internal async Task EnterGatewayAsync(RequestOptions options, SocketBucketType bucketType = SocketBucketType.Unbucketed)
         {
-            var requestBucket = SocketBucket.Get(request.Options.BucketId);
-            //if (requestBucket == default(SocketBucket))
-            //{
-            //    await _unbucketedLimiter.WaitAsync(request.Options.CancelToken).ConfigureAwait(false);
-            //    return;
-            //}
+            options.BucketId ??= SocketBucket.Get(bucketType).Id;
+            await EnterGatewayLimiterAsync(options).ConfigureAwait(false);
+        }
 
+        internal Task EnterGlobalAsync(int id, WebSocketRequest request)
+            => EnterGatewayLimiterAsync(request.Options);
+
+        private async Task EnterGatewayLimiterAsync(RequestOptions options)
+        {
+            int millis = (int)Math.Ceiling((_waitUntil - DateTimeOffset.UtcNow).TotalMilliseconds);
+            if (millis > 0)
+            {
+#if DEBUG_LIMITS
+                System.Diagnostics.Debug.WriteLine($"[Gateway] Sleeping {millis} ms (Pre-emptive) [Global]");
+#endif
+                await Task.Delay(millis, options.CancelToken).ConfigureAwait(false);
+            }
+
+            var requestBucket = SocketBucket.Get(options.BucketId!);
             if (requestBucket.Type != SocketBucketType.Unbucketed)
             {
-                await _unbucketedLimiter.WaitAsync(request.Options.CancelToken).ConfigureAwait(false);
+                await _unbucketedLimiter.WaitAsync(options.CancelToken).ConfigureAwait(false);
             }
 
             var limiter = requestBucket.Type switch
@@ -159,7 +172,7 @@ namespace Mezon.Net.Queue
                 _ => _unbucketedLimiter
             };
 
-            await limiter.WaitAsync(request.Options.CancelToken).ConfigureAwait(false);
+            await limiter.WaitAsync(options.CancelToken).ConfigureAwait(false);
         }
 
         internal void PauseGlobal(RateLimitInfo info)
@@ -194,7 +207,7 @@ namespace Mezon.Net.Queue
 
         internal (RequestQueueBucket?, BucketId?) UpdateBucketHash(BucketId id, string mezonHash)
         {
-            if (!id.IsHashBucket)
+            if (!id.IsHashBucket && !string.IsNullOrWhiteSpace(mezonHash))
             {
                 var bucket = BucketId.Create(mezonHash, id);
                 var hashReqQueue = (RequestQueueBucket)_buckets.GetOrAdd(bucket, _buckets[id]);

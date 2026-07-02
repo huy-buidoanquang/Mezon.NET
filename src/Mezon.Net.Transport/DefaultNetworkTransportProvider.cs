@@ -1,5 +1,4 @@
 using System;
-using System.Runtime.InteropServices;
 using Mezon.Net.Core;
 using static Mezon.Net.Core.Abstractions.IMezonNetworkTransporter;
 
@@ -12,12 +11,7 @@ namespace Mezon.Net.Transport
         public static MezonNetworkTransportProvider Create(TransportType type = TransportType.Auto)
         {
 
-            var targetType = type;
-
-            if (type == TransportType.Auto)
-            {
-                targetType = GetRecommendedTransport();
-            }
+            var targetType = type.Resolve();
 
             switch (targetType)
             {
@@ -50,13 +44,5 @@ namespace Mezon.Net.Transport
             }
         }
 
-        private static TransportType GetRecommendedTransport()
-        {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Create("BROWSER")))
-            {
-                return TransportType.WebSocket;
-            }
-            return TransportType.Tcp;
-        }
     }
 }

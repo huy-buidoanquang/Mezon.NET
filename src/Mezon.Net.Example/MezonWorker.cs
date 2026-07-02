@@ -1,90 +1,44 @@
-using Mezon.Net.Client;
+using Mezon.Net.Example.Infrastructure;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using MezonSession = Mezon.Net.Api.Session;
+using Microsoft.Extensions.Options;
 
-public class MezonWorker : BackgroundService
+namespace Mezon.Net.Example;
+
+public sealed class MezonWorker : BackgroundService
 {
     private readonly ILogger<MezonWorker> _logger;
-    private readonly MezonClient _mezonClient;
-    private readonly DateTimeOffset _startTime;
+    private readonly MezonExampleOptions _options;
+    private readonly IHostApplicationLifetime _lifetime;
 
-    public MezonWorker(ILogger<MezonWorker> logger)
+    public MezonWorker(
+        ILogger<MezonWorker> logger,
+        IOptions<MezonExampleOptions> options,
+        IHostApplicationLifetime lifetime)
     {
         _logger = logger;
-        _startTime = DateTimeOffset.UtcNow;
-
-        var config = new MezonSocketClientOptions("dev-mezon.nccsoft.vn", "8088", true);
-        config.LogLevel = Mezon.Net.Logging.LogLevel.Trace;
-        _mezonClient = new MezonClient(config);
-        _mezonClient.Log += _mezonClient_Log;
-    }
-
-    private Task _mezonClient_Log(Mezon.Net.Logging.LogMessage arg)
-    {
-        AddConsoleLogging(arg);
-        return Task.CompletedTask;
+        _options = options.Value;
+        _lifetime = lifetime;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         try
         {
-            var res = await _mezonClient.AuthenticateEmailAsync("", "");
-
-            var session = new MezonSession(res);
-            await _mezonClient.LoginAsync(session);
-            await _mezonClient.ConnectAsync();
-            await _mezonClient.JoinClanChat(2041858765849890816);
-
-            _logger.LogInformation("Successfully initialized. Starting main loop...");
-
-            while (!stoppingToken.IsCancellationRequested)
-            {
-            }
+            await ExampleRunner.RunAsync(_options, _logger, stoppingToken).ConfigureAwait(false);
         }
-        catch (TaskCanceledException)
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
+            _logger.LogInformation("Example cancelled.");
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Example run failed.");
+            Environment.ExitCode = 1;
         }
         finally
         {
+            _lifetime.StopApplication();
         }
-    }
-
-    /// <summary>
-    ///     Adds console logging to the LogManager.
-    /// </summary>
-    /// <param name="logManager">The LogManager to attach the console writer to.</param>
-    /// <returns>The LogManager for chaining.</returns>
-    public void AddConsoleLogging(Mezon.Net.Logging.LogMessage message)
-    {
-        var formatted = message.ToString(
-            prependTimestamp: true,
-            timestampKind: DateTimeKind.Utc,
-            padSource: 20,
-            fullException: true
-        );
-
-        var originalColor = Console.ForegroundColor;
-        Console.ForegroundColor = GetConsoleColor(message.Level);
-        Console.WriteLine(formatted);
-        Console.ForegroundColor = originalColor;
-    }
-
-    private ConsoleColor GetConsoleColor(Mezon.Net.Logging.LogLevel severity)
-    {
-        return severity switch
-        {
-            Mezon.Net.Logging.LogLevel.Critical => ConsoleColor.Magenta,
-            Mezon.Net.Logging.LogLevel.Error => ConsoleColor.Red,
-            Mezon.Net.Logging.LogLevel.Warning => ConsoleColor.Yellow,
-            Mezon.Net.Logging.LogLevel.Information => ConsoleColor.White,
-            Mezon.Net.Logging.LogLevel.Debug => ConsoleColor.Gray,
-            Mezon.Net.Logging.LogLevel.Trace => ConsoleColor.DarkGray,
-            _ => ConsoleColor.White
-        };
     }
 }

@@ -31,7 +31,7 @@ namespace Mezon.Net.Core
         /// <summary>
         ///     Gets if this bucket is a hash type.
         /// </summary>
-        public bool IsHashBucket { get => BucketHash != null; }
+        public bool IsHashBucket { get => !string.IsNullOrEmpty(BucketHash); }
 
         private BucketId(string httpMethod, string endpoint, IEnumerable<KeyValuePair<string, string>> majorParameters, string bucketHash)
         {

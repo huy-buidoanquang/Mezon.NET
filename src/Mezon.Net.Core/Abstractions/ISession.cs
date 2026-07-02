@@ -14,6 +14,7 @@ namespace Mezon.Net.Abstractions
         public bool IsRemember { get; }
         public string? ApiUrl { get; }
         public string? WsUrl { get; }
+        public string? TcpUrl { get; }
 
         bool IsExpiredSoon(int seconds);
 

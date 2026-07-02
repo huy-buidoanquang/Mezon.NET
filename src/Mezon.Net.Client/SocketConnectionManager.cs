@@ -83,6 +83,8 @@ namespace Mezon.Net.Client
             var reconnectCancelToken = new CancellationTokenSource();
             _reconnectCancelToken?.Dispose();
             _reconnectCancelToken = reconnectCancelToken;
+            _readyPromise = new TaskCompletionSource<bool>();
+            _connectionPromise = new TaskCompletionSource<bool>();
             _task = Task.Run(async () =>
             {
                 try
@@ -142,9 +144,9 @@ namespace Mezon.Net.Client
             return Task.CompletedTask;
         }
 
-        public Task CompleteAsync() => Task.Run(() => _readyPromise.TrySetResult(true));
+        public Task CompleteAsync() => Task.Run(() => _readyPromise?.TrySetResult(true));
 
-        public Task WaitAsync() => _readyPromise.Task;
+        public Task WaitAsync() => _readyPromise?.Task ?? Task.CompletedTask;
 
         public void Cancel()
         {
@@ -156,8 +158,8 @@ namespace Mezon.Net.Client
 
         public void Error(Exception ex)
         {
-            _readyPromise.TrySetException(ex);
-            _connectionPromise.TrySetException(ex);
+            _readyPromise?.TrySetException(ex);
+            _connectionPromise?.TrySetException(ex);
             _connectionCancelToken?.Cancel();
         }
 
@@ -169,8 +171,8 @@ namespace Mezon.Net.Client
 
         public void Reconnect()
         {
-            _readyPromise.TrySetCanceled();
-            _connectionPromise.TrySetCanceled();
+            _readyPromise?.TrySetCanceled();
+            _connectionPromise?.TrySetCanceled();
             _connectionCancelToken?.Cancel();
         }
 
@@ -187,10 +189,13 @@ namespace Mezon.Net.Client
 
             try
             {
-                var readyPromise = new TaskCompletionSource<bool>();
-                _readyPromise = readyPromise;
+                if (_readyPromise == null || _readyPromise.Task.IsCompleted)
+                {
+                    _readyPromise = new TaskCompletionSource<bool>();
+                }
 
                 var cancelToken = CancelToken;
+                var readyPromise = _readyPromise;
                 var _ = Task.Run(async () =>
                 {
                     try
