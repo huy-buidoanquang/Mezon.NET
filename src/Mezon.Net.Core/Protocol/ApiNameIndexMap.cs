@@ -1,4 +1,4 @@
-﻿// Auto-generated from mezon-js transport.ts ApiNameEnum
+using System;
 using System.Collections.Generic;
 #if NET8_0_OR_GREATER
 using System.Collections.Frozen;
@@ -228,6 +228,21 @@ namespace Mezon.Net.Core.Protocol
         public static readonly IReadOnlyDictionary<string, int> NameToIndex = Entries;
 #endif
 
-        public static bool TryGetIndex(string apiName, out int index) => NameToIndex.TryGetValue(apiName, out index);
+        public static bool TryGetIndex(string apiName, out int index)
+        {
+            if (NameToIndex.TryGetValue(apiName, out index))
+            {
+                return true;
+            }
+
+            // Protocol typo alias: grpc rpc is CreateActiviy but clients may use correct spelling.
+            if (string.Equals(apiName, "CreateActivity", StringComparison.Ordinal))
+            {
+                return NameToIndex.TryGetValue("CreateActiviy", out index);
+            }
+
+            index = default;
+            return false;
+        }
     }
 }

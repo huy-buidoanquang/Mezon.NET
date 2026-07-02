@@ -56,6 +56,17 @@ internal static class MezonTransportFrameBuilder
         return buffer;
     }
 
+    public static byte[] BuildWebSocketApiFrame(int cid, int responseCode, bool finish, ReadOnlySpan<byte> payload)
+    {
+        var buffer = new byte[7 + payload.Length];
+        buffer[0] = ApiPrefix;
+        BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(1), (ushort)cid);
+        var codeField = (responseCode << 16) | (finish ? FinishFlag : 0);
+        BinaryPrimitives.WriteInt32BigEndian(buffer.AsSpan(3), codeField);
+        payload.CopyTo(buffer.AsSpan(7));
+        return buffer;
+    }
+
     public static byte[] BuildAbridgedFrame(ReadOnlySpan<byte> payload, bool padToFour = true)
     {
         var data = payload;

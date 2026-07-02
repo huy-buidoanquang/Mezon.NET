@@ -45,6 +45,27 @@ public class MezonTransportFrameCodecTests
     }
 
     [Fact]
+    public void TryReadFrame_ApiSplitHeaderAndPayload_DoesNotDesync()
+    {
+        var payload = new byte[66];
+        payload.AsSpan().Fill(0xAB);
+        var full = MezonTransportFrameBuilder.BuildApiFrame(5, 0, finish: true, payload);
+        var headerOnly = full.AsSpan(0, 11).ToArray();
+        var rest = full.AsSpan(11).ToArray();
+
+        var streams = new System.Collections.Concurrent.ConcurrentDictionary<int, ArrayBufferWriter<byte>>();
+        var buffer = new ReadOnlySequence<byte>(headerOnly);
+        Assert.False(MezonTransportFrameCodec.TryReadFrame(ref buffer, streams, out _, out _, out _, out _));
+        Assert.True(buffer.Length > 0);
+
+        buffer = new ReadOnlySequence<byte>(headerOnly.Concat(rest).ToArray());
+        Assert.True(MezonTransportFrameCodec.TryReadFrame(ref buffer, streams, out var type, out var cid, out _, out var frame));
+        Assert.Equal(MezonMessageType.Api, type);
+        Assert.Equal(5, cid);
+        Assert.Equal(payload, frame.ToArray());
+    }
+
+    [Fact]
     public void TrimPadding_RemovesUpToThreeTrailingZeros()
     {
         var frame = new ReadOnlyMemory<byte>([0x0A, 0x0B, 0x0C, 0x00]);

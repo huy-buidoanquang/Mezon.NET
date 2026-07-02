@@ -54,5 +54,8 @@ namespace Mezon.Net.Api
         /// </summary>
         [JsonProperty("ws_url")]
         public string? WsUrl { get; set; } = string.Empty;
+
+        [JsonProperty("tcp_url")]
+        public string? TcpUrl { get; set; } = string.Empty;
     }
 }

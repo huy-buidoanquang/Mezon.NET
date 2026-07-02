@@ -12,21 +12,8 @@ namespace Mezon.Net.Client
             _lastMessageTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             if (type == MezonMessageType.Heartbeat)
             {
-                await _socketLogger.DebugAsync("Received: HEARTBEAT").ConfigureAwait(false);
-                try
-                {
-                    _heartbeatTimes.TryDequeue(out long _);
-                    if (_heartbeatTask == null)
-                    {
-                        await TimedInvokeAsync(_readyEvent, nameof(ReadyEvent)).ConfigureAwait(false);
-                        _heartbeatTask = RunHeartbeatAsync(_connection.CancelToken);
-                        _ = _connection.CompleteAsync();
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _connection.CriticalError(new Exception("Processing HEARTBEAT failed", ex));
-                }
+                // Pong for a client-initiated ping is handled in MezonSocketApiClient (TryComplete + latency).
+                await _socketLogger.DebugAsync("Received: HEARTBEAT (ignored for lifecycle)").ConfigureAwait(false);
                 return;
             }
             else if (type == MezonMessageType.Api)
@@ -325,14 +312,27 @@ namespace Mezon.Net.Client
                         case Envelope.MessageOneofCase.AllowAnonymousEvent:
                             await TimedInvokeAsync(_allowAnonymousEvent, nameof(AllowAnonymousEvent)).ConfigureAwait(false);
                             break;
-                        //case Envelope.MessageOneofCase.UpdateLocalcacheEvent:
-                        //    await TimedInvokeAsync(_updateLocalcacheEvent, nameof(UpdateLocalcacheEvent)).ConfigureAwait(false);
-                        //    break;
+                        case Envelope.MessageOneofCase.ApiRequestEvent:
+                            await TimedInvokeAsync(_apiRequestReceivedEvent, nameof(ApiRequestReceivedEvent), envelope.ApiRequestEvent).ConfigureAwait(false);
+                            await TimedInvokeAsync(_updateLocalcacheEvent, nameof(UpdateLocalcacheEvent), envelope.ApiRequestEvent).ConfigureAwait(false);
+                            break;
                         case Envelope.MessageOneofCase.ClanCreatedEvent:
                             await TimedInvokeAsync(_clanCreatedEvent, nameof(ClanCreatedEvent)).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.AiagentEnabledEvent:
                             await TimedInvokeAsync(_aiagentEnabledEvent, nameof(AiagentEnabledEvent)).ConfigureAwait(false);
+                            break;
+                        case Envelope.MessageOneofCase.ListChannelUsersBannedEvent:
+                            await TimedInvokeAsync(_listChannelUsersBannedEvent, nameof(ListChannelUsersBannedEvent), envelope.ListChannelUsersBannedEvent).ConfigureAwait(false);
+                            break;
+                        case Envelope.MessageOneofCase.RefreshSessionEvent:
+                            await TimedInvokeAsync(_refreshSessionEvent, nameof(RefreshSessionEvent), envelope.RefreshSessionEvent).ConfigureAwait(false);
+                            break;
+                        case Envelope.MessageOneofCase.ChannelArchiveEvent:
+                            await TimedInvokeAsync(_channelArchiveEvent, nameof(ChannelArchiveEvent), envelope.ChannelArchiveEvent).ConfigureAwait(false);
+                            break;
+                        case Envelope.MessageOneofCase.TopicInMessageEvent:
+                            await TimedInvokeAsync(_topicInMessageEvent, nameof(TopicInMessageEvent), envelope.TopicInMessageEvent).ConfigureAwait(false);
                             break;
                         default:
                             await _socketLogger.WarningAsync($"Unknown message type ({envelope?.MessageCase})").ConfigureAwait(false);

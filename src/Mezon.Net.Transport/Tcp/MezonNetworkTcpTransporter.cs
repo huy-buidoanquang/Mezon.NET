@@ -37,6 +37,8 @@ namespace Mezon.Net.Transport
         public Func<Exception?, Task>? Closed { get; set; }
         public Func<Exception, Task>? ErrorOccurred { get; set; }
 
+        public Action<string>? WireTrace { get; set; }
+
         public MezonNetworkTcpTransporter()
         {
             _disconnectCts = new CancellationTokenSource();
@@ -204,6 +206,14 @@ namespace Mezon.Net.Transport
                     {
                         while (!buffer.IsEmpty)
                         {
+                            if (WireTrace != null)
+                            {
+                                var previewLen = (int)Math.Min(16, buffer.Length);
+                                var preview = buffer.Slice(0, previewLen).ToArray();
+                                WireTrace(
+                                    $"[FRAME-BUF] total={buffer.Length} hex={BitConverter.ToString(preview).Replace("-", "")}");
+                            }
+
                             var frameStart = buffer.Start;
                             if (!MezonTransportFrameCodec.TryReadFrame(ref buffer, _streams, out var type, out var cid, out var code, out var frame))
                             {
@@ -213,6 +223,12 @@ namespace Mezon.Net.Transport
                                 }
 
                                 continue;
+                            }
+
+                            if (WireTrace != null)
+                            {
+                                WireTrace(
+                                    $"[FRAME-OUT] type={type} cid={cid} code={code} bytes={frame.Length}");
                             }
 
                             var payload = type == MezonMessageType.Abridged
@@ -385,6 +401,8 @@ namespace Mezon.Net.Transport
                 await Closed.Invoke(null).ConfigureAwait(false);
             }
         }
+
+        public void ResetApiStream(int cid) => _streams.TryRemove(cid, out _);
 
         public void Dispose()
         {

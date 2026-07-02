@@ -1,8 +1,10 @@
 using System.Collections.Concurrent;
 using System.Net.Sockets;
 using System.Net.WebSockets;
+using Google.Protobuf;
 using Mezon.Net.Core;
 using Mezon.Net.Core.Abstractions;
+using Mezon.Net.Internal.Realtime;
 using Mezon.Net.Transport.Tests.Helpers;
 
 namespace Mezon.Net.Transport.Tests.Transporter;
@@ -110,7 +112,8 @@ public class MezonTransporterContractTests
             }
             else
             {
-                await WriteToClientAsync(kind, client, MezonTransportFrameBuilder.BuildPongFrame(42), ct).ConfigureAwait(false);
+                var pong = new Envelope { Cid = 42, Pong = new Pong() };
+                await WriteToClientAsync(kind, client, pong.ToByteArray(), ct).ConfigureAwait(false);
             }
 
             await Task.Delay(Timeout.Infinite, ct).ConfigureAwait(false);
@@ -121,8 +124,19 @@ public class MezonTransporterContractTests
         events.Attach(transporter);
         await ConnectAsync(transporter, session.Port, "token-heartbeat").ConfigureAwait(false);
 
-        var message = await events.WaitForMessageAsync(m => m.type == MezonMessageType.Heartbeat).ConfigureAwait(false);
-        Assert.Equal(42, message.cid);
+        if (kind == TransporterKind.Tcp)
+        {
+            var message = await events.WaitForMessageAsync(m => m.type == MezonMessageType.Heartbeat).ConfigureAwait(false);
+            Assert.Equal(42, message.cid);
+        }
+        else
+        {
+            var message = await events.WaitForMessageAsync(m => m.type == MezonMessageType.Abridged).ConfigureAwait(false);
+            var envelope = Envelope.Parser.ParseFrom(message.payload);
+            Assert.NotNull(envelope.Pong);
+            Assert.Equal(42, envelope.Cid);
+        }
+
         await transporter.DisconnectAsync().ConfigureAwait(false);
         await TransporterFactory.DisposeAsync(transporter).ConfigureAwait(false);
     }
@@ -137,12 +151,16 @@ public class MezonTransporterContractTests
             {
                 var stream = (NetworkStream)client;
                 await MezonTransportFrameBuilder.ReadHandshakeAsync(stream, ct).ConfigureAwait(false);
+                var batch = MezonTransportFrameBuilder.BuildApiFrame(7, 200, finish: false, [1, 2])
+                    .Concat(MezonTransportFrameBuilder.BuildApiFrame(7, 200, finish: true, [3, 4]))
+                    .ToArray();
+                await WriteToClientAsync(kind, client, batch, ct).ConfigureAwait(false);
             }
-
-            var batch = MezonTransportFrameBuilder.BuildApiFrame(7, 200, finish: false, [1, 2])
-                .Concat(MezonTransportFrameBuilder.BuildApiFrame(7, 200, finish: true, [3, 4]))
-                .ToArray();
-            await WriteToClientAsync(kind, client, batch, ct).ConfigureAwait(false);
+            else
+            {
+                await WriteToClientAsync(kind, client, MezonTransportFrameBuilder.BuildWebSocketApiFrame(7, 200, finish: false, [1, 2]), ct).ConfigureAwait(false);
+                await WriteToClientAsync(kind, client, MezonTransportFrameBuilder.BuildWebSocketApiFrame(7, 200, finish: true, [3, 4]), ct).ConfigureAwait(false);
+            }
             await Task.Delay(Timeout.Infinite, ct).ConfigureAwait(false);
         }).ConfigureAwait(false);
 
@@ -171,7 +189,14 @@ public class MezonTransporterContractTests
                 await MezonTransportFrameBuilder.ReadHandshakeAsync(stream, ct).ConfigureAwait(false);
             }
 
-            await WriteToClientAsync(kind, client, MezonTransportFrameBuilder.BuildAbridgedFrame([0x0A, 0x0B, 0x0C]), ct).ConfigureAwait(false);
+            if (kind == TransporterKind.Tcp)
+            {
+                await WriteToClientAsync(kind, client, MezonTransportFrameBuilder.BuildAbridgedFrame([0x0A, 0x0B, 0x0C]), ct).ConfigureAwait(false);
+            }
+            else
+            {
+                await WriteToClientAsync(kind, client, [0x0A, 0x0B, 0x0C], ct).ConfigureAwait(false);
+            }
             await Task.Delay(Timeout.Infinite, ct).ConfigureAwait(false);
         }).ConfigureAwait(false);
 
@@ -213,10 +238,20 @@ public class MezonTransporterContractTests
 
         var transporter = TransporterFactory.Create(kind);
         await ConnectAsync(transporter, session.Port, "token-send-ping").ConfigureAwait(false);
-        await transporter.SendAsync(MezonMessageType.Heartbeat, 9, ReadOnlyMemory<byte>.Empty).ConfigureAwait(false);
+        if (kind == TransporterKind.Tcp)
+        {
+            await transporter.SendAsync(MezonMessageType.Heartbeat, 9, ReadOnlyMemory<byte>.Empty).ConfigureAwait(false);
+            var frame = await frameReceived.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            Assert.Equal([0x00, 0x00, 0x09], frame);
+        }
+        else
+        {
+            var ping = new Envelope { Cid = 9, Ping = new Ping() };
+            await transporter.SendAsync(MezonMessageType.Abridged, 9, ping.ToByteArray()).ConfigureAwait(false);
+            var frame = await frameReceived.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            Assert.Equal(ping.ToByteArray(), frame);
+        }
 
-        var frame = await frameReceived.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
-        Assert.Equal([0x00, 0x00, 0x09], frame);
         await transporter.DisconnectAsync().ConfigureAwait(false);
         await TransporterFactory.DisposeAsync(transporter).ConfigureAwait(false);
     }
@@ -252,11 +287,18 @@ public class MezonTransporterContractTests
         await transporter.SendAsync(MezonMessageType.Abridged, 0, new ReadOnlyMemory<byte>(new byte[] { 0xDE, 0xAD, 0xBE, 0xEF })).ConfigureAwait(false);
 
         var frame = await frameReceived.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
-        Assert.Equal(0x01, frame[0]);
-        Assert.Equal(0xDE, frame[1]);
-        Assert.Equal(0xAD, frame[2]);
-        Assert.Equal(0xBE, frame[3]);
-        Assert.Equal(0xEF, frame[4]);
+        if (kind == TransporterKind.Tcp)
+        {
+            Assert.Equal(0x01, frame[0]);
+            Assert.Equal(0xDE, frame[1]);
+            Assert.Equal(0xAD, frame[2]);
+            Assert.Equal(0xBE, frame[3]);
+            Assert.Equal(0xEF, frame[4]);
+        }
+        else
+        {
+            Assert.Equal([0xDE, 0xAD, 0xBE, 0xEF], frame);
+        }
         await transporter.DisconnectAsync().ConfigureAwait(false);
         await TransporterFactory.DisposeAsync(transporter).ConfigureAwait(false);
     }

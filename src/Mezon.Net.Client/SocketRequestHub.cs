@@ -75,6 +75,8 @@ namespace Mezon.Net.Client
 
         public bool Contains(int cid) => _pending.ContainsKey(cid);
 
+        public int PendingCount => _pending.Count;
+
         public ValueTask<SocketResponse> WaitAsync(int cid, int timeoutMilliseconds, CancellationToken cancellationToken)
         {
             var pending = new PendingSocketRequest();

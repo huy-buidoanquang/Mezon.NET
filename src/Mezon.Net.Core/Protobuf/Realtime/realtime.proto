@@ -238,7 +238,7 @@ message TopicInMessageEvent {
 }
 
 message ApiRequestEvent {
-  int32 api_index = 1;
+  optional int32 api_index = 1;
   string api_name = 2;
   bytes body = 3;
 }

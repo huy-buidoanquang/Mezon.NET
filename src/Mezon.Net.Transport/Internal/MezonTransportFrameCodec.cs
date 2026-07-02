@@ -175,7 +175,18 @@ namespace Mezon.Net.Transport.Internal
             frame = default;
             cid = default;
             code = default;
-            if (reader.Remaining < 10)
+            const int headerSize = 10; // cid(2) + code(4) + payloadLen(4)
+            if (reader.Remaining < headerSize)
+            {
+                return false;
+            }
+
+            // Peek payload length before consuming — incomplete frames must not advance the reader.
+            var peek = reader;
+            peek.TryReadBigEndian(out short _);
+            peek.TryReadBigEndian(out int _);
+            peek.TryReadBigEndian(out int payloadLen);
+            if (reader.Remaining < headerSize + payloadLen)
             {
                 return false;
             }
@@ -183,11 +194,7 @@ namespace Mezon.Net.Transport.Internal
             reader.TryReadBigEndian(out short cidFrame);
             cid = cidFrame;
             reader.TryReadBigEndian(out int codeFrame);
-            reader.TryReadBigEndian(out int payloadLen);
-            if (reader.Remaining < payloadLen)
-            {
-                return false;
-            }
+            reader.TryReadBigEndian(out payloadLen);
 
             var writer = apiStreams.GetOrAdd(cid, _ => new ArrayBufferWriter<byte>(initialCapacity: 4096));
             var span = writer.GetSpan(payloadLen);
