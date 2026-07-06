@@ -87,7 +87,7 @@ internal static class ListRolesWireDebugDiagnostic
     {
         var request = new RoleListEventRequest { ClanId = clanId, Limit = 20 };
         var requestBytes = request.ToByteArray();
-        ApiNameIndexMap.TryGetIndex("ListRoles", out var index);
+        MezonApiMap.TryGetIndex("ListRoles", out var index);
 
         var envelope = new Envelope
         {

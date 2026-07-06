@@ -23,7 +23,7 @@ namespace Mezon.Net.Transport
         private ClientWebSocket? _wsClient;
         private CancellationToken _externalCt, _internalCt;
         private IDictionary<string, string>? _headers;
-        private readonly ConcurrentDictionary<int, ArrayBufferWriter<byte>> _streams = new ConcurrentDictionary<int, ArrayBufferWriter<byte>>();
+        private readonly ConcurrentDictionary<int, ArrayBufferWriter<byte>> _apiChunkBuffers = new ConcurrentDictionary<int, ArrayBufferWriter<byte>>();
         private CancellationTokenSource? _disconnectCts, _internalCts;
         private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1);
         private Channel<ReadOnlyMemory<byte>>? _sendChannel;
@@ -34,8 +34,6 @@ namespace Mezon.Net.Transport
         public Func<Task>? Opened { get; set; }
         public Func<Exception?, Task>? Closed { get; set; }
         public Func<Exception, Task>? ErrorOccurred { get; set; }
-
-        public Action<string>? WireTrace { get; set; }
 
         public MezonNetworkWebSocketTransporter()
         {
@@ -202,7 +200,7 @@ namespace Mezon.Net.Transport
                     {
                         if (MezonWebSocketFrameCodec.TryHandleMessage(
                                 messageWriter.WrittenMemory,
-                                _streams,
+                                _apiChunkBuffers,
                                 out var type,
                                 out var cid,
                                 out var code,
@@ -366,7 +364,7 @@ namespace Mezon.Net.Transport
                 _wsClient = null;
             }
 
-            _streams.Clear();
+            _apiChunkBuffers.Clear();
             _state = ConnectionState.Disconnected;
             if (Closed != null)
             {
@@ -374,7 +372,8 @@ namespace Mezon.Net.Transport
             }
         }
 
-        public void ResetApiStream(int cid) => _streams.TryRemove(cid, out _);
+        /// <inheritdoc cref="MezonNetworkTransporterExtensions.RemoveApiChunkBuffer(IMezonNetworkTransporter, int)"/>
+        public void RemoveApiChunkBuffer(int cid) => _apiChunkBuffers.TryRemove(cid, out _);
 
         public void Dispose()
         {
@@ -402,7 +401,7 @@ namespace Mezon.Net.Transport
                 _disconnectCts?.Dispose();
                 _internalCts?.Dispose();
                 _wsClient?.Dispose();
-                _streams.Clear();
+                _apiChunkBuffers.Clear();
             }
 
             _disposed = true;

@@ -29,12 +29,12 @@ public class MezonWebSocketFrameCodecTests
     [Fact]
     public void TryHandleMessage_ApiChunks_ReassemblesPayload()
     {
-        var streams = new ConcurrentDictionary<int, ArrayBufferWriter<byte>>();
+        var apiChunkBuffers = new ConcurrentDictionary<int, ArrayBufferWriter<byte>>();
         var first = MezonTransportFrameBuilder.BuildWebSocketApiFrame(5, 200, finish: false, [1, 2]);
-        Assert.False(MezonWebSocketFrameCodec.TryHandleMessage(first, streams, out _, out _, out _, out _));
+        Assert.False(MezonWebSocketFrameCodec.TryHandleMessage(first, apiChunkBuffers, out _, out _, out _, out _));
 
         var second = MezonTransportFrameBuilder.BuildWebSocketApiFrame(5, 200, finish: true, [3, 4]);
-        Assert.True(MezonWebSocketFrameCodec.TryHandleMessage(second, streams, out var type, out var cid, out var code, out var frame));
+        Assert.True(MezonWebSocketFrameCodec.TryHandleMessage(second, apiChunkBuffers, out var type, out var cid, out var code, out var frame));
         Assert.Equal(MezonMessageType.Api, type);
         Assert.Equal(5, cid);
         Assert.Equal(200, code);

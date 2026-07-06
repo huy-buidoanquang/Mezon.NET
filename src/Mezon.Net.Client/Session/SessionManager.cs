@@ -121,7 +121,7 @@ namespace Mezon.Net.Api
         internal SessionManager(MezonApiClientOptions options, LogManager logManager)
         {
             _options = options ?? throw new ArgumentNullException(nameof(options));
-            _apiClient = new MezonApiClient(_options.HttpClientProvider, _options.NetworkTransportProvider, _options);
+            _apiClient = new MezonApiClient(_options.RestClientProvider, _options.NetworkTransportProvider, _options);
             _apiClient.ConfigureGatewayBasePath(_options.GatewayBasePath);
             _logger = logManager?.CreateLogger("SessionManager") ?? throw new ArgumentNullException(nameof(logManager));
             _autoRefreshSession = _options.AutoRefreshSession;

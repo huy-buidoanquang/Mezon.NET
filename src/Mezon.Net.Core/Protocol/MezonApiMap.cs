@@ -6,7 +6,7 @@ using System.Collections.Frozen;
 
 namespace Mezon.Net.Core.Protocol
 {
-    public static class ApiNameIndexMap
+    public static class MezonApiMap
     {
         private static readonly Dictionary<string, int> Entries = new Dictionary<string, int>
         {

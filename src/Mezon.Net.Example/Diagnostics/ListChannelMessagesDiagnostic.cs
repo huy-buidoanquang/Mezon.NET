@@ -74,7 +74,7 @@ internal static class ListChannelMessagesDiagnostic
 
     private static void LogWireVariants(ILogger logger, long clanId, long channelId, int limit)
     {
-        ApiNameIndexMap.TryGetIndex("ListChannelMessages", out var index);
+        MezonApiMap.TryGetIndex("ListChannelMessages", out var index);
 
         var minimal = new ListChannelMessagesRequest { ClanId = clanId, ChannelId = channelId, Limit = limit };
         var withDirection = new ListChannelMessagesRequest { ClanId = clanId, ChannelId = channelId, Limit = limit, Direction = 1 };

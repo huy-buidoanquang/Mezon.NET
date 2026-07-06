@@ -55,7 +55,7 @@ public sealed class MezonExampleOptions
     public bool RunDestructiveWrites { get; set; }
 
     /// <summary>Mezon client log level for wire trace.</summary>
-    public string SocketLogLevel { get; set; } = "Information";
+    public string SocketLogLevel { get; set; } = "Trace";
 
     /// <summary>When true, skip post-probe heartbeat observe loop.</summary>
     public bool ProbeOnly { get; set; } = false;

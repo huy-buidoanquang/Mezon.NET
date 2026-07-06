@@ -27,10 +27,6 @@ namespace Mezon.Net.Core.Abstractions
         Func<Exception, Task>? ErrorOccurred { get; set; }
 
         /// <summary>
-        /// Optional trace sink for wire/frame diagnostics (enabled when client LogLevel is Trace).
-        /// </summary>
-        Action<string>? WireTrace { get; set; }
-        /// <summary>
         /// Sets a header to be included in the network handshake request.
         /// </summary>
         /// <param name="key">The header key</param>

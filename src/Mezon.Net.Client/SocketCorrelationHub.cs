@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Concurrent;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
@@ -49,7 +48,10 @@ namespace Mezon.Net.Client
             => _core.OnCompleted(continuation, state, token, flags);
     }
 
-    internal sealed class SocketRequestHub
+    /// <summary>
+    /// Correlates outbound socket requests with inbound responses by correlation id (cid).
+    /// </summary>
+    internal sealed class SocketCorrelationHub
     {
         private readonly ConcurrentDictionary<int, PendingSocketRequest> _pending = new();
         private int _nextCid = 1;
@@ -96,7 +98,7 @@ namespace Mezon.Net.Client
                         return;
                     }
 
-                    var (hub, pendingCid) = ((SocketRequestHub, int))state!;
+                    var (hub, pendingCid) = ((SocketCorrelationHub, int))state!;
                     if (hub._pending.TryRemove(pendingCid, out var p))
                     {
                         p.TrySetException(new TimeoutException("The socket timed out while waiting for a response."));

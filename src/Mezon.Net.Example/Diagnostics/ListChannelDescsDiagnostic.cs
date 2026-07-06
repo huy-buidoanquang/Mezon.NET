@@ -123,7 +123,7 @@ internal static class ListChannelDescsDiagnostic
         {
             ApiRequestEvent = new ApiRequestEvent
             {
-                ApiIndex = ApiNameIndexMap.TryGetIndex("ListChannelDescs", out var idx) ? idx : -1,
+                ApiIndex = MezonApiMap.TryGetIndex("ListChannelDescs", out var idx) ? idx : -1,
                 ApiName = "ListChannelDescs",
                 Body = ByteString.CopyFrom(requestBytes),
             },

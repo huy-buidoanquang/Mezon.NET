@@ -43,9 +43,7 @@ namespace Mezon.Net.Client
             _socketLogger = LogManager.CreateLogger("MezonSocketClient");
             if (ApiClient is MezonSocketApiClient socketApiClient)
             {
-                socketApiClient.ConfigureWireLogging(
-                    options.LogLevel <= LogLevel.Trace ? msg => _ = _socketLogger.TraceAsync(msg) : null,
-                    msg => _ = _socketLogger.WarningAsync(msg));
+                socketApiClient.ConfigureSocketLogging(LogManager);
             }
 
             _heartbeatTimes = new ConcurrentQueue<long>();
@@ -64,7 +62,7 @@ namespace Mezon.Net.Client
         }
 
         private static MezonSocketApiClient CreateSocketApiClient(MezonSocketClientOptions options)
-            => new MezonSocketApiClient(options.HttpClientProvider, options.NetworkTransportProvider, options);
+            => new MezonSocketApiClient(options.RestClientProvider, options.NetworkTransportProvider, options);
 
         private async Task OnConnectingAsync()
         {

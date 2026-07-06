@@ -56,7 +56,7 @@ public sealed class ApiNameIndexMapTests
 
         foreach (var (name, expectedIndex) in hotPath)
         {
-            Assert.True(ApiNameIndexMap.TryGetIndex(name, out var index), $"Missing map entry for {name}");
+            Assert.True(MezonApiMap.TryGetIndex(name, out var index), $"Missing map entry for {name}");
             Assert.Equal(expectedIndex, index);
         }
     }
@@ -64,21 +64,21 @@ public sealed class ApiNameIndexMapTests
     [Fact]
     public void Map_contains_all_expected_api_names()
     {
-        Assert.Equal(210, ApiNameIndexMap.NameToIndex.Count);
+        Assert.Equal(210, MezonApiMap.NameToIndex.Count);
     }
 
     [Fact]
     public void CreateActivity_alias_resolves_to_CreateActiviy_index()
     {
-        Assert.True(ApiNameIndexMap.TryGetIndex("CreateActivity", out var index));
-        Assert.True(ApiNameIndexMap.TryGetIndex("CreateActiviy", out var typoIndex));
+        Assert.True(MezonApiMap.TryGetIndex("CreateActivity", out var index));
+        Assert.True(MezonApiMap.TryGetIndex("CreateActiviy", out var typoIndex));
         Assert.Equal(typoIndex, index);
     }
 
     [Fact]
     public void Unknown_api_name_is_not_resolved()
     {
-        Assert.False(ApiNameIndexMap.TryGetIndex("DefinitelyMissingApi", out _));
+        Assert.False(MezonApiMap.TryGetIndex("DefinitelyMissingApi", out _));
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public sealed class ApiNameIndexMapTests
             }
         }
 
-        var missing = ApiNameIndexMap.NameToIndex.Keys.Where(name => !implemented.Contains(name)).OrderBy(x => x).ToArray();
+        var missing = MezonApiMap.NameToIndex.Keys.Where(name => !implemented.Contains(name)).OrderBy(x => x).ToArray();
         Assert.True(missing.Length == 0, $"Missing socket API implementations: {string.Join(", ", missing)}");
     }
 }
