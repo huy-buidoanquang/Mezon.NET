@@ -1,12 +1,9 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Linq.Expressions;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -25,8 +22,6 @@ namespace Mezon.Net.Api
 {
     internal class MezonApiClient : IMezonApiClient, IDisposable, IAsyncDisposable
     {
-        private static readonly ConcurrentDictionary<string, Func<BucketIds, BucketId>> _bucketIdGenerators = new ConcurrentDictionary<string, Func<BucketIds, BucketId>>();
-
         public event Func<string, string, double, Task> ApiSentRequestEvent { add { _apiSentRequestEvent.Add(value); } remove { _apiSentRequestEvent.Remove(value); } }
         private readonly AsyncEvent<Func<string, string, double, Task>> _apiSentRequestEvent = new AsyncEvent<Func<string, string, double, Task>>();
 
@@ -39,7 +34,6 @@ namespace Mezon.Net.Api
         private readonly MezonNetworkTransportProvider _networkTransportProvider;
 
         internal RequestQueue RequestQueue { get; }
-        RequestQueue IMezonApiClient.RequestQueue => RequestQueue;
 
         public LoginState LoginState { get; private set; }
 
@@ -59,22 +53,18 @@ namespace Mezon.Net.Api
 
         public RetryMode DefaultRetryMode { get; }
 
-        internal Func<IRateLimitInfo, Task>? DefaultRatelimitCallback { get; set; }
-
         protected MezonOptions MezonOptions;
 
         public MezonApiClient(
             RestClientProvider restClientProvider,
             MezonNetworkTransportProvider networkTransportProvider,
             MezonOptions configuration,
-            JsonSerializer? serializer = null,
-            Func<IRateLimitInfo, Task>? defaultRatelimitCallback = null)
+            JsonSerializer? serializer = null)
         {
             _restClientProvider = restClientProvider;
             _networkTransportProvider = networkTransportProvider;
             _serializer = serializer ?? Json.Serializer;
             MezonOptions = configuration;
-            DefaultRatelimitCallback = defaultRatelimitCallback;
             RequestQueue = new RequestQueue();
             ConfigureGatewayBasePath(configuration.GatewayBasePath);
         }
@@ -225,65 +215,45 @@ namespace Mezon.Net.Api
         internal virtual Task DisconnectInternalAsync(Exception? ex = null) => Task.CompletedTask;
 
         #region Core
-        internal Task SendNoResAsync(string method, Expression<Func<string>> endpointExpr, BucketIds ids, ApiBucketType clientBucket = ApiBucketType.Unbucketed, RequestOptions? options = null, [CallerMemberName] string? funcName = null)
-            => SendNoResAsync(method, GetEndpoint(endpointExpr), GetBucketId(method, ids, endpointExpr, funcName ?? string.Empty), clientBucket, options);
-
-        public Task SendNoResAsync(string method, string endpoint, BucketId? bucketId = null, ApiBucketType clientBucket = ApiBucketType.Unbucketed, RequestOptions? options = null)
+        public Task SendNoResAsync(string method, string endpoint, RequestOptions? options = null)
         {
             options ??= new RequestOptions();
             options.HeaderOnly = true;
-            options.BucketId = bucketId ?? ApiBucket.Get(clientBucket).Id;
 
             var request = new ApiRequest(RestClient, method, endpoint, options);
             return SendInternalAsync(method, endpoint, request);
         }
 
-        internal Task SendJsonNoResAsync(string method, Expression<Func<string>> endpointExpr, object payload, BucketIds ids, ApiBucketType clientBucket = ApiBucketType.Unbucketed, RequestOptions? options = null, [CallerMemberName] string? funcName = null)
-            => SendJsonNoResAsync(method, GetEndpoint(endpointExpr), payload, GetBucketId(method, ids, endpointExpr, funcName ?? string.Empty), clientBucket, options);
-
-        public Task SendJsonNoResAsync(string method, string endpoint, object payload, BucketId? bucketId = null, ApiBucketType clientBucket = ApiBucketType.Unbucketed, RequestOptions? options = null)
+        public Task SendJsonNoResAsync(string method, string endpoint, object payload, RequestOptions? options = null)
         {
             options ??= new RequestOptions();
             options.HeaderOnly = true;
-            options.BucketId = bucketId ?? ApiBucket.Get(clientBucket).Id;
 
             string json = payload != null ? SerializeJson(payload) : string.Empty;
             var request = new JsonApiRequest(RestClient, method, endpoint, json, options);
             return SendInternalAsync(method, endpoint, request);
         }
 
-        internal Task SendMultipartNoResAsync(string method, Expression<Func<string>> endpointExpr, IReadOnlyDictionary<string, object> multipartArgs, BucketIds ids, ApiBucketType clientBucket = ApiBucketType.Unbucketed, RequestOptions? options = null, [CallerMemberName] string? funcName = null)
-            => SendMultipartNoResAsync(method, GetEndpoint(endpointExpr), multipartArgs, GetBucketId(method, ids, endpointExpr, funcName ?? string.Empty), clientBucket, options);
-
-        public Task SendMultipartNoResAsync(string method, string endpoint, IReadOnlyDictionary<string, object> multipartArgs, BucketId? bucketId = null, ApiBucketType clientBucket = ApiBucketType.Unbucketed, RequestOptions? options = null)
+        public Task SendMultipartNoResAsync(string method, string endpoint, IReadOnlyDictionary<string, object> multipartArgs, RequestOptions? options = null)
         {
             options ??= new RequestOptions();
             options.HeaderOnly = true;
-            options.BucketId = bucketId ?? ApiBucket.Get(clientBucket).Id;
 
             var request = new MultipartApiRequest(RestClient, method, endpoint, multipartArgs, options);
             return SendInternalAsync(method, endpoint, request);
         }
 
-        internal Task<Stream> SendAsync(string method, Expression<Func<string>> endpointExpr, BucketIds ids, ApiBucketType clientBucket = ApiBucketType.Unbucketed, RequestOptions? options = null, [CallerMemberName] string? funcName = null)
-            => SendAsync(method, GetEndpoint(endpointExpr), GetBucketId(method, ids, endpointExpr, funcName ?? string.Empty), clientBucket, options);
-
-        public async Task<Stream> SendAsync(string method, string endpoint, BucketId? bucketId = null, ApiBucketType clientBucket = ApiBucketType.Unbucketed, RequestOptions? options = null)
+        public async Task<Stream> SendAsync(string method, string endpoint, RequestOptions? options = null)
         {
             options ??= new RequestOptions();
-            options.BucketId = bucketId ?? ApiBucket.Get(clientBucket).Id;
 
             var request = new ApiRequest(RestClient, method, endpoint, options);
             return await SendInternalAsync(method, endpoint, request).ConfigureAwait(false);
         }
 
-        internal Task<Stream> SendJsonAsync(string method, Expression<Func<string>> endpointExpr, object payload, BucketIds ids, ApiBucketType clientBucket = ApiBucketType.Unbucketed, RequestOptions? options = null, [CallerMemberName] string? funcName = null)
-            => SendJsonAsync(method, GetEndpoint(endpointExpr), payload, GetBucketId(method, ids, endpointExpr, funcName ?? string.Empty), clientBucket, options);
-
-        public async Task<Stream> SendJsonAsync(string method, string endpoint, object payload, BucketId? bucketId = null, ApiBucketType clientBucket = ApiBucketType.Unbucketed, RequestOptions? options = null)
+        public async Task<Stream> SendJsonAsync(string method, string endpoint, object payload, RequestOptions? options = null)
         {
             options ??= new RequestOptions();
-            options.BucketId = bucketId ?? ApiBucket.Get(clientBucket).Id;
 
             string json = payload != null ? SerializeJson(payload) : string.Empty;
 
@@ -291,13 +261,9 @@ namespace Mezon.Net.Api
             return await SendInternalAsync(method, endpoint, request).ConfigureAwait(false);
         }
 
-        internal Task<Stream> SendMultipartAsync(string method, Expression<Func<string>> endpointExpr, IReadOnlyDictionary<string, object> multipartArgs, BucketIds ids, ApiBucketType clientBucket = ApiBucketType.Unbucketed, RequestOptions? options = null, [CallerMemberName] string? funcName = null)
-            => SendMultipartAsync(method, GetEndpoint(endpointExpr), multipartArgs, GetBucketId(method, ids, endpointExpr, funcName ?? string.Empty), clientBucket, options);
-
-        public async Task<Stream> SendMultipartAsync(string method, string endpoint, IReadOnlyDictionary<string, object> multipartArgs, BucketId? bucketId = null, ApiBucketType clientBucket = ApiBucketType.Unbucketed, RequestOptions? options = null)
+        public async Task<Stream> SendMultipartAsync(string method, string endpoint, IReadOnlyDictionary<string, object> multipartArgs, RequestOptions? options = null)
         {
             options ??= new RequestOptions();
-            options.BucketId = bucketId ?? ApiBucket.Get(clientBucket).Id;
 
             var request = new MultipartApiRequest(RestClient, method, endpoint, multipartArgs, options);
             return await SendInternalAsync(method, endpoint, request).ConfigureAwait(false);
@@ -312,7 +278,6 @@ namespace Mezon.Net.Api
 
             request.Options.RetryMode ??= DefaultRetryMode;
             request.Options.UseSystemClock ??= UseSystemClock;
-            request.Options.RatelimitCallback ??= DefaultRatelimitCallback;
 
             var stopwatch = Stopwatch.StartNew();
             var responseStream = await RequestQueue.SendAsync(request).ConfigureAwait(false);
@@ -322,118 +287,6 @@ namespace Mezon.Net.Api
             await _apiSentRequestEvent.InvokeAsync(method, endpoint, milliseconds).ConfigureAwait(false);
 
             return responseStream;
-        }
-
-        private static string GetEndpoint(Expression<Func<string>> endpointExpr)
-        {
-            return endpointExpr.Compile()();
-        }
-
-        private static BucketId GetBucketId(string httpMethod, BucketIds ids, Expression<Func<string>> endpointExpr, string callingMethod)
-        {
-            ids.HttpMethod ??= httpMethod;
-            return _bucketIdGenerators.GetOrAdd(callingMethod, x => CreateBucketId(endpointExpr))(ids);
-        }
-
-#pragma warning disable CS8604 // Possible null reference argument.
-#pragma warning disable CS8602 // Dereference of a possibly null reference.
-        private static Func<BucketIds, BucketId> CreateBucketId(Expression<Func<string>> endpoint)
-        {
-            try
-            {
-                //Is this a constant string
-                if (endpoint.Body.NodeType == ExpressionType.Constant)
-                {
-
-                    return (x) => BucketId.Create(x.HttpMethod, (endpoint.Body as ConstantExpression).Value.ToString(), x.ToMajorParametersDictionary());
-
-                }
-
-                var builder = new StringBuilder();
-                var methodCall = endpoint.Body as MethodCallExpression;
-                Expression[] methodArgs = methodCall.Arguments.ToArray() ?? Array.Empty<Expression>();
-                string? format = (methodArgs[0] as ConstantExpression)?.Value.ToString();
-
-                //Unpack the array, if one exists (happens with 4+ parameters)
-                if (methodArgs.Length > 1 && methodArgs[1].NodeType == ExpressionType.NewArrayInit)
-                {
-                    var arrayExpr = methodArgs[1] as NewArrayExpression;
-                    var elements = arrayExpr.Expressions.ToArray();
-                    Array.Resize(ref methodArgs, elements.Length + 1);
-                    Array.Copy(elements, 0, methodArgs, 1, elements.Length);
-                }
-
-                int endIndex = format.IndexOf('?'); //Don't include params
-                if (endIndex == -1)
-                {
-                    endIndex = format.Length;
-                }
-
-                int lastIndex = 0;
-                while (true)
-                {
-                    int leftIndex = format.IndexOf('{', lastIndex);
-                    if (leftIndex == -1 || leftIndex > endIndex)
-                    {
-                        builder.Append(format, lastIndex, endIndex - lastIndex);
-                        break;
-                    }
-                    builder.Append(format, lastIndex, leftIndex - lastIndex);
-                    int rightIndex = format.IndexOf('}', leftIndex);
-
-                    int argId = int.Parse(format.Substring(leftIndex + 1, rightIndex - leftIndex - 1), NumberStyles.None, CultureInfo.InvariantCulture);
-                    string fieldName = GetFieldName(methodArgs[argId + 1]);
-
-                    var mappedId = BucketIds.GetIndex(fieldName);
-
-                    if (!mappedId.HasValue && rightIndex != endIndex && format.Length > rightIndex + 1 && format[rightIndex + 1] == '/') //Ignore the next slash
-                    {
-                        rightIndex++;
-                    }
-
-                    if (mappedId.HasValue)
-                    {
-                        builder.Append($"{{{mappedId.Value}}}");
-                    }
-
-                    lastIndex = rightIndex + 1;
-                }
-                if (builder[builder.Length - 1] == '/')
-                {
-                    builder.Remove(builder.Length - 1, 1);
-                }
-
-                format = builder.ToString();
-
-                return x => BucketId.Create(x.HttpMethod, string.Format(format, x.ToArray()), x.ToMajorParametersDictionary());
-            }
-            catch (Exception ex)
-            {
-                throw new InvalidOperationException("Failed to generate the bucket id for this operation.", ex);
-            }
-        }
-#pragma warning restore CS8602 // Dereference of a possibly null reference.
-#pragma warning restore CS8604 // Possible null reference argument.
-
-        private static string GetFieldName(Expression expr)
-        {
-            if (expr.NodeType == ExpressionType.Convert)
-            {
-                expr = ((UnaryExpression)expr).Operand;
-            }
-
-            if (expr.NodeType != ExpressionType.MemberAccess)
-            {
-                throw new InvalidOperationException("Unsupported expression");
-            }
-
-            var memberExpr = expr as MemberExpression;
-            if (memberExpr == null)
-            {
-                throw new InvalidOperationException("Expression is not a MemberExpression");
-            }
-
-            return memberExpr.Member.Name;
         }
 
         private static void AddBasicAuthHeader(string? username, string? password, RequestOptions options)
@@ -468,18 +321,16 @@ namespace Mezon.Net.Api
         public Task UpdateAccountAsync(UpdateAccountRequest body)
         {
             Check.NotNull(body, nameof(body));
-            var bucket = new BucketIds();
-            return SendJsonNoResAsync("PUT", () => "/v2/account", body, bucket);
+            return SendJsonNoResAsync("PUT", "/v2/account", body);
         }
 
         public async Task<AuthenticationResponse> CheckLoginRequestAsync(string basicAuthUsername, string basicAuthPassword, ConfirmLoginRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
             options ??= RequestOptions.CreateOrClone(options);
-            var bucket = new BucketIds();
             AddBasicAuthHeader(basicAuthUsername, basicAuthPassword, options);
             options.RequestHeaders.Add("Accept", new[] { "application/x-protobuf" });
-            var response = PbSession.Parser.ParseFrom(await SendJsonAsync("POST", () => "/v2/account/authenticate/checklogin", body, bucket, options: options));
+            var response = PbSession.Parser.ParseFrom(await SendJsonAsync("POST", "/v2/account/authenticate/checklogin", body, options: options));
             return new AuthenticationResponse
             {
                 ApiUrl = response.ApiUrl,
@@ -495,18 +346,16 @@ namespace Mezon.Net.Api
         {
             Check.NotNull(body, nameof(body));
             options ??= RequestOptions.CreateOrClone(options);
-            var bucket = new BucketIds();
             options.RequestHeaders.Add("Accept", new[] { "application/x-protobuf" });
-            return SendJsonNoResAsync("POST", () => "/v2/account/authenticate/confirmlogin", body, bucket, options: options);
+            return SendJsonNoResAsync("POST", "/v2/account/authenticate/confirmlogin", body, options: options);
         }
 
         public async Task<LoginIDResponse> CreateQRLoginAsync(string basicAuthUsername, string basicAuthPassword, LoginIDRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
             options ??= RequestOptions.CreateOrClone(options);
-            var bucket = new BucketIds();
             AddBasicAuthHeader(basicAuthUsername, basicAuthPassword, options);
-            var response = Internal.Api.LoginIDResponse.Parser.ParseFrom(await SendJsonAsync("POST", () => "/v2/account/authenticate/createqrlogin", body, bucket, options: options));
+            var response = Internal.Api.LoginIDResponse.Parser.ParseFrom(await SendJsonAsync("POST", "/v2/account/authenticate/createqrlogin", body, options: options));
             return new LoginIDResponse
             {
                 Address = response.Address,
@@ -523,11 +372,9 @@ namespace Mezon.Net.Api
             Check.NotNull(body, nameof(body));
             options ??= RequestOptions.CreateOrClone(options);
             options.IgnoreState = true;
-            var bucket = new BucketIds();
             AddBasicAuthHeader(basicAuthUsername, basicAuthPassword, options);
             options.RequestHeaders.Add("Accept", new[] { "application/x-protobuf" });
-            Expression<Func<string>> endpoint = () => $"/v2/account/authenticate/email";
-            var response = PbSession.Parser.ParseFrom(await SendJsonAsync("POST", endpoint, body, bucket, options: options));
+            var response = PbSession.Parser.ParseFrom(await SendJsonAsync("POST", "/v2/account/authenticate/email", body, options: options));
             return new AuthenticationResponse
             {
                 ApiUrl = response.ApiUrl,
@@ -546,7 +393,6 @@ namespace Mezon.Net.Api
         {
             Check.NotNull(body, nameof(body));
             options ??= RequestOptions.CreateOrClone(options);
-            var bucket = new BucketIds();
             AddBasicAuthHeader(basicAuthUsername, basicAuthPassword, options);
             options.RequestHeaders.Add("Accept", new[] { "application/x-protobuf" });
             var queryArgs = new StringBuilder();
@@ -566,8 +412,7 @@ namespace Mezon.Net.Api
                     .Append(args.Username.Value);
             }
 
-            Expression<Func<string>> endpoint = () => $"/v2/account/authenticate/mezon?{queryArgs.ToString()}";
-            var response = PbSession.Parser.ParseFrom(await SendJsonAsync("POST", endpoint, body, bucket, options: options));
+            var response = PbSession.Parser.ParseFrom(await SendJsonAsync("POST", $"/v2/account/authenticate/mezon?{queryArgs}", body, options: options));
             return new AuthenticationResponse
             {
                 ApiUrl = response.ApiUrl,
@@ -583,12 +428,10 @@ namespace Mezon.Net.Api
         {
             Check.NotNull(body, nameof(body));
             options ??= RequestOptions.CreateOrClone(options);
-            var bucket = new BucketIds();
             AddBasicAuthHeader(basicAuthUsername, basicAuthPassword, options);
             options.RequestHeaders.Add("Accept", new[] { "application/x-protobuf" });
 
-            Expression<Func<string>> endpoint = () => "/v2/account/authenticate/emailotp";
-            var response = LinkAccountConfirmRequest.Parser.ParseFrom(await SendJsonAsync("POST", endpoint, body, bucket, options: options));
+            var response = LinkAccountConfirmRequest.Parser.ParseFrom(await SendJsonAsync("POST", "/v2/account/authenticate/emailotp", body, options: options));
             return new AccountConfirmResponse
             {
                 RequestId = response.ReqId,
@@ -601,14 +444,12 @@ namespace Mezon.Net.Api
         {
             Check.NotNull(body, nameof(body));
             options = RequestOptions.CreateOrClone(options);
-            var bucket = new BucketIds();
             AddBasicAuthHeader(basicAuthUsername, basicAuthPassword, options);
             var request = new Internal.Api.SessionRefreshRequest();
             request.IsRemember = body.IsRemember ?? false;
             request.Token = body.Token;
             request.Vars.Add(body.Vars ?? new Dictionary<string, string>());
             var response = new AuthenticationResponse();
-            //var response = await SendRPCAsync(request, (req, opts) => GRPCClient.Client.SessionRefreshAsync(req, opts), () => "/v2/account/session/refresh", bucket);
             return new AuthenticationResponse
             {
                 ApiUrl = response.ApiUrl,
@@ -626,8 +467,7 @@ namespace Mezon.Net.Api
             options = RequestOptions.CreateOrClone(options);
             options.IgnoreState = true;
             AddBasicAuthHeader(basicAuthUsername, basicAuthPassword, options);
-            var bucket = new BucketIds();
-            var response = PbSession.Parser.ParseFrom(await SendJsonAsync("POST", () => "/v2/apps/authenticate/token", body, bucket, options: options));
+            var response = PbSession.Parser.ParseFrom(await SendJsonAsync("POST", "/v2/apps/authenticate/token", body, options: options));
             return new AuthenticationResponse
             {
                 ApiUrl = response.ApiUrl,
@@ -655,8 +495,7 @@ namespace Mezon.Net.Api
             Check.NotNull(body, nameof(body));
             options = RequestOptions.CreateOrClone(options);
             options.IgnoreState = true;
-            var bucket = new BucketIds();
-            await SendJsonNoResAsync("DELETE", () => "/v2/apps/authenticate/token", body, bucket, options: options).ConfigureAwait(false);
+            await SendJsonNoResAsync("DELETE", "/v2/apps/authenticate/token", body, options: options).ConfigureAwait(false);
             return true;
         }
 

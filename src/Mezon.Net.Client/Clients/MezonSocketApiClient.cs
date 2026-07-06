@@ -13,7 +13,6 @@ using Mezon.Net.Core.Protocol;
 using Mezon.Net.Internal.Api;
 using Mezon.Net.Internal.Realtime;
 using Mezon.Net.Logging;
-using Mezon.Net.Queue;
 using Mezon.Net.Transport;
 using static Mezon.Net.Core.Abstractions.IMezonNetworkTransporter;
 using AddAppRequest = Mezon.Net.Internal.Api.AddAppRequest;
@@ -62,6 +61,10 @@ namespace Mezon.Net.Client
         {
             _transportType = options.TransportType.Resolve();
             NetworkTransporter = networkTransportProvider(_transportType);
+            RequestQueue.ConfigureTransportLimits(
+                options.MaxTransportRequestsPerSecond,
+                options.MaxTransportRequestsPerMinute,
+                options.MaxConnectRequestsPerSecond);
             NetworkTransporter.Opened += NetworkTransporter_Opened;
             NetworkTransporter.Closed += NetworkTransporter_Closed;
             NetworkTransporter.ErrorOccurred += NetworkTransporter_ErrorOccurred;
@@ -106,9 +109,10 @@ namespace Mezon.Net.Client
                 throw new NotSupportedException("This client is not configured with WebSocket support.");
             }
 
-            RequestQueue.ClearGatewayBuckets();
+            RequestQueue.ResetTransportLimits();
 
             ConnectionState = ConnectionState.Connecting;
+            RequestQueue.BeginConnectPhase();
             try
             {
                 _connectCancelToken?.Dispose();
@@ -184,8 +188,7 @@ namespace Mezon.Net.Client
             CheckState();
 
             envelope.Cid = _correlationHub.AllocateCid();
-            var bucketType = envelope.Status != null ? SocketBucketType.PresenceUpdate : SocketBucketType.Unbucketed;
-            await SendSocketPayloadAsync(type, envelope.Cid, envelope.ToByteArray(), options, bucketType).ConfigureAwait(false);
+            await SendSocketPayloadAsync(type, envelope.Cid, envelope.ToByteArray(), options).ConfigureAwait(false);
             await _socketSentMessageEvent.InvokeAsync($"Sent: {type} {envelope}").ConfigureAwait(false);
         }
 
@@ -205,11 +208,11 @@ namespace Mezon.Net.Client
                 if (_transportType == TransportType.WebSocket)
                 {
                     var envelope = new Envelope { Cid = cid, Ping = new Ping() };
-                    await SendSocketPayloadAsync(MezonMessageType.Abridged, cid, envelope.ToByteArray(), options, bypassGatewayLimiter: true).ConfigureAwait(false);
+                    await SendSocketPayloadAsync(MezonMessageType.Abridged, cid, envelope.ToByteArray(), options, bypassRateLimiter: true).ConfigureAwait(false);
                 }
                 else
                 {
-                    await SendSocketPayloadAsync(MezonMessageType.Heartbeat, cid, Array.Empty<byte>(), options, bypassGatewayLimiter: true).ConfigureAwait(false);
+                    await SendSocketPayloadAsync(MezonMessageType.Heartbeat, cid, Array.Empty<byte>(), options, bypassRateLimiter: true).ConfigureAwait(false);
                 }
 
                 await waitTask.ConfigureAwait(false);
@@ -435,7 +438,7 @@ namespace Mezon.Net.Client
 
             try
             {
-                await SendSocketPayloadAsync(MezonMessageType.Abridged, cid, payload, options, SocketBucketType.Unbucketed).ConfigureAwait(false);
+                await SendSocketPayloadAsync(MezonMessageType.Abridged, cid, payload, options).ConfigureAwait(false);
                 var socketResponse = await waitTask.ConfigureAwait(false);
 
                 if (socketResponse.Code != 0)
@@ -464,7 +467,7 @@ namespace Mezon.Net.Client
             var payload = envelope.ToByteArray();
             try
             {
-                await SendSocketPayloadAsync(MezonMessageType.Abridged, cid, payload, options, SocketBucketType.Unbucketed).ConfigureAwait(false);
+                await SendSocketPayloadAsync(MezonMessageType.Abridged, cid, payload, options).ConfigureAwait(false);
                 var socketResponse = await waitTask.ConfigureAwait(false);
 
                 if (socketResponse.Code != 0)
@@ -491,13 +494,11 @@ namespace Mezon.Net.Client
             int cid,
             byte[] payload,
             RequestOptions options,
-            SocketBucketType bucketType = SocketBucketType.Unbucketed,
-            bool bypassGatewayLimiter = false)
+            bool bypassRateLimiter = false)
         {
-            options.BucketId ??= SocketBucket.Get(bucketType).Id;
-            if (!bypassGatewayLimiter)
+            if (!bypassRateLimiter)
             {
-                await RequestQueue.EnterGatewayAsync(options, bucketType).ConfigureAwait(false);
+                await RequestQueue.EnterTransportAsync(options).ConfigureAwait(false);
             }
 
             await NetworkTransporter.SendAsync(type, cid, payload).ConfigureAwait(false);

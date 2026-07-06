@@ -4,51 +4,8 @@ using Mezon.Net.Client;
 using Mezon.Net.Core;
 using Mezon.Net.Core.Protocol;
 using Mezon.Net.Internal.Realtime;
-using Mezon.Net.Queue;
 
 namespace Mezon.Net.Client.Tests;
-
-public sealed class SocketRateLimiterTests
-{
-    [Fact]
-    public async Task Under_limit_completes_without_waiting()
-    {
-        var limiter = CreateLimiter(maxCount: 3, windowSeconds: 60);
-        var started = DateTimeOffset.UtcNow;
-        for (var i = 0; i < 3; i++)
-        {
-            await limiter.WaitAsync();
-        }
-
-        Assert.True((DateTimeOffset.UtcNow - started).TotalMilliseconds < 200);
-    }
-
-    [Fact]
-    public async Task Over_limit_waits_until_window_allows_next_send()
-    {
-        var limiter = CreateLimiter(maxCount: 1, windowSeconds: 1);
-        await limiter.WaitAsync();
-        var started = DateTimeOffset.UtcNow;
-        await limiter.WaitAsync();
-        Assert.True((DateTimeOffset.UtcNow - started).TotalMilliseconds >= 900);
-    }
-
-    [Fact]
-    public void Reset_clears_rate_limit_state()
-    {
-        var limiter = CreateLimiter(maxCount: 1, windowSeconds: 60);
-        Assert.True(limiter.TryAcquire());
-        Assert.False(limiter.TryAcquire());
-        limiter.Reset();
-        Assert.True(limiter.TryAcquire());
-    }
-
-    private static SocketRateLimiter CreateLimiter(int maxCount, int windowSeconds)
-    {
-        var type = typeof(SocketRateLimiter);
-        return (SocketRateLimiter)Activator.CreateInstance(type, SocketBucketType.Unbucketed, maxCount, windowSeconds)!;
-    }
-}
 
 public sealed class EventDispatchTests
 {

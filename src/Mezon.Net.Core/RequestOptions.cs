@@ -61,15 +61,7 @@ namespace Mezon.Net.Core
         /// </remarks>
         public bool? UseSystemClock { get; set; }
 
-        /// <summary>
-        ///     Gets or sets the callback to execute regarding ratelimits for this request.
-        /// </summary>
-        public Func<IRateLimitInfo, Task>? RatelimitCallback { get; set; }
-
         internal bool IgnoreState { get; set; }
-        internal BucketId BucketId { get; set; }
-        internal bool IsApiBucket { get; set; }
-        internal bool IsSocketBucket { get; set; }
 
         public IDictionary<string, IEnumerable<string>> RequestHeaders { get; }
 
@@ -82,17 +74,6 @@ namespace Mezon.Net.Core
             else
             {
                 return options.Clone();
-            }
-        }
-
-        internal void ExecuteRatelimitCallback(IRateLimitInfo info)
-        {
-            if (RatelimitCallback != null)
-            {
-                _ = Task.Run(async () =>
-                {
-                    await RatelimitCallback(info);
-                });
             }
         }
 

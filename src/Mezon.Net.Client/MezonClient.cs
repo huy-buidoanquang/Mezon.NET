@@ -87,6 +87,11 @@ namespace Mezon.Net.Client
             }
             finally
             {
+                if (ApiClient is MezonSocketApiClient socketApiClient)
+                {
+                    socketApiClient.RequestQueue.EndConnectPhase();
+                }
+
                 await _socketLogger.DebugAsync("Connected MezonSocket").ConfigureAwait(false);
             }
         }
