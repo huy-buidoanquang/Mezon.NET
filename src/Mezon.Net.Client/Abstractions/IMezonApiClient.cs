@@ -15,8 +15,6 @@ namespace Mezon.Net.Abstractions
 
         LoginState LoginState { get; }
 
-        internal RequestQueue RequestQueue { get; }
-
         Task LoginAsync(TokenType tokenType, string token, RequestOptions? options = null);
 
         Task LogoutAsync();
@@ -27,17 +25,17 @@ namespace Mezon.Net.Abstractions
 
         internal string AuthToken { get; }
 
-        Task SendNoResAsync(string method, string endpoint, BucketId? bucketId = null, ApiBucketType clientBucket = ApiBucketType.Unbucketed, RequestOptions? options = null);
+        Task SendNoResAsync(string method, string endpoint, RequestOptions? options = null);
 
-        Task SendJsonNoResAsync(string method, string endpoint, object payload, BucketId? bucketId = null, ApiBucketType clientBucket = ApiBucketType.Unbucketed, RequestOptions? options = null);
+        Task SendJsonNoResAsync(string method, string endpoint, object payload, RequestOptions? options = null);
 
-        Task SendMultipartNoResAsync(string method, string endpoint, IReadOnlyDictionary<string, object> multipartArgs, BucketId? bucketId = null, ApiBucketType clientBucket = ApiBucketType.Unbucketed, RequestOptions? options = null);
+        Task SendMultipartNoResAsync(string method, string endpoint, IReadOnlyDictionary<string, object> multipartArgs, RequestOptions? options = null);
 
-        Task<System.IO.Stream> SendAsync(string method, string endpoint, BucketId? bucketId = null, ApiBucketType clientBucket = ApiBucketType.Unbucketed, RequestOptions? options = null);
+        Task<System.IO.Stream> SendAsync(string method, string endpoint, RequestOptions? options = null);
 
-        Task<System.IO.Stream> SendJsonAsync(string method, string endpoint, object payload, BucketId? bucketId = null, ApiBucketType clientBucket = ApiBucketType.Unbucketed, RequestOptions? options = null);
+        Task<System.IO.Stream> SendJsonAsync(string method, string endpoint, object payload, RequestOptions? options = null);
 
-        Task<System.IO.Stream> SendMultipartAsync(string method, string endpoint, IReadOnlyDictionary<string, object> multipartArgs, BucketId? bucketId = null, ApiBucketType clientBucket = ApiBucketType.Unbucketed, RequestOptions? options = null);
+        Task<System.IO.Stream> SendMultipartAsync(string method, string endpoint, IReadOnlyDictionary<string, object> multipartArgs, RequestOptions? options = null);
 
         void ConfigureGatewayBasePath(string gatewayBasePath);
 

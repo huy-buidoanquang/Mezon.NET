@@ -61,17 +61,6 @@ namespace Mezon.Net.Api
             _isFirstLogin = Options.DisplayInitialLog;
             _sessionManager = SessionManager<MezonApiClientOptions>.GetOrCreate(options, LogManager);
 
-            ApiClient.RequestQueue.RateLimitTriggered += async (id, info, endpoint) =>
-            {
-                if (info == null)
-                {
-                    await _logger.DebugAsync($"Preemptive Rate limit triggered: {endpoint} {(id.IsHashBucket ? $"(Bucket: {id.BucketHash})" : "")}").ConfigureAwait(false);
-                }
-                else
-                {
-                    await _logger.WarningAsync($"Rate limit triggered: {endpoint} Remaining: {info.Value.RetryAfter}s {(id.IsHashBucket ? $"(Bucket: {id.BucketHash})" : "")}").ConfigureAwait(false);
-                }
-            };
             ApiClient.ApiSentRequestEvent += async (method, endpoint, millis) => await _logger.DebugAsync($"{method} {endpoint}: {millis} ms").ConfigureAwait(false);
             ApiClient.ApiSentRequestEvent += (method, endpoint, millis) => _apiSentRequestEvent.InvokeAsync(method, endpoint, millis);
         }

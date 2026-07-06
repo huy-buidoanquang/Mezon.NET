@@ -1,4 +1,5 @@
 using Mezon.Net.Api;
+using Mezon.Net.Core.Constants;
 
 namespace Mezon.Net.Client
 {
@@ -11,6 +12,21 @@ namespace Mezon.Net.Client
         public MezonSocketClientOptions()
         {
         }
+
+        /// <summary>
+        ///     Maximum socket API requests allowed per second (global transport limit).
+        /// </summary>
+        public int MaxTransportRequestsPerSecond { get; set; } = MezonTransportLimits.MaxRequestsPerSecond;
+
+        /// <summary>
+        ///     Maximum socket API requests allowed per minute (global transport limit).
+        /// </summary>
+        public int MaxTransportRequestsPerMinute { get; set; } = MezonTransportLimits.MaxRequestsPerMinute;
+
+        /// <summary>
+        ///     Maximum socket requests per second while the connection handshake is in progress.
+        /// </summary>
+        public int MaxConnectRequestsPerSecond { get; set; } = MezonTransportLimits.MaxConnectRequestsPerSecond;
 
         public MezonSocketClientOptions(string host, string port, bool useSSL) : base(host, port, useSSL)
         {
