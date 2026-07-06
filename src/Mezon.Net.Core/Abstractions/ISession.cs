@@ -15,6 +15,7 @@ namespace Mezon.Net.Abstractions
         public string? ApiUrl { get; }
         public string? WsUrl { get; }
         public string? TcpUrl { get; }
+        public string? IdToken { get; }
 
         bool IsExpiredSoon(int seconds);
 

@@ -1806,6 +1806,9 @@ namespace Mezon.Net.Client
                 Content = message.Content,
                 IsPublic = message.IsPublic,
                 Mode = message.Mode,
+                Code = message.Code,
+                MentionEveryone = message.MentionEveryone,
+                AnonymousMessage = message.AnonymousMessage,
             };
             if (message.TopicId.HasValue)
             {

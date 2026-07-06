@@ -10,6 +10,9 @@
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <Nullable>enable</Nullable>
     <WarningsAsErrors>$(WarningsAsErrors);CS8600;CS8602;CS8603</WarningsAsErrors>
+    <PackageId>Mezon.Net.Sdk</PackageId>
+    <Description>High-level Mezon bot/application SDK for .NET.</Description>
+    <Version>0.1.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Mezon.Net.Client\Mezon.Net.Client.csproj" />
+    <ProjectReference Include="..\Mezon.Net.Mmn\Mezon.Net.Mmn.csproj" />
   </ItemGroup>
 
 </Project>

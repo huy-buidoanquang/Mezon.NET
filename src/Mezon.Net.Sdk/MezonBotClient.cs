@@ -1,63 +1,30 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
-using Mezon.Net.Client;
-using Mezon.Net.Core;
-using Mezon.Net.Internal.Realtime;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Mezon.Net.Sdk
 {
-    /// <summary>
-    /// High-level bot/application facade over <see cref="MezonClient"/>.
-    /// </summary>
-    public sealed class MezonBotClient : MezonClient
+    [Obsolete("Use Mezon.Net.Sdk.MezonClient instead.")]
+    public sealed class MezonBotClient : IDisposable, IAsyncDisposable
     {
-        public MezonBotClient() : base(new MezonSocketClientOptions())
+        private readonly MezonClient _client;
+
+        public MezonBotClient() : this(new MezonClientOptions())
         {
         }
 
-        public MezonBotClient(MezonSocketClientOptions options) : base(options)
+        public MezonBotClient(MezonClientOptions options)
         {
+            _client = new MezonClient(options);
         }
 
-        public Task<Envelope> SendChannelMessageAsync(
-            long clanId,
-            long channelId,
-            string content,
-            RequestOptions? options = null)
-        {
-            var envelope = new Envelope
-            {
-                ChannelMessageSend = new ChannelMessageSend
-                {
-                    ClanId = clanId,
-                    ChannelId = channelId,
-                    Content = content,
-                }
-            };
-            return SendRealtimeAsync(envelope, options);
-        }
+        public MezonClient InnerClient => _client;
 
-        public Task<Envelope> ReplyAsync(
-            long clanId,
-            long channelId,
-            string content,
-            RequestOptions? options = null)
-            => SendChannelMessageAsync(clanId, channelId, content, options);
-    }
+        public Task<bool> LoginAsync(CancellationToken cancellationToken = default)
+            => _client.LoginAsync(cancellationToken);
 
-    public static class MezonServiceCollectionExtensions
-    {
-        public static IServiceCollection AddMezonBotClient(this IServiceCollection services, Action<MezonSocketClientOptions>? configure = null)
-        {
-            services.TryAddSingleton(_ =>
-            {
-                var options = new MezonSocketClientOptions();
-                configure?.Invoke(options);
-                return new MezonBotClient(options);
-            });
-            return services;
-        }
+        public void Dispose() => _client.DisposeAsync().AsTask().GetAwaiter().GetResult();
+
+        public ValueTask DisposeAsync() => _client.DisposeAsync();
     }
 }
