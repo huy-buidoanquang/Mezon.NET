@@ -11,6 +11,9 @@ namespace Mezon.Net.Api
         public long? TopicId { get; }
         public bool IsPublic { get; }
         public int Mode { get; }
+        public int Code { get; }
+        public bool MentionEveryone { get; }
+        public bool AnonymousMessage { get; }
 
         public SendChannelMessageParams(
             long clanId,
@@ -18,7 +21,10 @@ namespace Mezon.Net.Api
             string content,
             long? topicId = null,
             bool isPublic = false,
-            int mode = 0)
+            int mode = 0,
+            int code = 0,
+            bool mentionEveryone = false,
+            bool anonymousMessage = false)
         {
             ClanId = clanId;
             ChannelId = channelId;
@@ -26,6 +32,9 @@ namespace Mezon.Net.Api
             TopicId = topicId;
             IsPublic = isPublic;
             Mode = mode;
+            Code = code;
+            MentionEveryone = mentionEveryone;
+            AnonymousMessage = anonymousMessage;
         }
     }
 }

@@ -25,6 +25,7 @@ namespace Mezon.Net.Api
         public string? ApiUrl { get; private set; }
         public string? WsUrl { get; private set; }
         public string? TcpUrl { get; private set; }
+        public string? IdToken { get; private set; }
 
         public Session(AuthenticationResponse authenticationRes)
         {
@@ -34,6 +35,7 @@ namespace Mezon.Net.Api
             ApiUrl = authenticationRes.ApiUrl;
             WsUrl = authenticationRes.WsUrl;
             TcpUrl = authenticationRes.TcpUrl;
+            IdToken = authenticationRes.IdToken;
             AuthToken = authenticationRes.Token ?? string.Empty;
             RefreshToken = authenticationRes.RefreshToken ?? string.Empty;
             InitializeSession();

@@ -319,5 +319,7 @@ namespace Mezon.Net.Client
         {
             return ApiClient.ListClanDescsAsync(paginationParams);
         }
+
+        public ISession CurrentSession => SessionManager.CurrentSession();
     }
 }

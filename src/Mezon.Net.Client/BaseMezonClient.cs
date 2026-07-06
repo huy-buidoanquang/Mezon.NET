@@ -27,10 +27,12 @@ namespace Mezon.Net.Api
         public event Func<string, string, double, Task> ApiSentRequestEvent { add { _apiSentRequestEvent.Add(value); } remove { _apiSentRequestEvent.Remove(value); } }
 
         internal readonly Logger _logger;
-        private readonly SemaphoreSlim _stateLock;
+        protected readonly SemaphoreSlim StateLock;
         private bool _isFirstLogin, _isDisposed;
 
         private readonly ISessionManager<MezonApiClientOptions> _sessionManager;
+
+        protected ISessionManager<MezonApiClientOptions> SessionManager => _sessionManager;
 
         protected readonly MezonApiClientOptions Options;
 
@@ -55,7 +57,7 @@ namespace Mezon.Net.Api
             LogManager.Message += async msg => await _logEvent.InvokeAsync(msg).ConfigureAwait(false);
             _logger = LogManager.CreateLogger("MezonClient");
 
-            _stateLock = new SemaphoreSlim(1, 1);
+            StateLock = new SemaphoreSlim(1, 1);
             _isFirstLogin = Options.DisplayInitialLog;
             _sessionManager = SessionManager<MezonApiClientOptions>.GetOrCreate(options, LogManager);
 
@@ -76,7 +78,7 @@ namespace Mezon.Net.Api
 
         public virtual async Task<bool> LoginAsync(ISession session)
         {
-            await _stateLock.WaitAsync().ConfigureAwait(false);
+            await StateLock.WaitAsync().ConfigureAwait(false);
             try
             {
                 await _sessionManager.LoginAsync(session).ConfigureAwait(false);
@@ -94,7 +96,7 @@ namespace Mezon.Net.Api
             }
             finally
             {
-                _stateLock.Release();
+                StateLock.Release();
             }
         }
 
@@ -141,14 +143,14 @@ namespace Mezon.Net.Api
 
         public async Task LogoutAsync()
         {
-            await _stateLock.WaitAsync().ConfigureAwait(false);
+            await StateLock.WaitAsync().ConfigureAwait(false);
             try
             {
                 await LogoutInternalAsync().ConfigureAwait(false);
             }
             finally
             {
-                _stateLock.Release();
+                StateLock.Release();
             }
         }
 
@@ -183,7 +185,7 @@ namespace Mezon.Net.Api
         {
             if (!_isDisposed)
             {
-                _stateLock?.Dispose();
+                StateLock?.Dispose();
                 _isDisposed = true;
             }
         }
@@ -195,7 +197,7 @@ namespace Mezon.Net.Api
         {
             if (!_isDisposed)
             {
-                _stateLock?.Dispose();
+                StateLock?.Dispose();
                 _isDisposed = true;
             }
         }

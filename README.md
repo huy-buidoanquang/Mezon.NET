@@ -3,11 +3,24 @@
 Four-layer .NET SDK for the Mezon platform:
 
 ```
-Mezon.Net.Sdk          → Bot/App facade (MezonBotClient, DI)
+Mezon.Net.Sdk          → Bot/App facade (MezonClient, entities, DI, MMN/SSE)
+Mezon.Net.Mmn          → MMN/ZK HTTP clients
 Mezon.Net.Client       → Socket engine (cid map, Envelope, api-over-socket, events)
 Mezon.Net.Transport    → TCP (primary) + WebSocket (browser)
 Mezon.Net.Core         → Protobuf, contracts, options, protocol maps
 ```
+
+## Sdk quickstart
+
+```csharp
+await using var client = new Mezon.Net.Sdk.MezonClient(new MezonClientOptions(botId, token));
+client.OnChannelMessage(msg => { ... });
+await client.LoginAsync();
+var channel = await client.GetChannelAsync(channelId);
+await channel.SendAsync("Hello");
+```
+
+See `src/Mezon.Net.Sdk.Example` for a minimal bot host.
 
 ## Socket protocol
 
@@ -23,7 +36,7 @@ Mezon.Net.Core         → Protobuf, contracts, options, protocol maps
 | `Mezon.Net.Core` | `IMezonNetworkTransporter`, `MezonFrame`, protobuf (`Internal.Api`, `Internal.Realtime`) |
 | `Mezon.Net.Transport` | `MezonNetworkTcpTransporter`, `MezonNetworkWebSocketTransporter` |
 | `Mezon.Net.Client` | Unified `MezonClient` (merged former Api+Client) |
-| `Mezon.Net.Sdk` | `MezonBotClient` + `AddMezonBotClient()` DI |
+| `Mezon.Net.Sdk` | `MezonClient`, entities (`Clan`, `TextChannel`, `Message`, `User`), `AddMezonClient()` DI |
 
 ## Build notes
 

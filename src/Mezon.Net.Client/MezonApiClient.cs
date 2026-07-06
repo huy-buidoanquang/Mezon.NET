@@ -636,6 +636,9 @@ namespace Mezon.Net.Api
                 RefreshToken = response.RefreshToken,
                 Token = response.Token,
                 UserId = response.UserId,
+                WsUrl = response.WsUrl,
+                TcpUrl = response.TcpUrl,
+                IdToken = response.IdToken,
             };
         }
 

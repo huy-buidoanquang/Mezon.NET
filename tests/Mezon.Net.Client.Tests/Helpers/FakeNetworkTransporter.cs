@@ -162,6 +162,7 @@ internal static class SocketTestDoubles
         public string? UserId => "1";
         public bool IsRemember => false;
         public string? ApiUrl => "http://127.0.0.1:8088";
+        public string? IdToken => null;
         public string? WsUrl { get; }
         public string? TcpUrl { get; }
 

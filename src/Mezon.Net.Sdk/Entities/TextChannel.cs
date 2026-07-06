@@ -1,0 +1,75 @@
+using System.Threading;
+using System.Threading.Tasks;
+using Mezon.Net.Api;
+using Mezon.Net.Client.Messaging;
+using Mezon.Net.Core;
+using Mezon.Net.Core.Constants;
+using Mezon.Net.Core.Entities;
+using Mezon.Net.Internal.Api;
+using Mezon.Net.Internal.Realtime;
+using Mezon.Net.Sdk.Caching;
+
+namespace Mezon.Net.Sdk.Entities
+{
+    public sealed class TextChannel : IChannel
+    {
+        private global::Mezon.Net.Internal.Api.ChannelDescription _desc;
+        private readonly MezonClient _client;
+
+        internal TextChannel(MezonClient client, global::Mezon.Net.Internal.Api.ChannelDescription desc, Clan clan)
+        {
+            _client = client;
+            _desc = desc;
+            Clan = clan;
+            Messages = new EntityCache<Message>(_client.Options.CacheCapacity);
+        }
+
+        public long Id => _desc.ChannelId;
+        public long ClanId => _desc.ClanId;
+        public int Type => _desc.Type;
+        public bool IsPrivate => _desc.ChannelPrivate != 0;
+        public string? Name => _desc.ChannelLabel;
+        public Clan Clan { get; }
+        public EntityCache<Message> Messages { get; }
+
+        internal void UpdateFrom(global::Mezon.Net.Internal.Api.ChannelDescription desc) => _desc = desc;
+
+        public bool IsPublic => !IsPrivate;
+
+        public Task<ChannelMessageAck> SendAsync(
+            string content,
+            long? topicId = null,
+            int code = 0,
+            bool mentionEveryone = false,
+            bool anonymousMessage = false,
+            RequestOptions? options = null)
+        {
+            var mode = ChannelModeConverter.ToStreamMode(Type);
+            var parameters = new SendChannelMessageParams(ClanId, Id, content, topicId, IsPublic, mode);
+            return _client.SendQueue.EnqueueAsync(Id, () =>
+                MessageSendHelper.SendAsync(_client.Api, parameters, options));
+        }
+
+        public Task<ChannelMessageAck> SendEphemeralAsync(
+            string content,
+            long receiverId,
+            RequestOptions? options = null)
+        {
+            var mode = ChannelModeConverter.ToStreamMode(Type);
+            var send = MessageSendHelper.ToChannelMessageSend(new SendChannelMessageParams(ClanId, Id, content, isPublic: IsPublic, mode: mode));
+            var envelope = new Envelope
+            {
+                EphemeralMessageSend = new EphemeralMessageSend
+                {
+                    Message = send,
+                },
+            };
+            envelope.EphemeralMessageSend.ReceiverIds.Add(receiverId);
+            return _client.SendQueue.EnqueueAsync(Id, async () =>
+            {
+                var response = await _client.Engine.SendRealtimeAsync(envelope, options).ConfigureAwait(false);
+                return response.ChannelMessageAck;
+            });
+        }
+    }
+}
