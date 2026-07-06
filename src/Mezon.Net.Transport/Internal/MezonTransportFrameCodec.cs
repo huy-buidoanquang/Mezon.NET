@@ -17,7 +17,7 @@ namespace Mezon.Net.Transport.Internal
 
         public static bool TryReadFrame(
             ref ReadOnlySequence<byte> buffer,
-            ConcurrentDictionary<int, ArrayBufferWriter<byte>> apiStreams,
+            ConcurrentDictionary<int, ArrayBufferWriter<byte>> apiChunkBuffers,
             out MezonMessageType type,
             out int cid,
             out int code,
@@ -51,22 +51,22 @@ namespace Mezon.Net.Transport.Internal
 
                     return false;
                 case ApiPrefix:
+                {
+                    var consumedBefore = reader.Consumed;
+                    if (TryReadApiFrame(ref reader, apiChunkBuffers, out cid, out code, out frame))
                     {
-                        var consumedBefore = reader.Consumed;
-                        if (TryReadApiFrame(ref reader, apiStreams, out cid, out code, out frame))
-                        {
-                            type = MezonMessageType.Api;
-                            buffer = buffer.Slice(reader.Position);
-                            return true;
-                        }
-
-                        if (reader.Consumed > consumedBefore)
-                        {
-                            buffer = buffer.Slice(reader.Position);
-                        }
-
-                        return false;
+                        type = MezonMessageType.Api;
+                        buffer = buffer.Slice(reader.Position);
+                        return true;
                     }
+
+                    if (reader.Consumed > consumedBefore)
+                    {
+                        buffer = buffer.Slice(reader.Position);
+                    }
+
+                    return false;
+                }
                 default:
                     if (TryReadAbridgedFrame(ref reader, prefix, out frame))
                     {
@@ -167,7 +167,7 @@ namespace Mezon.Net.Transport.Internal
 
         private static bool TryReadApiFrame(
             ref SequenceReader<byte> reader,
-            ConcurrentDictionary<int, ArrayBufferWriter<byte>> apiStreams,
+            ConcurrentDictionary<int, ArrayBufferWriter<byte>> apiChunkBuffers,
             out int cid,
             out int code,
             out ReadOnlyMemory<byte> frame)
@@ -196,7 +196,7 @@ namespace Mezon.Net.Transport.Internal
             reader.TryReadBigEndian(out int codeFrame);
             reader.TryReadBigEndian(out payloadLen);
 
-            var writer = apiStreams.GetOrAdd(cid, _ => new ArrayBufferWriter<byte>(initialCapacity: 4096));
+            var writer = apiChunkBuffers.GetOrAdd(cid, _ => new ArrayBufferWriter<byte>(initialCapacity: 4096));
             var span = writer.GetSpan(payloadLen);
             var payloadSlice = reader.Sequence.Slice(reader.Position, payloadLen);
             if (payloadSlice.Length < payloadLen)
@@ -212,7 +212,7 @@ namespace Mezon.Net.Transport.Internal
             if (finishFlag == FinishFlag)
             {
                 frame = writer.WrittenMemory;
-                apiStreams.TryRemove(cid, out _);
+                apiChunkBuffers.TryRemove(cid, out _);
                 return true;
             }
 

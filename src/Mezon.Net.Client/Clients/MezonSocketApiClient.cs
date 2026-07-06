@@ -12,14 +12,15 @@ using Mezon.Net.Core.Abstractions;
 using Mezon.Net.Core.Protocol;
 using Mezon.Net.Internal.Api;
 using Mezon.Net.Internal.Realtime;
+using Mezon.Net.Logging;
 using Mezon.Net.Queue;
 using Mezon.Net.Transport;
-using Mezon.Net.Utils;
 using static Mezon.Net.Core.Abstractions.IMezonNetworkTransporter;
 using AddAppRequest = Mezon.Net.Internal.Api.AddAppRequest;
 using CreateActivityRequest = Mezon.Net.Internal.Api.CreateActivityRequest;
 using CreateEventRequest = Mezon.Net.Internal.Api.CreateEventRequest;
 using CreateRoleRequest = Mezon.Net.Internal.Api.CreateRoleRequest;
+using GenerateMezonMeetResponse = Mezon.Net.Internal.Api.GenerateMezonMeetResponse;
 using LinkInviteUserRequest = Mezon.Net.Internal.Api.LinkInviteUserRequest;
 using PbSession = Mezon.Net.Internal.Api.Session;
 using RegistrationEmailRequest = Mezon.Net.Internal.Api.RegistrationEmailRequest;
@@ -30,17 +31,15 @@ using UpdateCategoryOrderRequest = Mezon.Net.Internal.Api.UpdateCategoryOrderReq
 using UpdateEventRequest = Mezon.Net.Internal.Api.UpdateEventRequest;
 using UpdateRoleRequest = Mezon.Net.Internal.Api.UpdateRoleRequest;
 using UploadAttachmentRequest = Mezon.Net.Internal.Api.UploadAttachmentRequest;
-using GenerateMezonMeetResponse = Mezon.Net.Internal.Api.GenerateMezonMeetResponse;
 
 namespace Mezon.Net.Client
 {
     internal class MezonSocketApiClient : MezonApiClient, IMezonSocketClient, IDisposable, IAsyncDisposable
     {
-        private Action<string>? _wireTrace;
-        private Action<string>? _wireWarning;
+        private Logger? _wireLogger;
 
         private readonly TransportType _transportType;
-        private readonly SocketRequestHub _requestHub = new();
+        private readonly SocketCorrelationHub _correlationHub = new();
         private long _lastPingSentMs;
         public event Func<string, Task> SocketSentMessageEvent { add { _socketSentMessageEvent.Add(value); } remove { _socketSentMessageEvent.Remove(value); } }
         private readonly AsyncEvent<Func<string, Task>> _socketSentMessageEvent = new AsyncEvent<Func<string, Task>>();
@@ -54,7 +53,7 @@ namespace Mezon.Net.Client
         private CancellationTokenSource? _connectCancelToken;
 
 
-        internal IMezonNetworkTransporter WebSocketClient { get; }
+        internal IMezonNetworkTransporter NetworkTransporter { get; }
 
         public ConnectionState ConnectionState { get; private set; }
 
@@ -62,21 +61,25 @@ namespace Mezon.Net.Client
             : base(restClientProvider, networkTransportProvider, options)
         {
             _transportType = options.TransportType.Resolve();
-            WebSocketClient = networkTransportProvider(_transportType);
-            WebSocketClient.Opened += WebSocketClient_Opened;
-            WebSocketClient.Closed += WebSocketClient_Closed;
-            WebSocketClient.ErrorOccurred += WebSocketClient_ErrorOccurred;
-            WebSocketClient.MessageReceived += WebSocketClient_MessageReceived;
+            NetworkTransporter = networkTransportProvider(_transportType);
+            NetworkTransporter.Opened += NetworkTransporter_Opened;
+            NetworkTransporter.Closed += NetworkTransporter_Closed;
+            NetworkTransporter.ErrorOccurred += NetworkTransporter_ErrorOccurred;
+            NetworkTransporter.MessageReceived += NetworkTransporter_MessageReceived;
         }
 
-        internal void ConfigureWireLogging(Action<string>? wireTrace, Action<string>? wireWarning)
+        internal void ConfigureSocketLogging(LogManager logManager)
         {
-            _wireTrace = wireTrace;
-            _wireWarning = wireWarning;
-            WebSocketClient.WireTrace = wireTrace;
+            _wireLogger = logManager.CreateLogger("MezonSocketWire");
         }
 
-        private void TraceWire(string message) => _wireTrace?.Invoke(message);
+        private void TraceWire(string message)
+        {
+            if (_wireLogger != null && _wireLogger.Level <= LogLevel.Trace)
+            {
+                _ = _wireLogger.TraceAsync(message);
+            }
+        }
 
         public async Task ConnectAsync()
         {
@@ -98,7 +101,7 @@ namespace Mezon.Net.Client
                 throw new InvalidOperationException("The client must be logged in before connecting.");
             }
 
-            if (WebSocketClient == null)
+            if (NetworkTransporter == null)
             {
                 throw new NotSupportedException("This client is not configured with WebSocket support.");
             }
@@ -110,10 +113,10 @@ namespace Mezon.Net.Client
             {
                 _connectCancelToken?.Dispose();
                 _connectCancelToken = new CancellationTokenSource();
-                WebSocketClient.SetCancelToken(_connectCancelToken.Token);
+                NetworkTransporter.SetCancelToken(_connectCancelToken.Token);
                 var (host, port, token) = GetTransportEndpoint();
                 var socketOptions = (MezonSocketClientOptions)MezonOptions;
-                await WebSocketClient.ConnectAsync(host, port, token, useSsl: true, createStatus: socketOptions.CreateStatusOnConnect).ConfigureAwait(false);
+                await NetworkTransporter.ConnectAsync(host, port, token, useSsl: true, createStatus: socketOptions.CreateStatusOnConnect).ConfigureAwait(false);
                 ConnectionState = ConnectionState.Connected;
             }
             catch
@@ -138,7 +141,7 @@ namespace Mezon.Net.Client
 
         internal override async Task DisconnectInternalAsync(Exception? ex = null)
         {
-            if (WebSocketClient == null)
+            if (NetworkTransporter == null)
             {
                 throw new NotSupportedException("This client is not configured with WebSocket support.");
             }
@@ -149,7 +152,7 @@ namespace Mezon.Net.Client
             }
 
             ConnectionState = ConnectionState.Disconnecting;
-            await WebSocketClient.DisconnectAsync().ConfigureAwait(false);
+            await NetworkTransporter.DisconnectAsync().ConfigureAwait(false);
             try
             {
                 _connectCancelToken?.Cancel(false);
@@ -167,7 +170,7 @@ namespace Mezon.Net.Client
             options ??= RequestOptions.CreateOrClone(options);
             CheckState();
 
-            var cid = _requestHub.AllocateCid();
+            var cid = _correlationHub.AllocateCid();
             await SendSocketPayloadAsync(type, cid, bytes.ToArray(), options).ConfigureAwait(false);
             await _socketSentMessageEvent.InvokeAsync($"Sent: {type} {bytes.Length} bytes").ConfigureAwait(false);
         }
@@ -180,7 +183,7 @@ namespace Mezon.Net.Client
             options ??= RequestOptions.CreateOrClone(options);
             CheckState();
 
-            envelope.Cid = _requestHub.AllocateCid();
+            envelope.Cid = _correlationHub.AllocateCid();
             var bucketType = envelope.Status != null ? SocketBucketType.PresenceUpdate : SocketBucketType.Unbucketed;
             await SendSocketPayloadAsync(type, envelope.Cid, envelope.ToByteArray(), options, bucketType).ConfigureAwait(false);
             await _socketSentMessageEvent.InvokeAsync($"Sent: {type} {envelope}").ConfigureAwait(false);
@@ -192,13 +195,10 @@ namespace Mezon.Net.Client
             options ??= RequestOptions.CreateOrClone(options);
             CheckState();
 
-            var cid = _requestHub.AllocateCid();
-            var timeout = options.SocketSendTimeout ?? SocketRequestHub.DefaultTimeoutMilliseconds;
-            var waitTask = _requestHub.WaitAsync(cid, timeout, options.CancelToken);
-            if (_wireTrace != null)
-            {
-                TraceWire($"[WIRE-OUT] heartbeat cid={cid} timeout={timeout}ms");
-            }
+            var cid = _correlationHub.AllocateCid();
+            var timeout = options.SocketSendTimeout ?? SocketCorrelationHub.DefaultTimeoutMilliseconds;
+            var waitTask = _correlationHub.WaitAsync(cid, timeout, options.CancelToken);
+            TraceWire($"[WIRE-OUT] heartbeat cid={cid} timeout={timeout}ms");
 
             try
             {
@@ -216,7 +216,7 @@ namespace Mezon.Net.Client
             }
             catch
             {
-                WebSocketClient.ResetApiStream(cid);
+                NetworkTransporter.RemoveApiChunkBuffer(cid);
                 throw;
             }
         }
@@ -262,17 +262,22 @@ namespace Mezon.Net.Client
             return (MezonNetworkSettings.DefaultSocketHost, MezonNetworkSettings.DefaultSocketPort, connectToken);
         }
         #region Event Handlers
-        private Task WebSocketClient_Opened()
+        private Task NetworkTransporter_Opened()
         {
             return Task.CompletedTask;
         }
 
-        private async Task WebSocketClient_ErrorOccurred(Exception exception)
+        private Task NetworkTransporter_ErrorOccurred(Exception exception)
         {
-            _wireWarning?.Invoke($"WebSocket error occurred: {exception.Message}");
+            if (_wireLogger != null)
+            {
+                return _wireLogger.WarningAsync($"Transport error: {exception.Message}");
+            }
+
+            return Task.CompletedTask;
         }
 
-        private async Task WebSocketClient_Closed(Exception? exception)
+        private async Task NetworkTransporter_Closed(Exception? exception)
         {
             await DisconnectAsync().ConfigureAwait(false);
             if (_disconnectedEvent.HasSubscribers)
@@ -281,7 +286,7 @@ namespace Mezon.Net.Client
             }
         }
 
-        private ValueTask WebSocketClient_MessageReceived(MezonMessageType type, int cid, int code, ReadOnlyMemory<byte> data)
+        private ValueTask NetworkTransporter_MessageReceived(MezonMessageType type, int cid, int code, ReadOnlyMemory<byte> data)
         {
             if (data.Length == 0 && type is not MezonMessageType.Heartbeat and not MezonMessageType.Api)
             {
@@ -309,12 +314,9 @@ namespace Mezon.Net.Client
 
                 OnSocketMessageReceived(type, cid, code, data, envelope);
 
-                if (_wireTrace != null)
-                {
-                    var envCase = envelope?.MessageCase.ToString() ?? "n/a";
-                    TraceWire(
-                        $"[WIRE-IN] type={type} cid={cid} code={code} bytes={data.Length} pending={_requestHub.PendingCount} env={envCase}");
-                }
+                var envCase = envelope?.MessageCase.ToString() ?? "n/a";
+                TraceWire(
+                    $"[WIRE-IN] type={type} cid={cid} code={code} bytes={data.Length} pending={_correlationHub.PendingCount} env={envCase}");
 
                 // Heartbeat/pong completes pending ping requests in OnSocketMessageReceived; do not fan out to event handlers.
                 if (type != MezonMessageType.Heartbeat
@@ -326,10 +328,7 @@ namespace Mezon.Net.Client
             }
             catch (Exception ex)
             {
-                if (_wireTrace != null)
-                {
-                    TraceWire($"[WIRE-IN] parse error type={type} cid={cid}: {ex.Message}");
-                }
+                TraceWire($"[WIRE-IN] parse error type={type} cid={cid}: {ex.Message}");
             }
 
 #if NET6_0_OR_GREATER
@@ -339,7 +338,7 @@ namespace Mezon.Net.Client
 #endif
         }
 
-        private bool WasPendingRequest(int cid) => cid > 0 && _requestHub.Contains(cid);
+        private bool WasPendingRequest(int cid) => cid > 0 && _correlationHub.Contains(cid);
         #endregion
 
         internal override void Dispose(bool disposing)
@@ -349,7 +348,7 @@ namespace Mezon.Net.Client
                 if (disposing)
                 {
                     _connectCancelToken?.Dispose();
-                    (WebSocketClient as IDisposable)?.Dispose();
+                    (NetworkTransporter as IDisposable)?.Dispose();
                 }
             }
 
@@ -363,7 +362,7 @@ namespace Mezon.Net.Client
                 if (disposing)
                 {
                     _connectCancelToken?.Dispose();
-                    (WebSocketClient as IDisposable)?.Dispose();
+                    (NetworkTransporter as IDisposable)?.Dispose();
                 }
             }
 
@@ -374,7 +373,7 @@ namespace Mezon.Net.Client
 
         public int LatencyMilliseconds { get; private set; }
 
-        internal int PendingSocketRequestCount => _requestHub.PendingCount;
+        internal int PendingSocketRequestCount => _correlationHub.PendingCount;
 
         public Task<TResponse> SendApiAsync<TRequest, TResponse>(
             string apiName,
@@ -384,7 +383,7 @@ namespace Mezon.Net.Client
             where TRequest : IMessage<TRequest>
             where TResponse : IMessage<TResponse>
         {
-            if (!ApiNameIndexMap.TryGetIndex(apiName, out var apiIndex))
+            if (!MezonApiMap.TryGetIndex(apiName, out var apiIndex))
             {
                 throw new ArgumentException($"Unknown socket API name '{apiName}'.", nameof(apiName));
             }
@@ -399,11 +398,8 @@ namespace Mezon.Net.Client
                 }
             };
 
-            if (_wireTrace != null)
-            {
-                TraceWire(
-                    $"[WIRE-OUT] api={apiName} index={apiIndex} body_bytes={request.CalculateSize()}");
-            }
+            TraceWire(
+                $"[WIRE-OUT] api={apiName} index={apiIndex} body_bytes={request.CalculateSize()}");
 
             return SendApiEnvelopeAsync(envelope, responseParser, options);
         }
@@ -417,15 +413,12 @@ namespace Mezon.Net.Client
             options ??= RequestOptions.CreateOrClone(options);
             CheckState();
 
-            var cid = _requestHub.AllocateCid();
+            var cid = _correlationHub.AllocateCid();
             envelope.Cid = cid;
-            var timeout = options.SocketSendTimeout ?? SocketRequestHub.DefaultTimeoutMilliseconds;
-            var waitTask = _requestHub.WaitAsync(cid, timeout, options.CancelToken);
+            var timeout = options.SocketSendTimeout ?? SocketCorrelationHub.DefaultTimeoutMilliseconds;
+            var waitTask = _correlationHub.WaitAsync(cid, timeout, options.CancelToken);
             var payload = envelope.ToByteArray();
-            if (_wireTrace != null)
-            {
-                TraceWire($"[WIRE-OUT] abridged cid={cid} bytes={payload.Length} timeout={timeout}ms");
-            }
+            TraceWire($"[WIRE-OUT] abridged cid={cid} bytes={payload.Length} timeout={timeout}ms");
 
             try
             {
@@ -441,7 +434,7 @@ namespace Mezon.Net.Client
             }
             catch
             {
-                WebSocketClient.ResetApiStream(cid);
+                NetworkTransporter.RemoveApiChunkBuffer(cid);
                 throw;
             }
         }
@@ -451,10 +444,10 @@ namespace Mezon.Net.Client
             options ??= RequestOptions.CreateOrClone(options);
             CheckState();
 
-            var cid = _requestHub.AllocateCid();
+            var cid = _correlationHub.AllocateCid();
             envelope.Cid = cid;
-            var timeout = options.SocketSendTimeout ?? SocketRequestHub.DefaultTimeoutMilliseconds;
-            var waitTask = _requestHub.WaitAsync(cid, timeout, options.CancelToken);
+            var timeout = options.SocketSendTimeout ?? SocketCorrelationHub.DefaultTimeoutMilliseconds;
+            var waitTask = _correlationHub.WaitAsync(cid, timeout, options.CancelToken);
             var payload = envelope.ToByteArray();
             try
             {
@@ -475,7 +468,7 @@ namespace Mezon.Net.Client
             }
             catch
             {
-                WebSocketClient.ResetApiStream(cid);
+                NetworkTransporter.RemoveApiChunkBuffer(cid);
                 throw;
             }
         }
@@ -494,7 +487,7 @@ namespace Mezon.Net.Client
                 await RequestQueue.EnterGatewayAsync(options, bucketType).ConfigureAwait(false);
             }
 
-            await WebSocketClient.SendAsync(type, cid, payload).ConfigureAwait(false);
+            await NetworkTransporter.SendAsync(type, cid, payload).ConfigureAwait(false);
         }
 
         private void OnSocketMessageReceived(MezonMessageType type, int cid, int code, ReadOnlyMemory<byte> data, Envelope? envelope)
@@ -507,35 +500,26 @@ namespace Mezon.Net.Client
                     LatencyMilliseconds = (int)Math.Max(0, now - _lastPingSentMs);
                 }
 
-                var matched = _requestHub.TryComplete(cid, code, ReadOnlyMemory<byte>.Empty);
-                if (_wireTrace != null)
-                {
-                    TraceWire($"[WIRE-COMPLETE] heartbeat cid={cid} matched={matched}");
-                }
+                var matched = _correlationHub.TryComplete(cid, code, ReadOnlyMemory<byte>.Empty);
+                TraceWire($"[WIRE-COMPLETE] heartbeat cid={cid} matched={matched}");
 
                 return;
             }
 
             if (type == MezonMessageType.Api)
             {
-                var matched = _requestHub.TryComplete(cid, code, data);
-                if (_wireTrace != null)
-                {
-                    TraceWire(
-                        $"[WIRE-COMPLETE] api cid={cid} code={code} bytes={data.Length} matched={matched}");
-                }
+                var matched = _correlationHub.TryComplete(cid, code, data);
+                TraceWire(
+                    $"[WIRE-COMPLETE] api cid={cid} code={code} bytes={data.Length} matched={matched}");
 
                 return;
             }
 
             if (envelope != null && envelope.Cid > 0)
             {
-                var matched = _requestHub.TryComplete(envelope.Cid, code, envelope.ToByteArray());
-                if (_wireTrace != null)
-                {
-                    TraceWire(
-                        $"[WIRE-COMPLETE] abridged cid={envelope.Cid} env={envelope.MessageCase} matched={matched}");
-                }
+                var matched = _correlationHub.TryComplete(envelope.Cid, code, envelope.ToByteArray());
+                TraceWire(
+                    $"[WIRE-COMPLETE] abridged cid={envelope.Cid} env={envelope.MessageCase} matched={matched}");
             }
         }
 
@@ -585,7 +569,7 @@ namespace Mezon.Net.Client
             };
         }
 
-public override async Task DeleteAccountAsync(RequestOptions? options = null)
+        public override async Task DeleteAccountAsync(RequestOptions? options = null)
         {
             await SendApiAsync("DeleteAccount", new Empty(), Empty.Parser, options);
         }
@@ -600,17 +584,17 @@ public override async Task DeleteAccountAsync(RequestOptions? options = null)
             var request = new Internal.Api.AddFriendsRequest();
             if (ids != null)
             {
-            foreach (var id in ids)
-            {
-            request.Ids.Add(id);
-            }
+                foreach (var id in ids)
+                {
+                    request.Ids.Add(id);
+                }
             }
             if (usernames != null)
             {
-            foreach (var username in usernames)
-            {
-            request.Usernames.Add(username);
-            }
+                foreach (var username in usernames)
+                {
+                    request.Usernames.Add(username);
+                }
             }
             return SendApiAsync("AddFriends", request, AddFriendsResponse.Parser, options);
         }
@@ -620,17 +604,17 @@ public override async Task DeleteAccountAsync(RequestOptions? options = null)
             var request = new BlockFriendsRequest();
             if (ids != null)
             {
-            foreach (var id in ids)
-            {
-            request.Ids.Add(id);
-            }
+                foreach (var id in ids)
+                {
+                    request.Ids.Add(id);
+                }
             }
             if (usernames != null)
             {
-            foreach (var username in usernames)
-            {
-            request.Usernames.Add(username);
-            }
+                foreach (var username in usernames)
+                {
+                    request.Usernames.Add(username);
+                }
             }
             await SendApiAsync("BlockFriends", request, Empty.Parser, options);
         }
@@ -640,17 +624,17 @@ public override async Task DeleteAccountAsync(RequestOptions? options = null)
             var request = new BlockFriendsRequest();
             if (ids != null)
             {
-            foreach (var id in ids)
-            {
-            request.Ids.Add(id);
-            }
+                foreach (var id in ids)
+                {
+                    request.Ids.Add(id);
+                }
             }
             if (usernames != null)
             {
-            foreach (var username in usernames)
-            {
-            request.Usernames.Add(username);
-            }
+                foreach (var username in usernames)
+                {
+                    request.Usernames.Add(username);
+                }
             }
             await SendApiAsync("UnblockFriends", request, Empty.Parser, options);
         }
@@ -660,17 +644,17 @@ public override async Task DeleteAccountAsync(RequestOptions? options = null)
             var request = new DeleteFriendsRequest();
             if (ids != null)
             {
-            foreach (var id in ids)
-            {
-            request.Ids.Add(id);
-            }
+                foreach (var id in ids)
+                {
+                    request.Ids.Add(id);
+                }
             }
             if (usernames != null)
             {
-            foreach (var username in usernames)
-            {
-            request.Usernames.Add(username);
-            }
+                foreach (var username in usernames)
+                {
+                    request.Usernames.Add(username);
+                }
             }
             await SendApiAsync("DeleteFriends", request, Empty.Parser, options);
         }
@@ -680,15 +664,15 @@ public override async Task DeleteAccountAsync(RequestOptions? options = null)
             var request = new ListFriendsRequest();
             if (state.HasValue)
             {
-            request.State = state.Value;
+                request.State = state.Value;
             }
             if (limit.HasValue)
             {
-            request.Limit = limit.Value;
+                request.Limit = limit.Value;
             }
             if (!string.IsNullOrEmpty(cursor))
             {
-            request.Cursor = cursor;
+                request.Cursor = cursor;
             }
             return SendApiAsync("ListFriends", request, FriendList.Parser, options);
         }
@@ -700,11 +684,11 @@ public override async Task DeleteAccountAsync(RequestOptions? options = null)
             request.ClanName = clanName;
             if (!string.IsNullOrEmpty(logo))
             {
-            request.Logo = logo;
+                request.Logo = logo;
             }
             if (!string.IsNullOrEmpty(banner))
             {
-            request.Banner = banner;
+                request.Banner = banner;
             }
             return SendApiAsync("CreateClanDesc", request, ClanDesc.Parser, options);
         }
@@ -736,7 +720,7 @@ public override async Task DeleteAccountAsync(RequestOptions? options = null)
             request.ClanId = clanId;
             foreach (var userId in userIds)
             {
-            request.UserIds.Add(userId);
+                request.UserIds.Add(userId);
             }
             await SendApiAsync("RemoveClanUsers", request, Empty.Parser, options);
         }
@@ -749,15 +733,15 @@ public override async Task DeleteAccountAsync(RequestOptions? options = null)
             request.ChannelId = channelId;
             foreach (var userId in userIds)
             {
-            request.UserIds.Add(userId);
+                request.UserIds.Add(userId);
             }
             if (banTime.HasValue)
             {
-            request.BanTime = banTime.Value;
+                request.BanTime = banTime.Value;
             }
             if (!string.IsNullOrEmpty(reason))
             {
-            request.Reason = reason;
+                request.Reason = reason;
             }
             await SendApiAsync("BanClanUsers", request, Empty.Parser, options);
         }
@@ -788,7 +772,7 @@ public override async Task DeleteAccountAsync(RequestOptions? options = null)
             request.ChannelId = channelId;
             foreach (var userId in userIds)
             {
-            request.UserIds.Add(userId);
+                request.UserIds.Add(userId);
             }
             await SendApiAsync("AddChannelUsers", request, Empty.Parser, options);
         }
@@ -800,7 +784,7 @@ public override async Task DeleteAccountAsync(RequestOptions? options = null)
             request.ChannelId = channelId;
             foreach (var userId in userIds)
             {
-            request.UserIds.Add(userId);
+                request.UserIds.Add(userId);
             }
             await SendApiAsync("RemoveChannelUsers", request, Empty.Parser, options);
         }
@@ -812,19 +796,19 @@ public override async Task DeleteAccountAsync(RequestOptions? options = null)
             request.ChannelId = channelId;
             if (messageId.HasValue)
             {
-            request.MessageId = messageId.Value;
+                request.MessageId = messageId.Value;
             }
             if (direction.HasValue)
             {
-            request.Direction = direction.Value;
+                request.Direction = direction.Value;
             }
             if (limit.HasValue)
             {
-            request.Limit = limit.Value;
+                request.Limit = limit.Value;
             }
             if (topicId.HasValue)
             {
-            request.TopicId = topicId.Value;
+                request.TopicId = topicId.Value;
             }
             return SendApiAsync("ListChannelMessages", request, ChannelMessageList.Parser, options);
         }
@@ -837,15 +821,15 @@ public override async Task DeleteAccountAsync(RequestOptions? options = null)
             request.ChannelType = channelType;
             if (limit.HasValue)
             {
-            request.Limit = limit.Value;
+                request.Limit = limit.Value;
             }
             if (state.HasValue)
             {
-            request.State = state.Value;
+                request.State = state.Value;
             }
             if (!string.IsNullOrEmpty(cursor))
             {
-            request.Cursor = cursor;
+                request.Cursor = cursor;
             }
             return SendApiAsync("ListChannelUsers", request, ChannelUserList.Parser, options);
         }
@@ -862,19 +846,19 @@ public override async Task DeleteAccountAsync(RequestOptions? options = null)
             var request = new RoleListEventRequest();
             if (clanId.HasValue)
             {
-            request.ClanId = clanId.Value;
+                request.ClanId = clanId.Value;
             }
             if (limit.HasValue)
             {
-            request.Limit = limit.Value;
+                request.Limit = limit.Value;
             }
             if (state.HasValue)
             {
-            request.State = state.Value;
+                request.State = state.Value;
             }
             if (!string.IsNullOrEmpty(cursor))
             {
-            request.Cursor = cursor;
+                request.Cursor = cursor;
             }
             return SendApiAsync("ListRoles", request, RoleListEventResponse.Parser, options);
         }
@@ -897,7 +881,7 @@ public override async Task DeleteAccountAsync(RequestOptions? options = null)
             var request = new ListEventsRequest();
             if (clanId.HasValue)
             {
-            request.ClanId = clanId.Value;
+                request.ClanId = clanId.Value;
             }
             return SendApiAsync("ListEvents", request, EventList.Parser, options);
         }
@@ -1064,7 +1048,7 @@ public override async Task DeleteAccountAsync(RequestOptions? options = null)
             var request = new GetPubKeysRequest();
             foreach (var userId in userIds)
             {
-            request.UserIds.Add(userId);
+                request.UserIds.Add(userId);
             }
             return SendApiAsync("GetPubKeys", request, GetPubKeysResponse.Parser, options);
         }
@@ -1086,7 +1070,7 @@ public override async Task DeleteAccountAsync(RequestOptions? options = null)
             request.ClanId = clanId;
             if (guideType.HasValue)
             {
-            request.GuideType = guideType.Value;
+                request.GuideType = guideType.Value;
             }
             return SendApiAsync("ListOnboarding", request, ListOnboardingResponse.Parser, options);
         }
@@ -1154,11 +1138,11 @@ public override async Task DeleteAccountAsync(RequestOptions? options = null)
             request.RoleId = roleId;
             if (limit.HasValue)
             {
-            request.Limit = limit.Value;
+                request.Limit = limit.Value;
             }
             if (!string.IsNullOrEmpty(cursor))
             {
-            request.Cursor = cursor;
+                request.Cursor = cursor;
             }
             return SendApiAsync("ListRoleUsers", request, RoleUserList.Parser, options);
         }
@@ -1176,14 +1160,14 @@ public override async Task DeleteAccountAsync(RequestOptions? options = null)
             var request = new DeleteNotificationsRequest();
             if (ids != null)
             {
-            foreach (var id in ids)
-            {
-            request.Ids.Add(id);
-            }
+                foreach (var id in ids)
+                {
+                    request.Ids.Add(id);
+                }
             }
             if (category.HasValue)
             {
-            request.Category = category.Value;
+                request.Category = category.Value;
             }
             await SendApiAsync("DeleteNotifications", request, Empty.Parser, options);
         }
@@ -1193,23 +1177,23 @@ public override async Task DeleteAccountAsync(RequestOptions? options = null)
             var request = new ListNotificationsRequest();
             if (clanId.HasValue)
             {
-            request.ClanId = clanId.Value;
+                request.ClanId = clanId.Value;
             }
             if (notificationId.HasValue)
             {
-            request.NotificationId = notificationId.Value;
+                request.NotificationId = notificationId.Value;
             }
             if (limit.HasValue)
             {
-            request.Limit = limit.Value;
+                request.Limit = limit.Value;
             }
             if (category.HasValue)
             {
-            request.Category = category.Value;
+                request.Category = category.Value;
             }
             if (direction.HasValue)
             {
-            request.Direction = direction.Value;
+                request.Direction = direction.Value;
             }
             return SendApiAsync("ListNotifications", request, NotificationList.Parser, options);
         }
@@ -1296,15 +1280,15 @@ public override async Task DeleteAccountAsync(RequestOptions? options = null)
             var request = new ListAppsRequest();
             if (!string.IsNullOrEmpty(filter))
             {
-            request.Filter = filter;
+                request.Filter = filter;
             }
             if (tombstones.HasValue)
             {
-            request.Tombstones = tombstones.Value;
+                request.Tombstones = tombstones.Value;
             }
             if (!string.IsNullOrEmpty(cursor))
             {
-            request.Cursor = cursor;
+                request.Cursor = cursor;
             }
             return SendApiAsync("ListApps", request, AppList.Parser, options);
         }
@@ -1328,7 +1312,7 @@ public override async Task DeleteAccountAsync(RequestOptions? options = null)
             request.Id = id;
             if (recordDeletion.HasValue)
             {
-            request.RecordDeletion = recordDeletion.Value;
+                request.RecordDeletion = recordDeletion.Value;
             }
             await SendApiAsync("DeleteApp", request, Empty.Parser, options);
         }
@@ -1346,19 +1330,19 @@ public override async Task DeleteAccountAsync(RequestOptions? options = null)
             var request = new ListAuditLogRequest();
             if (clanId.HasValue)
             {
-            request.ClanId = clanId.Value;
+                request.ClanId = clanId.Value;
             }
             if (!string.IsNullOrEmpty(actionLog))
             {
-            request.ActionLog = actionLog;
+                request.ActionLog = actionLog;
             }
             if (userId.HasValue)
             {
-            request.UserId = userId.Value;
+                request.UserId = userId.Value;
             }
             if (!string.IsNullOrEmpty(dateLog))
             {
-            request.DateLog = dateLog;
+                request.DateLog = dateLog;
             }
             return SendApiAsync("ListAuditLog", request, ListAuditLog.Parser, options);
         }
@@ -1388,27 +1372,27 @@ public override async Task DeleteAccountAsync(RequestOptions? options = null)
             request.ClanId = clanId;
             if (limit.HasValue)
             {
-            request.Limit = limit.Value;
+                request.Limit = limit.Value;
             }
             if (state.HasValue)
             {
-            request.State = state.Value;
+                request.State = state.Value;
             }
             if (!string.IsNullOrEmpty(cursor))
             {
-            request.Cursor = cursor;
+                request.Cursor = cursor;
             }
             if (channelType.HasValue)
             {
-            request.ChannelType = channelType.Value;
+                request.ChannelType = channelType.Value;
             }
             if (isMobile.HasValue)
             {
-            request.IsMobile = isMobile.Value;
+                request.IsMobile = isMobile.Value;
             }
             if (page.HasValue)
             {
-            request.Page = page.Value;
+                request.Page = page.Value;
             }
             return SendApiAsync("ListChannelDescs", request, ChannelDescList.Parser, options);
         }
@@ -1434,7 +1418,7 @@ public override async Task DeleteAccountAsync(RequestOptions? options = null)
             request.ClanId = clanId;
             foreach (var userId in userIds)
             {
-            request.UserIds.Add(userId);
+                request.UserIds.Add(userId);
             }
             await SendApiAsync("UnbanClanUsers", request, Empty.Parser, options);
         }
@@ -1455,7 +1439,7 @@ public override async Task DeleteAccountAsync(RequestOptions? options = null)
             var request = new ListChannelAppsRequest();
             if (clanId.HasValue)
             {
-            request.ClanId = clanId.Value;
+                request.ClanId = clanId.Value;
             }
             return SendApiAsync("ListChannelApps", request, ListChannelAppsResponse.Parser, options);
         }
@@ -1783,7 +1767,7 @@ public override async Task DeleteAccountAsync(RequestOptions? options = null)
             request.ChannelId = channelId;
             if (menuType.HasValue)
             {
-            request.MenuType = menuType.Value;
+                request.MenuType = menuType.Value;
             }
             return SendApiAsync("ListQuickMenuAccess", request, QuickMenuAccessList.Parser, options);
         }
@@ -1950,7 +1934,7 @@ public override async Task DeleteAccountAsync(RequestOptions? options = null)
             await SendApiAsync("HandleClanWebhook", body, Empty.Parser, options);
         }
 
-public override Task<MutedChannelList> ListMutedChannelAsync(long clanId, RequestOptions? options = null)
+        public override Task<MutedChannelList> ListMutedChannelAsync(long clanId, RequestOptions? options = null)
         {
             var request = new ListMutedChannelRequest { ClanId = clanId };
             return SendApiAsync("ListMutedChannel", request, MutedChannelList.Parser, options);
@@ -1962,8 +1946,14 @@ public override Task<MutedChannelList> ListMutedChannelAsync(long clanId, Reques
         public override Task<ListChannelBadgeCountResponse> ListChannelBadgeCountAsync(long clanId, int? limit = null, int? page = null, RequestOptions? options = null)
         {
             var request = new ListChannelBadgeCountRequest { ClanId = clanId };
-            if (limit.HasValue) request.Limit = limit.Value;
-            if (page.HasValue) request.Page = page.Value;
+            if (limit.HasValue)
+            {
+                request.Limit = limit.Value;
+            }
+            if (page.HasValue)
+            {
+                request.Page = page.Value;
+            }
             return SendApiAsync("ListChannelBadgeCount", request, ListChannelBadgeCountResponse.Parser, options);
         }
 
@@ -1991,8 +1981,14 @@ public override Task<MutedChannelList> ListMutedChannelAsync(long clanId, Reques
         public override Task<ListUserOnlineResponse> ListUserOnlineAsync(long clanId, int? limit = null, int? page = null, RequestOptions? options = null)
         {
             var request = new ListUserOnlineRequest { ClanId = clanId };
-            if (limit.HasValue) request.Limit = limit.Value;
-            if (page.HasValue) request.Page = page.Value;
+            if (limit.HasValue)
+            {
+                request.Limit = limit.Value;
+            }
+            if (page.HasValue)
+            {
+                request.Page = page.Value;
+            }
             return SendApiAsync("ListUserOnline", request, ListUserOnlineResponse.Parser, options);
         }
 

@@ -35,9 +35,9 @@ public class MezonTransportFrameCodecTests
             .Concat(MezonTransportFrameBuilder.BuildApiFrame(3, 201, finish: true, [3, 4]))
             .ToArray();
         var buffer = new ReadOnlySequence<byte>(bytes);
-        var streams = new System.Collections.Concurrent.ConcurrentDictionary<int, ArrayBufferWriter<byte>>();
-        Assert.False(MezonTransportFrameCodec.TryReadFrame(ref buffer, streams, out _, out _, out _, out _));
-        Assert.True(MezonTransportFrameCodec.TryReadFrame(ref buffer, streams, out var type, out var cid, out var code, out var frame));
+        var apiChunkBuffers = new System.Collections.Concurrent.ConcurrentDictionary<int, ArrayBufferWriter<byte>>();
+        Assert.False(MezonTransportFrameCodec.TryReadFrame(ref buffer, apiChunkBuffers, out _, out _, out _, out _));
+        Assert.True(MezonTransportFrameCodec.TryReadFrame(ref buffer, apiChunkBuffers, out var type, out var cid, out var code, out var frame));
         Assert.Equal(MezonMessageType.Api, type);
         Assert.Equal(3, cid);
         Assert.Equal(201, code);
@@ -53,13 +53,13 @@ public class MezonTransportFrameCodecTests
         var headerOnly = full.AsSpan(0, 11).ToArray();
         var rest = full.AsSpan(11).ToArray();
 
-        var streams = new System.Collections.Concurrent.ConcurrentDictionary<int, ArrayBufferWriter<byte>>();
+        var apiChunkBuffers = new System.Collections.Concurrent.ConcurrentDictionary<int, ArrayBufferWriter<byte>>();
         var buffer = new ReadOnlySequence<byte>(headerOnly);
-        Assert.False(MezonTransportFrameCodec.TryReadFrame(ref buffer, streams, out _, out _, out _, out _));
+        Assert.False(MezonTransportFrameCodec.TryReadFrame(ref buffer, apiChunkBuffers, out _, out _, out _, out _));
         Assert.True(buffer.Length > 0);
 
         buffer = new ReadOnlySequence<byte>(headerOnly.Concat(rest).ToArray());
-        Assert.True(MezonTransportFrameCodec.TryReadFrame(ref buffer, streams, out var type, out var cid, out _, out var frame));
+        Assert.True(MezonTransportFrameCodec.TryReadFrame(ref buffer, apiChunkBuffers, out var type, out var cid, out _, out var frame));
         Assert.Equal(MezonMessageType.Api, type);
         Assert.Equal(5, cid);
         Assert.Equal(payload, frame.ToArray());

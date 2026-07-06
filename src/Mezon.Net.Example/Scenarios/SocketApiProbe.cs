@@ -283,7 +283,7 @@ internal static class SocketApiProbe
         var ok = executed.Count(r => r.Ok);
         var fail = executed.Count(r => !r.Ok);
         var skippedDestructive = results.Count(r => r.Detail == "skipped (destructive)");
-        var totalMapped = ApiNameIndexMap.NameToIndex.Count;
+        var totalMapped = MezonApiMap.NameToIndex.Count;
         var notProbed = totalMapped - probed - skippedDestructive;
         logger.LogInformation(
             "=== Socket API coverage: probed={Probed} ok={Ok} fail={Fail} skipped_write={SkipWrite} map_total={Total} not_probed≈{NotProbed} ===",

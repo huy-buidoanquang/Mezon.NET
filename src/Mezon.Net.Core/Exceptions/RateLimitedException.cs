@@ -1,0 +1,26 @@
+using System;
+using Mezon.Net.Abstractions;
+
+namespace Mezon.Net.Core
+{
+    /// <summary>
+    ///     The exception that is thrown when the user is being rate limited by Mezon.
+    /// </summary>
+    public class RateLimitedException : TimeoutException
+    {
+        /// <summary>
+        ///     Gets the request object used to send the request.
+        /// </summary>
+        public IRequest Request { get; }
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="RateLimitedException" /> class using the
+        ///     <paramref name="request"/> sent.
+        /// </summary>
+        public RateLimitedException(IRequest request)
+            : base("You are being rate limited.")
+        {
+            Request = request;
+        }
+    }
+}

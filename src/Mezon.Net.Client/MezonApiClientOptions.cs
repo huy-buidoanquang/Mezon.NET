@@ -22,7 +22,7 @@ namespace Mezon.Net.Api
         /// <summary>
         /// Gets or sets the provider for creating REST clients. Defaults to <see cref="DefaultRestClientProvider.Instance"/>.
         /// </summary>
-        public RestClientProvider HttpClientProvider { get; set; } = DefaultRestClientProvider.Instance;
+        public RestClientProvider RestClientProvider { get; set; } = DefaultRestClientProvider.Instance;
 
         /// <summary>
         /// Gets or sets the provider for creating Network Transporter. Defaults to <see cref="DefaultNetworkTransportProvider.Instance"/>.

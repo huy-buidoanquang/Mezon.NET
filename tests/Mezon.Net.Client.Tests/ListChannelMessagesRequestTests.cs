@@ -26,7 +26,7 @@ public class ListChannelMessagesRequestTests
     [Fact]
     public void ApiIndex_MatchesMezonJs()
     {
-        Assert.True(ApiNameIndexMap.TryGetIndex("ListChannelMessages", out var index));
+        Assert.True(MezonApiMap.TryGetIndex("ListChannelMessages", out var index));
         Assert.Equal(30, index);
     }
 }

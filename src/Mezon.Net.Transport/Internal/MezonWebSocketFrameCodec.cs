@@ -32,7 +32,7 @@ namespace Mezon.Net.Transport.Internal
 
         public static bool TryHandleMessage(
             ReadOnlyMemory<byte> message,
-            ConcurrentDictionary<int, ArrayBufferWriter<byte>> apiStreams,
+            ConcurrentDictionary<int, ArrayBufferWriter<byte>> apiChunkBuffers,
             out MezonMessageType type,
             out int cid,
             out int code,
@@ -61,7 +61,7 @@ namespace Mezon.Net.Transport.Internal
                 var finishFlag = codeField & 0xffff;
                 var chunk = span.Slice(ApiHeaderLength);
 
-                var writer = apiStreams.GetOrAdd(cid, _ => new ArrayBufferWriter<byte>(initialCapacity: 4096));
+                var writer = apiChunkBuffers.GetOrAdd(cid, _ => new ArrayBufferWriter<byte>(initialCapacity: 4096));
                 if (chunk.Length > 0)
                 {
                     var target = writer.GetSpan(chunk.Length);
@@ -77,7 +77,7 @@ namespace Mezon.Net.Transport.Internal
                 type = MezonMessageType.Api;
                 code = responseCode;
                 payload = writer.WrittenMemory;
-                apiStreams.TryRemove(cid, out _);
+                apiChunkBuffers.TryRemove(cid, out _);
                 return true;
             }
 
