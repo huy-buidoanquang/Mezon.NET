@@ -56,7 +56,8 @@ namespace Mezon.Net.Client
                OnDisconnectingAsync,
                x => ApiClient.DisconnectedEvent += x);
             _connection.Connected += () => TimedInvokeAsync(_connectedEvent, nameof(Connected));
-            _connection.Disconnected += (ex, recon) => TimedInvokeAsync(_disconnectedEvent, nameof(Disconnected), ex);
+            _connection.Disconnected += ex => TimedInvokeAsync(_disconnectedEvent, nameof(Disconnected), ex);
+            _connection.Reconnecting += ex => TimedInvokeAsync(_reconnectingEvent, nameof(Reconnecting), ex);
             ApiClient.SocketSentMessageEvent += async msg => await _socketLogger.DebugAsync(msg).ConfigureAwait(false);
             ApiClient.ReceivedMessageEvent += ProcessMessageAsync;
         }
@@ -77,7 +78,7 @@ namespace Mezon.Net.Client
                 }
 
                 await TimedInvokeAsync(_readyEvent, nameof(ReadyEvent)).ConfigureAwait(false);
-                _ = _connection.CompleteAsync();
+                StartHeartbeatLoop();
             }
             catch (Exception ex)
             {
@@ -92,7 +93,7 @@ namespace Mezon.Net.Client
 
         private void StartHeartbeatLoop()
         {
-            if (_heartbeatTask != null)
+            if (_heartbeatTask is { IsCompleted: false })
             {
                 return;
             }
@@ -258,12 +259,17 @@ namespace Mezon.Net.Client
         {
             await _connection.ConnectAsync().ConfigureAwait(false);
             await _connection.WaitAsync().ConfigureAwait(false);
-            StartHeartbeatLoop();
         }
 
         public override async Task DisconnectAsync()
         {
             await _connection.DisconnectAsync().ConfigureAwait(false);
+        }
+
+        internal void SetReconnectDelayForTests(int delayMs)
+        {
+            _connection.ReconnectBaseDelayMs = delayMs;
+            _connection.MaxReconnectDelayMs = delayMs;
         }
 
         public async Task<AuthenticationResponse> AuthenticateEmailAsync(string email, string password)

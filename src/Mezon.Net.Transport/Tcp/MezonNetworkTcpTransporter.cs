@@ -73,7 +73,7 @@ namespace Mezon.Net.Transport
                     await ErrorOccurred.Invoke(ex).ConfigureAwait(false);
                 }
 
-                await DisconnectInternalAsync().ConfigureAwait(false);
+                await DisconnectInternalAsync(invokeClosed: false).ConfigureAwait(false);
                 await WaitForBackgroundLoopsAsync(clearReceiveLoop: true).ConfigureAwait(false);
                 throw;
             }
@@ -348,7 +348,7 @@ namespace Mezon.Net.Transport
             }
         }
 
-        private async Task DisconnectInternalAsync(int closeCode = 1000, bool isDisposing = false)
+        private async Task DisconnectInternalAsync(int closeCode = 1000, bool invokeClosed = true)
         {
             if (_state == ConnectionState.Disconnected || _state == ConnectionState.Disconnecting)
             {
@@ -403,7 +403,7 @@ namespace Mezon.Net.Transport
             _apiChunkBuffers.Clear();
             _sendChannel = null;
             _state = ConnectionState.Disconnected;
-            if (Closed != null)
+            if (invokeClosed && Closed != null)
             {
                 await Closed.Invoke(null).ConfigureAwait(false);
             }

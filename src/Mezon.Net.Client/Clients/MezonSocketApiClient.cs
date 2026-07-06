@@ -279,11 +279,24 @@ namespace Mezon.Net.Client
 
         private async Task NetworkTransporter_Closed(Exception? exception)
         {
-            await DisconnectAsync().ConfigureAwait(false);
-            if (_disconnectedEvent.HasSubscribers)
+            if (ConnectionState == ConnectionState.Disconnected)
             {
-                await _disconnectedEvent.InvokeAsync(exception ?? new Exception("WebSocket closed.")).ConfigureAwait(false);
+                await NotifyDisconnectedAsync(exception).ConfigureAwait(false);
+                return;
             }
+
+            await DisconnectInternalAsync(exception).ConfigureAwait(false);
+            await NotifyDisconnectedAsync(exception).ConfigureAwait(false);
+        }
+
+        private Task NotifyDisconnectedAsync(Exception? exception)
+        {
+            if (!_disconnectedEvent.HasSubscribers)
+            {
+                return Task.CompletedTask;
+            }
+
+            return _disconnectedEvent.InvokeAsync(exception ?? new Exception("WebSocket closed."));
         }
 
         private ValueTask NetworkTransporter_MessageReceived(MezonMessageType type, int cid, int code, ReadOnlyMemory<byte> data)
