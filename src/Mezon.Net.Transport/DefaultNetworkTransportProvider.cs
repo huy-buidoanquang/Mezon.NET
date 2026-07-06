@@ -24,7 +24,7 @@ namespace Mezon.Net.Transport
                         }
                         catch (PlatformNotSupportedException ex)
                         {
-                            throw new PlatformNotSupportedException("The default TCPClientProvider is not supported on this platform.", ex);
+                            throw new PlatformNotSupportedException("The default MezonNetworkTcpTransporter is not supported on this platform.", ex);
                         }
                     };
                 case TransportType.WebSocket:
@@ -36,13 +36,12 @@ namespace Mezon.Net.Transport
                         }
                         catch (PlatformNotSupportedException ex)
                         {
-                            throw new PlatformNotSupportedException("The default TCPClientProvider is not supported on this platform.", ex);
+                            throw new PlatformNotSupportedException("The default MezonNetworkWebSocketTransporter is not supported on this platform.", ex);
                         }
                     };
                 default:
-                    throw new PlatformNotSupportedException("The default TCPClientProvider is not supported on this platform.");
+                    throw new PlatformNotSupportedException("The default MezonNetworkTransporter is not supported on this platform.");
             }
         }
-
     }
 }

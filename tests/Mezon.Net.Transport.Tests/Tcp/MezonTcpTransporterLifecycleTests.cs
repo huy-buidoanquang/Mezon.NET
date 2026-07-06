@@ -106,6 +106,24 @@ public class MezonTcpTransporterLifecycleTests
         Assert.Equal(ConnectionState.Disconnected, GetConnectionState(transporter));
     }
 
+    [Fact]
+    public async Task Connect_failure_does_not_invoke_Closed()
+    {
+        var transporter = new MezonNetworkTcpTransporter();
+        var closedCount = 0;
+        transporter.Closed = _ =>
+        {
+            Interlocked.Increment(ref closedCount);
+            return Task.CompletedTask;
+        };
+
+        var unusedPort = Helpers.TcpLoopbackServer.ReserveLoopbackPort();
+        await Assert.ThrowsAnyAsync<Exception>(() =>
+            transporter.ConnectAsync("127.0.0.1", unusedPort, "token", useSsl: false)).ConfigureAwait(false);
+        Assert.Equal(0, closedCount);
+        Assert.Equal(ConnectionState.Disconnected, GetConnectionState(transporter));
+    }
+
     private static ConnectionState GetConnectionState(MezonNetworkTcpTransporter transporter)
     {
         var field = typeof(MezonNetworkTcpTransporter).GetField("_state", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
