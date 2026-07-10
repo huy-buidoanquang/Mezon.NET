@@ -1,32 +1,35 @@
+using System.Collections.Generic;
 using System.Threading.Tasks;
-using Mezon.Net.Abstractions;
 using Mezon.Net.Core;
 using Mezon.Net.Core.Constants;
 using Mezon.Net.Internal.Api;
 using Mezon.Net.Internal.Realtime;
+using Mezon.Net.Models;
 
 namespace Mezon.Net.Client.Messaging
 {
-    public static class MessageSendHelper
+    internal static class MessageSendHelper
     {
-        public static ChannelMessageSend ToChannelMessageSend(in SendChannelMessageParams message)
+        internal static void Fill(ChannelMessageSend body, in SendChannelMessageParams message)
         {
-            var body = new ChannelMessageSend
-            {
-                ClanId = message.ClanId,
-                ChannelId = message.ChannelId,
-                Content = message.Content,
-                IsPublic = message.IsPublic,
-                Mode = message.Mode,
-                Code = message.Code,
-                MentionEveryone = message.MentionEveryone,
-                AnonymousMessage = message.AnonymousMessage,
-            };
+            body.ClanId = message.ClanId;
+            body.ChannelId = message.ChannelId;
+            body.Content = message.Content;
+            body.IsPublic = message.IsPublic;
+            body.Mode = message.Mode;
+            body.Code = message.Code;
+            body.MentionEveryone = message.MentionEveryone;
+            body.AnonymousMessage = message.AnonymousMessage;
             if (message.TopicId.HasValue)
             {
                 body.TopicId = message.TopicId.Value;
             }
+        }
 
+        public static ChannelMessageSend ToChannelMessageSend(in SendChannelMessageParams message)
+        {
+            var body = new ChannelMessageSend();
+            Fill(body, in message);
             return body;
         }
 
@@ -146,19 +149,63 @@ namespace Mezon.Net.Client.Messaging
             return envelope;
         }
 
-        public static Task<ChannelMessageAck> SendAsync(IMezonApiClient api, in SendChannelMessageParams message, RequestOptions? options = null)
+        public static Envelope ToEphemeralEnvelope(in SendEphemeralMessageParams message)
+        {
+            var body = ToChannelMessageSend(message.Message);
+            if (message.Id.HasValue)
+            {
+                body.Id = message.Id.Value;
+            }
+
+            var envelope = new Envelope
+            {
+                EphemeralMessageSend = new EphemeralMessageSend
+                {
+                    Message = body,
+                },
+            };
+            foreach (var receiverId in message.ReceiverIds)
+            {
+                envelope.EphemeralMessageSend.ReceiverIds.Add(receiverId);
+            }
+
+            return envelope;
+        }
+
+        public static Envelope ToQuickMenuEnvelope(in QuickMenuDataEventParams message)
+        {
+            var body = ToChannelMessageSend(message.Message);
+            if (message.MessageId.HasValue)
+            {
+                body.Id = message.MessageId.Value;
+            }
+
+            var quickMenu = new QuickMenuDataEvent
+            {
+                MenuName = message.MenuName,
+                Message = body,
+            };
+            if (message.MessageSenderId.HasValue)
+            {
+                quickMenu.MessageSenderId = message.MessageSenderId.Value;
+            }
+
+            return new Envelope { QuickMenuEvent = quickMenu };
+        }
+
+        internal static Task<ChannelMessageAck> SendAsync(MezonApiClient api, in SendChannelMessageParams message, RequestOptions? options = null)
             => api.SendChannelMessageAsync(ToChannelMessageSend(message), options);
 
-        public static Task<ChannelMessageAck> SendReplyAsync(IMezonApiClient api, in ReplyMessageParams message, RequestOptions? options = null)
+        internal static Task<ChannelMessageAck> SendReplyAsync(MezonApiClient api, in ReplyMessageParams message, RequestOptions? options = null)
             => api.SendChannelMessageAsync(ToChannelMessageSend(message), options);
 
-        public static Task UpdateAsync(IMezonApiClient api, in UpdateMessageParams message, RequestOptions? options = null)
+        internal static Task UpdateAsync(MezonApiClient api, in UpdateMessageParams message, RequestOptions? options = null)
             => api.UpdateChannelMessageAsync(ToChannelMessageUpdate(message), options);
 
-        public static Task DeleteAsync(IMezonApiClient api, in DeleteMessageParams message, RequestOptions? options = null)
+        internal static Task DeleteAsync(MezonApiClient api, in DeleteMessageParams message, RequestOptions? options = null)
             => api.DeleteChannelMessageAsync(ToChannelMessageRemove(message), options);
 
-        public static Task ReactAsync(IMezonApiClient api, in ReactMessageParams message, RequestOptions? options = null)
+        internal static Task ReactAsync(MezonApiClient api, in ReactMessageParams message, RequestOptions? options = null)
             => api.ReactChannelMessageAsync(ToMessageReaction(message), options);
     }
 }

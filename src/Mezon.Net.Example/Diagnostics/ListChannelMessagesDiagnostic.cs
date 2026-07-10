@@ -5,6 +5,8 @@ using Mezon.Net.Core;
 using Mezon.Net.Core.Protocol;
 using Mezon.Net.Internal.Api;
 using Mezon.Net.Internal.Realtime;
+using Mezon.Net.Example.Infrastructure;
+using Mezon.Net.Models;
 using Microsoft.Extensions.Logging;
 
 namespace Mezon.Net.Example.Diagnostics;
@@ -35,13 +37,12 @@ internal static class ListChannelMessagesDiagnostic
         LogWireVariants(logger, clanId, channelId, limit: 10);
 
         await using var client = await ConnectAsync(options, transportType, email, password, logger, cancellationToken).ConfigureAwait(false);
-        var api = client.ApiClient;
 
         await RunCase(logger, "minimal (clan+channel+limit)", async () =>
         {
-            var r = await api.ListChannelMessagesAsync(clanId, channelId, limit: 10, options: opts).ConfigureAwait(false);
+            var r = await client.ListChannelMessagesAsync(clanId, channelId, messageId: null, direction: null, limit: 10, topicId: null, options: opts).ConfigureAwait(false);
             logger.LogInformation("  messages={Count} last_seen={LastSeen} last_sent={LastSent}",
-                r.Messages.Count, r.LastSeenMessage?.Id, r.LastSentMessage?.Id);
+                r.Messages.Count, r.LastSeenMessage.Id, r.LastSentMessage.Id);
             if (r.Messages.Count > 0)
             {
                 var m = r.Messages[0];
@@ -56,7 +57,7 @@ internal static class ListChannelMessagesDiagnostic
 
         await RunCase(logger, "with direction=1 (older→newer per proto comment)", async () =>
         {
-            var r = await api.ListChannelMessagesAsync(clanId, channelId, direction: 1, limit: 10, options: opts).ConfigureAwait(false);
+            var r = await client.ListChannelMessagesAsync(clanId, channelId, messageId: null, direction: 1, limit: 10, topicId: null, options: opts).ConfigureAwait(false);
             logger.LogInformation("  messages={Count}", r.Messages.Count);
         }).ConfigureAwait(false);
 
@@ -64,7 +65,7 @@ internal static class ListChannelMessagesDiagnostic
 
         await RunCase(logger, "with direction=0", async () =>
         {
-            var r = await api.ListChannelMessagesAsync(clanId, channelId, direction: 0, limit: 10, options: opts).ConfigureAwait(false);
+            var r = await client.ListChannelMessagesAsync(clanId, channelId, messageId: null, direction: 0, limit: 10, topicId: null, options: opts).ConfigureAwait(false);
             logger.LogInformation("  messages={Count}", r.Messages.Count);
         }).ConfigureAwait(false);
 
@@ -134,7 +135,7 @@ internal static class ListChannelMessagesDiagnostic
         };
 
         var client = new MezonClient(clientOptions);
-        var session = await client.AuthenticateEmailAsync(email, password).ConfigureAwait(false);
+        var session = await client.AuthenticateEmailAsync(ExampleHelpers.CreateEmailAuthRequest(email, password)).ConfigureAwait(false);
         await client.LoginAsync(session).ConfigureAwait(false);
         await client.ConnectAsync().ConfigureAwait(false);
         logger.LogInformation("Connected state={State}", client.ConnectionState);

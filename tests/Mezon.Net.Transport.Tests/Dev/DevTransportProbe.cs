@@ -29,7 +29,7 @@ public sealed class DevTransportProbe
 
         var options = new MezonSocketClientOptions(DevApiHost, DevApiPort, useSSL: true);
         var client = new MezonClient(options);
-        var session = await client.AuthenticateEmailAsync(DevEmail, DevPassword).ConfigureAwait(false);
+        var session = await client.AuthenticateEmailAsync(CreateAuthRequest()).ConfigureAwait(false);
 
         Assert.False(string.IsNullOrEmpty(session.SessionId), "SessionId required");
         Assert.False(string.IsNullOrEmpty(session.AuthToken), "AuthToken required");
@@ -105,4 +105,15 @@ public sealed class DevTransportProbe
             transporter.Dispose();
         }
     }
+
+    private static EmailAuthenticationRequest CreateAuthRequest() =>
+        new()
+        {
+            Account = new AccountEmailRequest
+            {
+                Email = DevEmail,
+                Password = DevPassword,
+            },
+            Create = false,
+        };
 }

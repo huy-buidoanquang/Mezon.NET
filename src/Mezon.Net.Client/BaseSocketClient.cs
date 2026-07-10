@@ -1,9 +1,11 @@
 using System.Threading.Tasks;
 using Mezon.Net.Abstractions;
+using Mezon.Net.Core;
+using Mezon.Net.Internal.Realtime;
 
 namespace Mezon.Net.Client
 {
-    public abstract partial class BaseSocketClient : BaseMezonClient, IMezonClient, IApiClientProvider
+    public abstract partial class BaseSocketClient : BaseMezonClient, IMezonClient, IMezonClientRealtime, IApiClientProvider
     {
         /// <summary>
         ///     Gets the estimated round-trip latency, in milliseconds, to the gateway server.
@@ -31,9 +33,8 @@ namespace Mezon.Net.Client
 
         public abstract Task DisconnectAsync();
 
-        public Task JoinChannelChat(long clanId, long channelId, int channelType, bool isPublic) => ApiClient.JoinChannelChat(clanId, channelId, channelType, isPublic);
-
-        public Task JoinClanChat(long clanId) => ApiClient.JoinClanChat(clanId);
+        protected Task<Envelope> SendRealtimeEnvelopeAsync(Envelope envelope, RequestOptions? options = null)
+            => ApiClient.SendEnvelopeAsync(envelope, options);
 
         IMezonClient IApiClientProvider.MezonApiClient => this;
     }

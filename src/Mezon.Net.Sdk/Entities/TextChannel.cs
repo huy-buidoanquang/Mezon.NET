@@ -1,12 +1,11 @@
-using System.Threading;
 using System.Threading.Tasks;
-using Mezon.Net.Client;
 using Mezon.Net.Client.Messaging;
 using Mezon.Net.Core;
 using Mezon.Net.Core.Constants;
 using Mezon.Net.Core.Entities;
 using Mezon.Net.Internal.Api;
 using Mezon.Net.Internal.Realtime;
+using Mezon.Net.Models;
 using Mezon.Net.Sdk.Caching;
 
 namespace Mezon.Net.Sdk.Entities
@@ -37,7 +36,7 @@ namespace Mezon.Net.Sdk.Entities
         public bool IsPublic => !IsPrivate;
 
         public Task JoinAsync()
-            => _client.Engine.JoinChannelChat(ClanId, Id, Type, IsPublic);
+            => _client.Engine.JoinChannelChatRtAsync(new ChannelJoinParams(ClanId, Id, Type, IsPublic));
 
         public Task<ChannelMessageAck> SendAsync(
             string content,
@@ -48,9 +47,9 @@ namespace Mezon.Net.Sdk.Entities
             RequestOptions? options = null)
         {
             var mode = ChannelModeConverter.ToStreamMode(Type);
-            var parameters = new SendChannelMessageParams(ClanId, Id, content, topicId, IsPublic, mode);
+            var parameters = new SendChannelMessageParams(ClanId, Id, content, topicId, IsPublic, mode, code, mentionEveryone, anonymousMessage);
             return _client.SendQueue.EnqueueAsync(Id, () =>
-                MessageSendHelper.SendAsync(_client.Api, parameters, options));
+                MessageSendHelper.SendAsync(_client.ApiClient, parameters, options));
         }
 
         public Task<ChannelMessageAck> SendEphemeralAsync(
@@ -60,11 +59,11 @@ namespace Mezon.Net.Sdk.Entities
         {
             var mode = ChannelModeConverter.ToStreamMode(Type);
             var parameters = new SendChannelMessageParams(ClanId, Id, content, isPublic: IsPublic, mode: mode);
-            var envelope = MessageSendHelper.ToEphemeralEnvelope(parameters, receiverId);
+            var body = new SendEphemeralMessageParams(new[] { receiverId }, parameters);
             return _client.SendQueue.EnqueueAsync(Id, async () =>
             {
-                var response = await _client.Engine.SendRealtimeAsync(envelope, options).ConfigureAwait(false);
-                return response.ChannelMessageAck;
+                var ack = await _client.Engine.SendEphemeralMessageRtAsync(body, options).ConfigureAwait(false);
+                return ack.Proto;
             });
         }
     }

@@ -84,14 +84,6 @@
 
 
 
-  <ItemGroup>
-
-    <Folder Include="Providers\" />
-
-  </ItemGroup>
-
-
-
 </Project>
 
 

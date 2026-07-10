@@ -5,6 +5,8 @@ using Mezon.Net.Core;
 using Mezon.Net.Core.Protocol;
 using Mezon.Net.Internal.Api;
 using Mezon.Net.Internal.Realtime;
+using Mezon.Net.Example.Infrastructure;
+using Mezon.Net.Models;
 using Microsoft.Extensions.Logging;
 
 namespace Mezon.Net.Example.Diagnostics;
@@ -52,25 +54,24 @@ internal static class ListRolesWireDebugDiagnostic
             return Task.CompletedTask;
         };
 
-        var session = await client.AuthenticateEmailAsync(email, password).ConfigureAwait(false);
+        var session = await client.AuthenticateEmailAsync(ExampleHelpers.CreateEmailAuthRequest(email, password)).ConfigureAwait(false);
         await client.LoginAsync(session).ConfigureAwait(false);
         await client.ConnectAsync().ConfigureAwait(false);
 
-        var api = client.ApiClient;
         var opts = new RequestOptions { SocketSendTimeout = timeoutMs };
 
         await Task.Delay(2000, cancellationToken).ConfigureAwait(false);
 
-        await RunCase(logger, "GetAccount (control)", () => api.GetAccountAsync(opts)).ConfigureAwait(false);
+        await RunCase(logger, "GetAccount (control)", () => client.GetAccountAsync(opts)).ConfigureAwait(false);
         await Task.Delay(options.ApiDelayMs, cancellationToken).ConfigureAwait(false);
 
-        await RunCase(logger, "ListFriends (control)", () => api.ListFriendsAsync(limit: 10, options: opts)).ConfigureAwait(false);
+        await RunCase(logger, "ListFriends (control)", () => client.ListFriendsAsync(state: null, limit: 10, cursor: null, options: opts)).ConfigureAwait(false);
         await Task.Delay(options.ApiDelayMs, cancellationToken).ConfigureAwait(false);
 
-        await RunCase(logger, "ListRoles (failing)", () => client.ListRolesAsync(clanId, limit: 20, options: opts)).ConfigureAwait(false);
+        await RunCase(logger, "ListRoles (failing)", () => client.ListRolesAsync(new RoleListEventParams(clanId: clanId, limit: 20), opts)).ConfigureAwait(false);
         await Task.Delay(options.ApiDelayMs, cancellationToken).ConfigureAwait(false);
 
-        await RunCase(logger, "GetAccount (after ListRoles)", () => api.GetAccountAsync(opts)).ConfigureAwait(false);
+        await RunCase(logger, "GetAccount (after ListRoles)", () => client.GetAccountAsync(opts)).ConfigureAwait(false);
         await Task.Delay(options.ApiDelayMs, cancellationToken).ConfigureAwait(false);
 
         logger.LogInformation(

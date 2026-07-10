@@ -2,7 +2,7 @@ using System.Threading.Tasks;
 using Mezon.Net.Core;
 using Mezon.Net.Core.Entities;
 using Mezon.Net.Internal.Api;
-
+using Mezon.Net.Models;
 using Mezon.Net.Sdk.Caching;
 
 namespace Mezon.Net.Sdk.Entities
@@ -27,14 +27,18 @@ namespace Mezon.Net.Sdk.Entities
 
         internal void UpdateFrom(ClanDesc desc) => _desc = desc;
 
-        public Task<ChannelDescList> LoadChannelsAsync(int? channelType = null, RequestOptions? options = null)
-            => _client.Engine.ListChannelDescsAsync(Id, channelType: channelType, options: options);
+        public Task<ChannelDescListData> LoadChannelsAsync(int? channelType = null, RequestOptions? options = null)
+            => _client.Engine.ListChannelDescsAsync(
+                new ListChannelDescsParams(clanId: Id, channelType: channelType),
+                options);
 
-        public Task<RoleListEventResponse> ListRolesAsync(int? limit = null, int? state = null, string? cursor = null, RequestOptions? options = null)
-            => _client.Engine.ListRolesAsync(Id, limit, state, cursor, options);
+        public Task<RoleListEventResponseData> ListRolesAsync(int? limit = null, int? state = null, string? cursor = null, RequestOptions? options = null)
+            => _client.Engine.ListRolesAsync(
+                new RoleListEventParams(clanId: Id, limit: limit, state: state, cursor: cursor),
+                options);
 
-        public Task UpdateRoleAsync(global::Mezon.Net.Internal.Api.UpdateRoleRequest body, RequestOptions? options = null)
-            => _client.Api.UpdateRoleAsync(body, options);
+        public Task UpdateRoleAsync(UpdateRoleParams body, RequestOptions? options = null)
+            => _client.Engine.UpdateRoleAsync(body, options);
 
         public MezonClient GetClient() => _client;
     }

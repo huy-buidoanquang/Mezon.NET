@@ -1,16 +1,19 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using Mezon.Net.Abstractions;
+using Mezon.Net.Client.Messaging;
 using Mezon.Net.Core;
 using Mezon.Net.Core.Abstractions;
 using Mezon.Net.Core.Protocol;
 using Mezon.Net.Internal.Api;
 using Mezon.Net.Internal.Realtime;
 using Mezon.Net.Logging;
+using Mezon.Net.Models;
 using Mezon.Net.Transport;
 using static Mezon.Net.Core.Abstractions.IMezonNetworkTransporter;
 using MezonSession = Mezon.Net.Internal.Api.Session;
@@ -167,6 +170,28 @@ namespace Mezon.Net.Client
             await _socketMessageSent.InvokeAsync($"Sent: {type} {bytes.Length} bytes").ConfigureAwait(false);
         }
 
+        private static byte[] SerializeMessage(IMessage message)
+        {
+            var size = message.CalculateSize();
+            if (size == 0)
+            {
+                return Array.Empty<byte>();
+            }
+
+            var rented = ArrayPool<byte>.Shared.Rent(size);
+            try
+            {
+                message.WriteTo(new Span<byte>(rented, 0, size));
+                var payload = new byte[size];
+                Buffer.BlockCopy(rented, 0, payload, 0, size);
+                return payload;
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(rented);
+            }
+        }
+
         public Task SendAsync(MezonMessageType type, Envelope envelope, RequestOptions? options = null)
             => SendInternalAsync(type, envelope, options);
 
@@ -176,7 +201,7 @@ namespace Mezon.Net.Client
             CheckState();
 
             envelope.Cid = _correlationHub.AllocateCid();
-            await SendSocketPayloadAsync(type, envelope.Cid, envelope.ToByteArray(), options).ConfigureAwait(false);
+            await SendSocketPayloadAsync(type, envelope.Cid, SerializeMessage(envelope), options).ConfigureAwait(false);
             await _socketMessageSent.InvokeAsync($"Sent: {type} {envelope}").ConfigureAwait(false);
         }
 
@@ -196,7 +221,7 @@ namespace Mezon.Net.Client
                 if (_transportType == TransportType.WebSocket)
                 {
                     var envelope = new Envelope { Cid = cid, Ping = new Ping() };
-                    await SendSocketPayloadAsync(MezonMessageType.Abridged, cid, envelope.ToByteArray(), options, bypassRateLimiter: true).ConfigureAwait(false);
+                    await SendSocketPayloadAsync(MezonMessageType.Abridged, cid, SerializeMessage(envelope), options, bypassRateLimiter: true).ConfigureAwait(false);
                 }
                 else
                 {
@@ -210,26 +235,6 @@ namespace Mezon.Net.Client
                 NetworkTransporter.RemoveApiChunkBuffer(cid);
                 throw;
             }
-        }
-
-        public Task JoinClanChat(long clanId, RequestOptions? options = null)
-        {
-            options ??= RequestOptions.CreateOrClone(options);
-            var envelope = new Envelope
-            {
-                ClanJoin = new ClanJoin { ClanId = clanId }
-            };
-            return SendEnvelopeAsync(envelope, options);
-        }
-
-        public Task JoinChannelChat(long clanId, long channelId, int channelType, bool isPublic, RequestOptions? options = null)
-        {
-            options ??= RequestOptions.CreateOrClone(options);
-            var envelope = new Envelope
-            {
-                ChannelJoin = new ChannelJoin { ClanId = clanId, ChannelId = channelId, ChannelType = channelType, IsPublic = isPublic }
-            };
-            return SendEnvelopeAsync(envelope, options);
         }
 
         private (string host, int port, string token) GetTransportEndpoint()
@@ -435,7 +440,7 @@ namespace Mezon.Net.Client
             envelope.Cid = cid;
             var timeout = options.SocketSendTimeout ?? MezonOptions.SocketTimeoutInMilliseconds;
             var waitTask = _correlationHub.WaitAsync(cid, timeout, options.CancelToken);
-            var payload = envelope.ToByteArray();
+            var payload = SerializeMessage(envelope);
             TraceWire($"[SOCKET-OUT] abridged cid={cid} bytes={payload.Length} timeout={timeout}ms");
 
             try
@@ -457,7 +462,7 @@ namespace Mezon.Net.Client
             }
         }
 
-        public async Task<Envelope> SendEnvelopeAsync(Envelope envelope, RequestOptions? options = null)
+        internal async Task<Envelope> SendEnvelopeAsync(Envelope envelope, RequestOptions? options = null)
         {
             options ??= RequestOptions.CreateOrClone(options);
             CheckState();
@@ -466,7 +471,7 @@ namespace Mezon.Net.Client
             envelope.Cid = cid;
             var timeout = options.SocketSendTimeout ?? MezonOptions.SocketTimeoutInMilliseconds;
             var waitTask = _correlationHub.WaitAsync(cid, timeout, options.CancelToken);
-            var payload = envelope.ToByteArray();
+            var payload = SerializeMessage(envelope);
             try
             {
                 await SendSocketPayloadAsync(MezonMessageType.Abridged, cid, payload, options).ConfigureAwait(false);
@@ -533,7 +538,7 @@ namespace Mezon.Net.Client
 
             if (envelope != null && envelope.Cid > 0)
             {
-                var matched = _correlationHub.TryComplete(envelope.Cid, code, envelope.ToByteArray());
+                var matched = _correlationHub.TryComplete(envelope.Cid, code, SerializeMessage(envelope));
                 TraceWire($"[SOCKET-COMPLETE] abridged cid={envelope.Cid} env={envelope.MessageCase} matched={matched}");
             }
         }
@@ -1718,25 +1723,7 @@ namespace Mezon.Net.Client
         }
 
         public override Task<ChannelMessageAck> SendChannelMessageAsync(SendChannelMessageParams message, RequestOptions? options = null)
-        {
-            var body = new ChannelMessageSend
-            {
-                ClanId = message.ClanId,
-                ChannelId = message.ChannelId,
-                Content = message.Content,
-                IsPublic = message.IsPublic,
-                Mode = message.Mode,
-                Code = message.Code,
-                MentionEveryone = message.MentionEveryone,
-                AnonymousMessage = message.AnonymousMessage,
-            };
-            if (message.TopicId.HasValue)
-            {
-                body.TopicId = message.TopicId.Value;
-            }
-
-            return SendApiAsync("SendChannelMessage", body, ChannelMessageAck.Parser, options);
-        }
+            => SendChannelMessageAsync(MessageSendHelper.ToChannelMessageSend(message), options);
 
         public override async Task UpdateChannelMessageAsync(ChannelMessageUpdate body, RequestOptions? options = null)
         {

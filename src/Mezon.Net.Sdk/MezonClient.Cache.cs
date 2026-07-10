@@ -1,7 +1,7 @@
 using System.Threading.Tasks;
 using Mezon.Net.Core.Constants;
 using Mezon.Net.Internal.Api;
-using Mezon.Net.Internal.Realtime;
+using Mezon.Net.Models;
 
 namespace Mezon.Net.Sdk
 {
@@ -22,8 +22,9 @@ namespace Mezon.Net.Sdk
             _engine.UserChannelAddedEvent += OnUserChannelAddedInternalAsync;
         }
 
-        private Task OnChannelMessageInternalAsync(ChannelMessage message)
+        private Task OnChannelMessageInternalAsync(ChannelMessageEventData messageEvent)
         {
+            var message = (ChannelMessageData)messageEvent;
             if (message.ChannelId != 0 && Channels.TryGet(message.ChannelId, out var channel))
             {
                 var entity = new Entities.Message(this, channel, message);
@@ -47,47 +48,52 @@ namespace Mezon.Net.Sdk
             return Task.CompletedTask;
         }
 
-        private Task OnChannelCreatedInternalAsync(ChannelCreatedEvent evt)
+        private Task OnChannelCreatedInternalAsync(ChannelCreatedEventEventData evt)
         {
-            UpdateChannelCache(evt.ClanId, evt.ChannelId, evt.ChannelLabel, evt.ChannelType, evt.ChannelPrivate == 0);
+            var data = (ChannelCreatedEventData)evt;
+            UpdateChannelCache(data.ClanId, data.ChannelId, data.ChannelLabel, data.ChannelType, data.ChannelPrivate == 0);
             return Task.CompletedTask;
         }
 
-        private Task OnChannelUpdatedInternalAsync(ChannelUpdatedEvent evt)
+        private Task OnChannelUpdatedInternalAsync(ChannelUpdatedEventEventData evt)
         {
-            if (evt.ChannelType == (int)ChannelType.Thread && evt.Status == 1)
+            var data = (ChannelUpdatedEventData)evt;
+            if (data.ChannelType == (int)ChannelType.Thread && data.Status == 1)
             {
-                return _engine.JoinChannelChat(evt.ClanId, evt.ChannelId, evt.ChannelType, !evt.ChannelPrivate);
+                return _engine.JoinChannelChatRtAsync(new ChannelJoinParams(data.ClanId, data.ChannelId, data.ChannelType, !data.ChannelPrivate));
             }
 
-            UpdateChannelCache(evt.ClanId, evt.ChannelId, evt.ChannelLabel, evt.ChannelType, !evt.ChannelPrivate);
+            UpdateChannelCache(data.ClanId, data.ChannelId, data.ChannelLabel, data.ChannelType, !data.ChannelPrivate);
             return Task.CompletedTask;
         }
 
-        private Task OnChannelDeletedInternalAsync(ChannelDeletedEvent evt)
+        private Task OnChannelDeletedInternalAsync(ChannelDeletedEventEventData evt)
         {
-            Channels.Remove(evt.ChannelId);
-            if (Clans.TryGet(evt.ClanId, out _))
+            var data = (ChannelDeletedEventData)evt;
+            Channels.Remove(data.ChannelId);
+            if (Clans.TryGet(data.ClanId, out _))
             {
-                Channels.Remove(evt.ChannelId);
+                Channels.Remove(data.ChannelId);
             }
 
             return Task.CompletedTask;
         }
 
-        private async Task OnUserChannelAddedInternalAsync(UserChannelAdded channelEvent)
+        private async Task OnUserChannelAddedInternalAsync(UserChannelAddedEventData channelEvent)
         {
-            if (channelEvent.ChannelDesc == null)
+            var data = (UserChannelAddedData)channelEvent;
+            var channelDesc = data.ChannelDesc;
+            if (channelDesc.ChannelId == 0)
             {
                 return;
             }
 
-            foreach (var user in channelEvent.Users)
+            for (var i = 0; i < data.Users.Count; i++)
             {
+                var user = data.Users[i];
                 if (user.UserId == Options.BotId)
                 {
-                    var desc = channelEvent.ChannelDesc;
-                    await _engine.JoinChannelChat(channelEvent.ClanId, desc.ChannelId, desc.Type, desc.ChannelPrivate == 0).ConfigureAwait(false);
+                    await _engine.JoinChannelChatRtAsync(new ChannelJoinParams(data.ClanId, channelDesc.ChannelId, channelDesc.Type, channelDesc.ChannelPrivate == 0)).ConfigureAwait(false);
                     break;
                 }
             }

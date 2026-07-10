@@ -1,5 +1,7 @@
 using Mezon.Net.Client;
 using Mezon.Net.Core;
+using Mezon.Net.Example.Infrastructure;
+using Mezon.Net.Models;
 using Microsoft.Extensions.Logging;
 
 namespace Mezon.Net.Example.Diagnostics;
@@ -45,11 +47,10 @@ internal static class HeartbeatDuringApiDiagnostic
             return Task.CompletedTask;
         };
 
-        var session = await client.AuthenticateEmailAsync(email, password).ConfigureAwait(false);
+        var session = await client.AuthenticateEmailAsync(ExampleHelpers.CreateEmailAuthRequest(email, password)).ConfigureAwait(false);
         await client.LoginAsync(session).ConfigureAwait(false);
         await client.ConnectAsync().ConfigureAwait(false);
 
-        var api = client.ApiClient;
         var opts = new RequestOptions { SocketSendTimeout = options.ApiTimeoutMs };
 
         using var monitorCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -72,7 +73,7 @@ internal static class HeartbeatDuringApiDiagnostic
         logger.LogInformation("Phase B: GetAccountAsync (sanity)...");
         try
         {
-            _ = await api.GetAccountAsync(opts).ConfigureAwait(false);
+            _ = await client.GetAccountAsync(opts).ConfigureAwait(false);
             logger.LogInformation("Phase B: GetAccountAsync OK");
         }
         catch (Exception ex)
@@ -83,7 +84,7 @@ internal static class HeartbeatDuringApiDiagnostic
         logger.LogInformation("Phase C: ListRolesAsync while heartbeat loop runs (concurrent cIds)...");
         try
         {
-            _ = await client.ListRolesAsync(options.ClanId, limit: 20, options: opts).ConfigureAwait(false);
+            _ = await client.ListRolesAsync(new RoleListEventParams(clanId: options.ClanId, limit: 20), opts).ConfigureAwait(false);
             logger.LogInformation("Phase C: ListRolesAsync OK");
         }
         catch (Exception ex)
@@ -94,7 +95,7 @@ internal static class HeartbeatDuringApiDiagnostic
         logger.LogInformation("Phase D: ListCategoryDescsAsync...");
         try
         {
-            _ = await api.ListCategoryDescsAsync(options.ClanId, opts).ConfigureAwait(false);
+            _ = await client.ListCategoryDescsAsync(options.ClanId, opts).ConfigureAwait(false);
             logger.LogInformation("Phase D: ListCategoryDescsAsync OK");
         }
         catch (Exception ex)

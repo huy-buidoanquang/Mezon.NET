@@ -5,6 +5,8 @@ using Mezon.Net.Core;
 using Mezon.Net.Core.Protocol;
 using Mezon.Net.Internal.Api;
 using Mezon.Net.Internal.Realtime;
+using Mezon.Net.Example.Infrastructure;
+using Mezon.Net.Models;
 using Microsoft.Extensions.Logging;
 
 namespace Mezon.Net.Example.Diagnostics;
@@ -41,18 +43,12 @@ internal static class ListChannelDescsDiagnostic
         LogWireFormatSample(logger, clanId);
 
         await using var client = await ConnectAsync(options, transportType, email, password, logger, cancellationToken).ConfigureAwait(false);
-        var api = client.ApiClient;
         var opts = new RequestOptions { SocketSendTimeout = timeoutMs };
 
         // Experiment 1: first API call after connect (no prior socket API traffic)
         await RunCase(logger, "isolated-first-call limit=5", delayMs, async () =>
         {
-            var request = new ListChannelDescsRequest()
-            {
-                ClanId = clanId,
-                Limit = 5
-            };
-            await api.ListChannelDescsAsync(request, options: opts).ConfigureAwait(false);
+            await client.ListChannelDescsAsync(new ListChannelDescsParams(clanId: clanId, limit: 5), opts).ConfigureAwait(false);
         }).ConfigureAwait(false);
 
         // Experiment 2: vary limit (server proto says 1..100)
@@ -60,12 +56,7 @@ internal static class ListChannelDescsDiagnostic
         {
             await RunCase(logger, $"limit={limit?.ToString() ?? "null"}", delayMs, async () =>
             {
-                var request = new ListChannelDescsRequest()
-                {
-                    ClanId = clanId,
-                    Limit = limit ?? 0
-                };
-                await api.ListChannelDescsAsync(request, options: opts).ConfigureAwait(false);
+                await client.ListChannelDescsAsync(new ListChannelDescsParams(clanId: clanId, limit: limit), opts).ConfigureAwait(false);
             }).ConfigureAwait(false);
         }
 
@@ -73,18 +64,13 @@ internal static class ListChannelDescsDiagnostic
         logger.LogInformation("--- burst 8 quick reads then ListChannelDescs ---");
         for (var i = 0; i < 8; i++)
         {
-            await api.GetAccountAsync(opts).ConfigureAwait(false);
+            await client.GetAccountAsync(opts).ConfigureAwait(false);
             await Delay(delayMs, cancellationToken).ConfigureAwait(false);
         }
 
         await RunCase(logger, "after-burst limit=5", delayMs, async () =>
         {
-            var request = new ListChannelDescsRequest()
-            {
-                ClanId = clanId,
-                Limit = 5
-            };
-            await api.ListChannelDescsAsync(request, options: opts).ConfigureAwait(false);
+            await client.ListChannelDescsAsync(new ListChannelDescsParams(clanId: clanId, limit: 5), opts).ConfigureAwait(false);
         }).ConfigureAwait(false);
 
         // Experiment 4: long cooldown then retry
@@ -93,43 +79,26 @@ internal static class ListChannelDescsDiagnostic
 
         await RunCase(logger, "after-cooldown limit=5", delayMs, async () =>
         {
-            var request = new ListChannelDescsRequest()
-            {
-                ClanId = clanId,
-                Limit = 5
-            };
-            await api.ListChannelDescsAsync(request, options: opts).ConfigureAwait(false);
+            await client.ListChannelDescsAsync(new ListChannelDescsParams(clanId: clanId, limit: 5), opts).ConfigureAwait(false);
         }).ConfigureAwait(false);
 
         // Experiment 5: compare ListCategoryDescs (works) vs ListChannelDescs back-to-back
         await RunCase(logger, "ListCategoryDescs control", delayMs, async () =>
         {
-            var cats = await api.ListCategoryDescsAsync(clanId, opts).ConfigureAwait(false);
+            var cats = await client.ListCategoryDescsAsync(clanId, opts).ConfigureAwait(false);
             logger.LogInformation("  control count={Count}", cats.Categorydesc.Count);
         }).ConfigureAwait(false);
 
         await RunCase(logger, "ListChannelDescs after control", delayMs, async () =>
         {
-            var request = new ListChannelDescsRequest()
-            {
-                ClanId = clanId,
-                Limit = 5
-            };
-            var ch = await api.ListChannelDescsAsync(request, options: opts).ConfigureAwait(false);
+            var ch = await client.ListChannelDescsAsync(new ListChannelDescsParams(clanId: clanId, limit: 5), opts).ConfigureAwait(false);
             logger.LogInformation("  channels count={Count}", ch.Channeldesc.Count);
         }).ConfigureAwait(false);
 
-        // Experiment 6: raw request with page=0 via SendApiAsync fields
+        // Experiment 6: raw request with page=0 via facade params
         await RunCase(logger, "manual request limit=5 page=0 state=0", delayMs, async () =>
         {
-            var request = new ListChannelDescsRequest
-            {
-                ClanId = clanId,
-                Limit = 5,
-                Page = 0,
-                State = 0,
-            };
-            await client.ListChannelDescsAsync(clanId, limit: 5, state: 0, page: 0).ConfigureAwait(false);
+            await client.ListChannelDescsAsync(new ListChannelDescsParams(clanId: clanId, limit: 5, page: 0, state: 0), opts).ConfigureAwait(false);
         }).ConfigureAwait(false);
 
         await client.DisconnectAsync().ConfigureAwait(false);
@@ -196,7 +165,7 @@ internal static class ListChannelDescsDiagnostic
         };
 
         var client = new MezonClient(clientOptions);
-        var session = await client.AuthenticateEmailAsync(email, password).ConfigureAwait(false);
+        var session = await client.AuthenticateEmailAsync(ExampleHelpers.CreateEmailAuthRequest(email, password)).ConfigureAwait(false);
         logger.LogInformation("Auth OK tcp={TcpUrl}", session.TcpUrl);
 
         if (!await client.LoginAsync(session).ConfigureAwait(false))

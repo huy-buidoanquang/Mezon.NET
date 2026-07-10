@@ -8,7 +8,7 @@ using MezonSession = Mezon.Net.Internal.Api.Session;
 
 namespace Mezon.Net.Abstractions
 {
-    public interface IMezonApiClient : IDisposable, IAsyncDisposable
+    internal interface IMezonApiClient : IDisposable, IAsyncDisposable
     {
         event Func<string, string, double, Task> ApiSentRequestEvent;
 
@@ -196,7 +196,7 @@ namespace Mezon.Net.Abstractions
         Task<QuickMenuAccessList> ListQuickMenuAccessAsync(long botId, long channelId, int? menuType = null, RequestOptions? options = null);
         Task<IsFollowerResponse> IsFollowerAsync(IsFollowerRequest body, RequestOptions? options = null);
         Task<ChannelMessageAck> SendChannelMessageAsync(ChannelMessageSend body, RequestOptions? options = null);
-        Task<ChannelMessageAck> SendChannelMessageAsync(Mezon.Net.Client.SendChannelMessageParams message, RequestOptions? options = null);
+        Task<ChannelMessageAck> SendChannelMessageAsync(Mezon.Net.Models.SendChannelMessageParams message, RequestOptions? options = null);
         Task UpdateChannelMessageAsync(ChannelMessageUpdate body, RequestOptions? options = null);
         Task DeleteChannelMessageAsync(ChannelMessageRemove body, RequestOptions? options = null);
         Task RemoveParticipantMezonMeetAsync(MeetParticipantRequest body, RequestOptions? options = null);

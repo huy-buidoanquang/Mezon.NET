@@ -4,6 +4,7 @@ using Mezon.Net.Client;
 using Mezon.Net.Core;
 using Mezon.Net.Core.Protocol;
 using Mezon.Net.Internal.Realtime;
+using Mezon.Net.Models;
 
 namespace Mezon.Net.Client.Tests;
 
@@ -13,11 +14,11 @@ public sealed class EventDispatchTests
     public async Task ProcessMessageAsync_dispatches_new_realtime_oneof_events()
     {
         var client = new MezonClient();
-        ApiRequestEvent? apiRequest = null;
-        ListChannelUsersBannedEvent? banned = null;
-        global::Mezon.Net.Internal.Api.Session? session = null;
-        ChannelArchiveEvent? archive = null;
-        TopicInMessageEvent? topic = null;
+        ApiRequestEventData? apiRequest = null;
+        ListChannelUsersBannedEventData? banned = null;
+        Session? session = null;
+        ChannelArchiveEventData? archive = null;
+        TopicInMessageEventData? topic = null;
 
         client.ApiRequestReceivedEvent += payload => { apiRequest = payload; return Task.CompletedTask; };
         client.ChannelUsersBannedListedEvent += payload => { banned = payload; return Task.CompletedTask; };
@@ -29,7 +30,7 @@ public sealed class EventDispatchTests
         {
             new Envelope { ApiRequestEvent = new ApiRequestEvent { ApiName = "Healthcheck", ApiIndex = 201 } },
             new Envelope { ListChannelUsersBannedEvent = new ListChannelUsersBannedEvent { BannedUserIds = { 42 } } },
-            new Envelope { RefreshSessionEvent = new global::Mezon.Net.Internal.Api.Session { Token = "t" } },
+            new Envelope { RefreshSessionEvent = new global::Mezon.Net.Internal.Api.Session { SessionId = "s", Token = CreateJwt(), RefreshToken = CreateJwt() } },
             new Envelope { ChannelArchiveEvent = new ChannelArchiveEvent { ChannelId = 7, ClanId = 3 } },
             new Envelope { TopicInMessageEvent = new TopicInMessageEvent { MessageId = 99, TpId = "topic" } },
         };
@@ -42,10 +43,18 @@ public sealed class EventDispatchTests
         }
 
         Assert.Equal("Healthcheck", apiRequest?.ApiName);
-        Assert.Contains(42L, banned?.BannedUserIds);
-        Assert.Equal("t", session?.Token);
+        Assert.True(banned.HasValue);
+        Assert.Equal(42L, banned.Value.BannedUserIds[0]);
+        Assert.Equal(CreateJwt(), session?.AuthToken);
         Assert.Equal(7, archive?.ChannelId);
         Assert.Equal(99, topic?.MessageId);
+    }
+
+    private static string CreateJwt()
+    {
+        const string header = "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0";
+        const string payload = "eyJleHAiOjk5OTk5OTk5OTksInVpZCI6IjEiLCJ1c24iOiJ0ZXN0In0";
+        return $"{header}.{payload}.";
     }
 }
 
@@ -54,7 +63,7 @@ public sealed class AllocationSmokeTests
     [Fact]
     public void SendChannelMessageParams_struct_has_expected_size()
     {
-        var size = Unsafe.SizeOf<Mezon.Net.Client.SendChannelMessageParams>();
+        var size = Unsafe.SizeOf<Mezon.Net.Models.SendChannelMessageParams>();
         Assert.True(size < 64);
     }
 }

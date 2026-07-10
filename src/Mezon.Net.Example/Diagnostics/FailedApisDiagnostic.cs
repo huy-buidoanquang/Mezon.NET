@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using Mezon.Net.Client;
 using Mezon.Net.Core;
+using Mezon.Net.Example.Infrastructure;
+using Mezon.Net.Models;
 using Microsoft.Extensions.Logging;
 
 namespace Mezon.Net.Example.Diagnostics;
@@ -30,54 +32,56 @@ internal static class FailedApisDiagnostic
 
         await RunCaseAsync("ListChannelUsersAsync", options, transportType, email, password, async (client, o, opts) =>
         {
-            var api = client.ApiClient;
-            var channel = await api.GetChannelDetailAsync(o.ChannelId, opts).ConfigureAwait(false);
-            await api.ListChannelUsersAsync(o.ClanId, o.ChannelId, channel.Type, limit: 20, options: opts).ConfigureAwait(false);
+            var channel = await client.GetChannelDetailAsync(o.ChannelId, opts).ConfigureAwait(false);
+            await client.ListChannelUsersAsync(o.ClanId, o.ChannelId, channel.Type, limit: 20, state: null, cursor: null, options: opts).ConfigureAwait(false);
         }, logger, cancellationToken).ConfigureAwait(false);
 
         await RunCaseAsync("ListNotificationsAsync", options, transportType, email, password,
-            (client, o, opts) => client.ApiClient.ListNotificationsAsync(o.ClanId, limit: 10, category: 1, options: opts), logger, cancellationToken).ConfigureAwait(false);
+            (client, o, opts) => client.ListNotificationsAsync(o.ClanId, notificationId: null, limit: 10, category: 1, direction: null, options: opts), logger, cancellationToken).ConfigureAwait(false);
 
         await RunCaseAsync("ListRoleUsersAsync", options, transportType, email, password, async (client, o, opts) =>
         {
-            roleId ??= (await client.ListRolesAsync(o.ClanId, limit: 5, options: opts).ConfigureAwait(false))
-                .Roles?.Roles.FirstOrDefault()?.Id;
+            if (!roleId.HasValue)
+            {
+                var rolesResponse = await client.ListRolesAsync(new RoleListEventParams(clanId: o.ClanId, limit: 5), opts).ConfigureAwait(false);
+                roleId = rolesResponse.Roles.Roles.Count > 0 ? rolesResponse.Roles.Roles[0].Id : null;
+            }
+
             if (!roleId.HasValue)
             {
                 throw new InvalidOperationException("No roles available.");
             }
 
-            await client.ListRoleUsersAsync(roleId.Value, limit: 10, options: opts).ConfigureAwait(false);
+            await client.ListRoleUsersAsync(new ListRoleUsersParams(roleId: roleId.Value, limit: 10), opts).ConfigureAwait(false);
         }, logger, cancellationToken).ConfigureAwait(false);
 
         await RunCaseAsync("ListActivityAsync", options, transportType, email, password,
-            (client, _, opts) => client.ApiClient.ListActivityAsync(opts), logger, cancellationToken).ConfigureAwait(false);
+            (client, _, opts) => client.ListActivityAsync(opts), logger, cancellationToken).ConfigureAwait(false);
 
         await RunCaseAsync("ListAppsAsync", options, transportType, email, password,
-            (client, _, opts) => client.ApiClient.ListAppsAsync(options: opts), logger, cancellationToken).ConfigureAwait(false);
+            (client, _, opts) => client.ListAppsAsync(filter: null, tombstones: null, cursor: null, options: opts), logger, cancellationToken).ConfigureAwait(false);
 
         await RunCaseAsync("ListAuditLogAsync", options, transportType, email, password,
-            (client, o, opts) => client.ApiClient.ListAuditLogAsync(o.ClanId, options: opts), logger, cancellationToken).ConfigureAwait(false);
+            (client, o, opts) => client.ListAuditLogAsync(o.ClanId, actionLog: null, userId: null, dateLog: null, options: opts), logger, cancellationToken).ConfigureAwait(false);
 
         await RunCaseAsync("GetChannelCategoryNotificationSettingsAsync", options, transportType, email, password,
-            (client, o, opts) => client.ApiClient.GetChannelCategoryNotificationSettingsAsync(o.ClanId, opts), logger, cancellationToken).ConfigureAwait(false);
+            (client, o, opts) => client.GetChannelCategoryNotificationSettingsAsync(o.ClanId, opts), logger, cancellationToken).ConfigureAwait(false);
 
         await RunCaseAsync("ListChannelDescsAsync", options, transportType, email, password,
-            (client, o, opts) => client.ListChannelDescsAsync(o.ClanId, limit: 20, channelType: 1, page: 0, options: opts), logger, cancellationToken,
+            (client, o, opts) => client.ListChannelDescsAsync(new ListChannelDescsParams(clanId: o.ClanId, limit: 20, channelType: 1, page: 0), opts), logger, cancellationToken,
             timeoutMs: options.ListChannelDescsTimeoutMs).ConfigureAwait(false);
 
         await RunCaseAsync("HealthcheckAsync", options, transportType, email, password,
-            (client, _, opts) => client.ApiClient.HealthcheckAsync(opts), logger, cancellationToken).ConfigureAwait(false);
+            (client, _, opts) => client.HealthcheckAsync(opts), logger, cancellationToken).ConfigureAwait(false);
 
         await RunCaseAsync("SendChannelMessageAsync", options, transportType, email, password, async (client, o, opts) =>
         {
-            var api = client.ApiClient;
-            var channel = await api.GetChannelDetailAsync(o.ChannelId, opts).ConfigureAwait(false);
+            var channel = await client.GetChannelDetailAsync(o.ChannelId, opts).ConfigureAwait(false);
             var content = System.Text.Json.JsonSerializer.Serialize(new { t = o.TestMessage });
             var isPublic = channel.ChannelPrivate == 0;
             var mode = ChannelStreamModeHelper.FromChannelType(channel.Type);
-            await client.JoinChannelChat(o.ClanId, o.ChannelId, channel.Type, isPublic).ConfigureAwait(false);
-            await api.SendChannelMessageAsync(new SendChannelMessageParams(o.ClanId, o.ChannelId, content, isPublic: isPublic, mode: mode), opts).ConfigureAwait(false);
+            await client.JoinChannelChatRtAsync(new ChannelJoinParams(o.ClanId, o.ChannelId, channel.Type, isPublic)).ConfigureAwait(false);
+            await client.SendChannelMessageAsync(new SendChannelMessageParams(o.ClanId, o.ChannelId, content, isPublic: isPublic, mode: mode), opts).ConfigureAwait(false);
         }, logger, cancellationToken).ConfigureAwait(false);
 
         logger.LogInformation("=== Failed APIs diagnostic finished ===");
@@ -104,7 +108,7 @@ internal static class FailedApisDiagnostic
             };
 
             await using var client = new MezonClient(clientOptions);
-            var session = await client.AuthenticateEmailAsync(email, password).ConfigureAwait(false);
+            var session = await client.AuthenticateEmailAsync(ExampleHelpers.CreateEmailAuthRequest(email, password)).ConfigureAwait(false);
             await client.LoginAsync(session).ConfigureAwait(false);
             await client.ConnectAsync().ConfigureAwait(false);
             await Task.Delay(500, cancellationToken).ConfigureAwait(false);

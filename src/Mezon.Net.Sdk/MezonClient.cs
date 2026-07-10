@@ -4,7 +4,8 @@ using System.Threading.Tasks;
 using Mezon.Net.Abstractions;
 using Mezon.Net.Client.Managers;
 using Mezon.Net.Core;
-using Mezon.Net.Internal.Api;
+using Mezon.Net.Client;
+using Mezon.Net.Models;
 using Mezon.Net.Logging;
 using Mezon.Net.Mmn;
 using Mezon.Net.Mmn.Models;
@@ -48,7 +49,7 @@ namespace Mezon.Net.Sdk
 
         public MezonClientOptions Options { get; }
         internal Client.MezonClient Engine => _engine;
-        internal IMezonApiClient Api => _engine.ApiClient;
+        internal Client.MezonApiClient ApiClient => (Client.MezonApiClient)_engine.ApiClient;
         internal DmChannelManager DmChannels => _dmChannels;
         internal ChannelSendQueue SendQueue => _sendQueue;
         public EntityCache<Clan> Clans { get; }
@@ -135,7 +136,7 @@ namespace Mezon.Net.Sdk
 
         private async Task InitializeAfterConnectedAsync(CancellationToken cancellationToken)
         {
-            await _dmChannels.InitializeAsync(Api, _engine).ConfigureAwait(false);
+            await _dmChannels.InitializeAsync(_engine).ConfigureAwait(false);
             await SeedClanCacheAsync(cancellationToken).ConfigureAwait(false);
             await RejoinCachedChannelsAsync().ConfigureAwait(false);
             BindCacheListeners();
@@ -180,11 +181,11 @@ namespace Mezon.Net.Sdk
             return _agentManager.ConnectAsync(cancellationToken);
         }
 
-        public async Task AddQuickMenuAccessAsync(QuickMenuAccess body, RequestOptions? options = null)
-            => await Api.AddQuickMenuAccessAsync(body, options).ConfigureAwait(false);
+        public async Task AddQuickMenuAccessAsync(QuickMenuAccessParams body, RequestOptions? options = null)
+            => await _engine.AddQuickMenuAccessAsync(body, options).ConfigureAwait(false);
 
-        public async Task DeleteQuickMenuAccessAsync(QuickMenuAccess body, RequestOptions? options = null)
-            => await Api.DeleteQuickMenuAccessAsync(body, options).ConfigureAwait(false);
+        public async Task DeleteQuickMenuAccessAsync(QuickMenuAccessParams body, RequestOptions? options = null)
+            => await _engine.DeleteQuickMenuAccessAsync(body, options).ConfigureAwait(false);
 
         public EphemeralKeyPair GetEphemeralKeyPair()
         {
@@ -228,9 +229,10 @@ namespace Mezon.Net.Sdk
 
         private async ValueTask<Clan> FetchClanAsync(long clanId, CancellationToken cancellationToken)
         {
-            var list = await Api.ListClanDescsAsync(new ListClanDescRequest()).ConfigureAwait(false);
-            foreach (var clan in list.Clandesc)
+            var list = await _engine.ListClanDescsAsync(new ListClanDescParams()).ConfigureAwait(false);
+            for (var i = 0; i < list.Clandesc.Count; i++)
             {
+                var clan = list.Clandesc[i].Proto;
                 if (clan.ClanId == clanId)
                 {
                     return new Clan(this, clan);
@@ -242,9 +244,9 @@ namespace Mezon.Net.Sdk
 
         private async ValueTask<TextChannel> FetchChannelAsync(long channelId, CancellationToken cancellationToken)
         {
-            var detail = await Api.GetChannelDetailAsync(channelId).ConfigureAwait(false);
+            var detail = await _engine.GetChannelDetailAsync(channelId).ConfigureAwait(false);
             var clan = await GetClanAsync(detail.ClanId, cancellationToken).ConfigureAwait(false);
-            var channel = new TextChannel(this, detail, clan);
+            var channel = new TextChannel(this, detail.Proto, clan);
             await channel.JoinAsync().ConfigureAwait(false);
             return channel;
         }
@@ -257,11 +259,12 @@ namespace Mezon.Net.Sdk
 
         private async Task SeedClanCacheAsync(CancellationToken cancellationToken)
         {
-            var list = await Api.ListClanDescsAsync(new ListClanDescRequest()).ConfigureAwait(false);
-            foreach (var clanDesc in list.Clandesc)
+            var list = await _engine.ListClanDescsAsync(new ListClanDescParams()).ConfigureAwait(false);
+            for (var i = 0; i < list.Clandesc.Count; i++)
             {
+                var clanDesc = list.Clandesc[i].Proto;
                 Clans.Set(clanDesc.ClanId, new Clan(this, clanDesc));
-                await _engine.JoinClanChat(clanDesc.ClanId).ConfigureAwait(false);
+                await _engine.JoinClanChatRtAsync(new ClanJoinParams(clanDesc.ClanId)).ConfigureAwait(false);
             }
         }
 

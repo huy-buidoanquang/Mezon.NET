@@ -1,10 +1,10 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Mezon.Net.Abstractions;
 using Mezon.Net.Core;
 using Mezon.Net.Core.Constants;
 using Mezon.Net.Internal.Api;
+using Mezon.Net.Models;
 
 namespace Mezon.Net.Client.Managers
 {
@@ -15,23 +15,23 @@ namespace Mezon.Net.Client.Managers
 
         public IReadOnlyList<ChannelDescription> DmChannelDescriptions => _dmChannelDescs;
 
-        public async Task InitializeAsync(IMezonApiClient api, MezonClient client, RequestOptions? options = null)
+        public async Task InitializeAsync(MezonClient client, RequestOptions? options = null)
         {
             _userToChannelId.Clear();
             _dmChannelDescs.Clear();
 
             var channels = await client.ListChannelDescsAsync(
-                clanId: 0,
-                channelType: (int)ChannelType.Dm,
-                options: options).ConfigureAwait(false);
+                new ListChannelDescsParams(clanId: 0, channelType: (int)ChannelType.Dm),
+                options).ConfigureAwait(false);
 
-            if (channels?.Channeldesc == null || channels.Channeldesc.Count == 0)
+            if (channels.Channeldesc.Count == 0)
             {
                 return;
             }
 
-            foreach (var channel in channels.Channeldesc)
+            for (var i = 0; i < channels.Channeldesc.Count; i++)
             {
+                var channel = channels.Channeldesc[i].Proto;
                 if (channel.Type != (int)ChannelType.Dm || channel.ChannelId == 0 || channel.UserIds.Count == 0)
                 {
                     continue;
@@ -46,7 +46,6 @@ namespace Mezon.Net.Client.Managers
             => _userToChannelId.TryGetValue(userId, out channelId);
 
         public async Task<ChannelDescription?> CreateDmChannelAsync(
-            IMezonApiClient api,
             MezonClient client,
             long userId,
             RequestOptions? options = null)
@@ -61,23 +60,22 @@ namespace Mezon.Net.Client.Managers
                 return _dmChannelDescs.Find(c => c.ChannelId == existingChannelId);
             }
 
-            var request = new CreateChannelDescRequest
-            {
-                ClanId = 0,
-                ChannelId = 0,
-                CategoryId = 0,
-                Type = (int)ChannelType.Dm,
-                ChannelPrivate = 1,
-            };
-            request.UserIds.Add(userId);
-
-            var channel = await api.CreateChannelDescAsync(request, options).ConfigureAwait(false);
-            if (channel == null || channel.ChannelId == 0)
+            var channelData = await client.CreateChannelDescAsync(
+                new CreateChannelDescParams(
+                    clanId: 0,
+                    channelId: 0,
+                    categoryId: 0,
+                    type: (int)ChannelType.Dm,
+                    channelPrivate: 1,
+                    userIds: new long?[] { userId }),
+                options).ConfigureAwait(false);
+            var channel = channelData.Proto;
+            if (channel.ChannelId == 0)
             {
                 return null;
             }
 
-            await client.JoinChannelChat(channel.ClanId, channel.ChannelId, channel.Type, isPublic: false).ConfigureAwait(false);
+            await client.JoinChannelChatRtAsync(new ChannelJoinParams(channel.ClanId, channel.ChannelId, channel.Type, isPublic: false)).ConfigureAwait(false);
 
             _dmChannelDescs.Add(channel);
             _userToChannelId[userId] = channel.ChannelId;
