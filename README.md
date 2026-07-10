@@ -17,10 +17,37 @@ The library is designed around two distinct developer experiences:
 | Audience | Package to reference | Entry point | Surface |
 |----------|----------------------|-------------|---------|
 | Bot / Channel-app dev | `Mezon.Net.Sdk` only | `Mezon.Net.Sdk.MezonClient` | Curated, high-level: `LoginAsync`, entities (`Clan`/`TextChannel`/`Message`/`User`), past-tense events (`ChannelMessageReceived`), builders, MMN, quick menu |
-| UI / Client dev | `Mezon.Net.Client` (+ `Transport`/`Core` if needed) | `Mezon.Net.Client.MezonClient` | Full engine: raw socket, `IMezonApiClient` (100+ methods), realtime `Envelope`, all events |
+| UI / Client dev | `Mezon.Net.Client` (+ `Transport`/`Core` if needed) | `Mezon.Net.Client.MezonClient` | Full engine: socket lifecycle, typed facades (`IMezonClientApi`, `IMezonClientRealtime`), `Mezon.Net.Models` params/data views, all events |
 
 - `Mezon.Net.Sdk` references `Mezon.Net.Client` transitively (`ProjectReference`), so bot devs add **only** `Mezon.Net.Sdk`.
-- The SDK does not expose the underlying engine: `Engine`/`Api` and internal plumbing are `internal`, so bot code stays on the ergonomic surface. All messaging (including ephemeral) is composed in the Client layer (`MessageSendHelper`), never by hand-building protobuf in the SDK.
+- The SDK does not expose the underlying engine: `Engine`/`ApiClient` and internal protobuf plumbing are `internal`, so bot code stays on the ergonomic surface. All messaging (including ephemeral) is composed in the Client layer (`MessageSendHelper`), never by hand-building protobuf in the SDK.
+
+### Protobuf boundary (`Mezon.Net.Models`)
+
+Public API types live in `Mezon.Net.Models` (generated under `Mezon.Net.Client/Models/`):
+
+| Direction | Type pattern | Example |
+|-----------|--------------|---------|
+| Request | `*Params` readonly struct | `ListClanDescParams`, `SendChannelMessageParams` |
+| Response | `*Data` view struct (wraps proto, zero extra alloc) | `ChannelMessageData`, `ClanDescListData` |
+| Events | `*EventData` (implicit → `*Data`) | `ChannelMessageEventData` |
+
+Facades are generated on base classes (not on `MezonClient` directly):
+
+- `BaseMezonClient` — REST/auth bootstrap (~7 methods)
+- `BaseSocketClient` — socket API (~210 methods) + **realtime envelope** (21 `*RtAsync` methods) + payload events
+- `MezonClient` — connect, heartbeat, event dispatch only
+
+Two socket send paths (parity with mezon-js):
+
+| Path | Interface | Example |
+|------|-----------|---------|
+| Socket API (`/mezon.api.Mezon/...`) | `IMezonClientApi` | `SendChannelMessageAsync`, `UpdateChannelMessageAsync` |
+| Realtime envelope (direct `Envelope` oneof) | `IMezonClientRealtime` | `SendChatMessageRtAsync`, `JoinChannelChatRtAsync`, `LeaveChannelChatRtAsync` |
+
+Realtime methods use the `RtAsync` suffix; mezon-js `write*` maps to `Send*RtAsync`.
+
+`IMezonApiClient` / `IMezonSocketClient` / `ApiClient` are **internal**. Regenerate models/facades with `python tools/generate_protobuf_boundary.py`; run `python tools/compare_mezon_js_parity.py` to verify mezon-js parity.
 
 ### Namespace convention
 
@@ -29,10 +56,12 @@ The Client family all lives under `Mezon.Net.*`:
 | Namespace | Contains |
 |-----------|----------|
 | `Mezon.Net.Client` | `MezonClient` (engine), socket clients, events |
-| `Mezon.Net.Api` | Requests/responses, session, `MezonApiClient` |
-| `Mezon.Net.Abstractions` | `IMezonApiClient`, `ISession`, provider interfaces |
+| `Mezon.Net.Models` | Public `*Params` / `*Data` / `*EventData` (generated) |
+| `Mezon.Net.Abstractions` | `IMezonClientApi`, `IMezonClientRealtime`, `ISession`, provider interfaces |
 | `Mezon.Net.DependencyInjection` | DI extensions for the engine |
 | `Mezon.Net.Client.Messaging` / `.Managers` | `MessageSendHelper`, `DmChannelManager` |
+
+Legacy JSON DTOs under `Mezon.Net.Client/Api/` remain for a few auth helpers (`EmailAuthenticationRequest`, …) but are not the primary API surface.
 
 The bot-facing surface lives under `Mezon.Net.Sdk` (and `Mezon.Net.Sdk.Entities`, `Mezon.Net.Sdk.Builders`, ...).
 

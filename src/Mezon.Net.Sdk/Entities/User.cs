@@ -1,12 +1,11 @@
 using System;
 using System.Threading.Tasks;
-using Mezon.Net.Client;
-using Mezon.Net.Client.Managers;
 using Mezon.Net.Client.Messaging;
 using Mezon.Net.Core;
 using Mezon.Net.Core.Constants;
 using Mezon.Net.Core.Entities;
 using Mezon.Net.Internal.Realtime;
+using Mezon.Net.Models;
 
 namespace Mezon.Net.Sdk.Entities
 {
@@ -37,10 +36,10 @@ namespace Mezon.Net.Sdk.Entities
         {
             if (_dmChannelId == 0)
             {
-                var dm = await _client.DmChannels.CreateDmChannelAsync(_client.Api, _client.Engine, Id, options).ConfigureAwait(false);
+                var dm = await _client.DmChannels.CreateDmChannelAsync(_client.Engine, Id, options).ConfigureAwait(false);
                 if (dm == null)
                 {
-                throw new MezonEntityNotFoundException(nameof(User), Id, $"Unable to create DM channel for user {Id}.");
+                    throw new MezonEntityNotFoundException(nameof(User), Id, $"Unable to create DM channel for user {Id}.");
                 }
 
                 _dmChannelId = dm.ChannelId;
@@ -48,7 +47,7 @@ namespace Mezon.Net.Sdk.Entities
 
             var mode = (int)ChannelStreamMode.Dm;
             var parameters = new SendChannelMessageParams(0, _dmChannelId, content, isPublic: false, mode: mode, code: code);
-            return await MessageSendHelper.SendAsync(_client.Api, parameters, options).ConfigureAwait(false);
+            return await MessageSendHelper.SendAsync(_client.ApiClient, parameters, options).ConfigureAwait(false);
         }
     }
 }

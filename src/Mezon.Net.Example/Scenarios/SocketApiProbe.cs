@@ -1,9 +1,7 @@
 using Mezon.Net.Client;
-using Mezon.Net.Client;
 using Mezon.Net.Core;
 using Mezon.Net.Core.Protocol;
-using Mezon.Net.Internal.Api;
-using Mezon.Net.Internal.Realtime;
+using Mezon.Net.Models;
 using Microsoft.Extensions.Logging;
 
 namespace Mezon.Net.Example.Scenarios;
@@ -46,7 +44,6 @@ internal static class SocketApiProbe
             maxStage = options.ProbeMaxStage;
         }
 
-        var api = client.ApiClient;
         var results = new List<ProbeResult>();
         var opts = new RequestOptions { SocketSendTimeout = options.ApiTimeoutMs };
         var listChannelDescsOpts = new RequestOptions { SocketSendTimeout = options.ListChannelDescsTimeoutMs };
@@ -80,22 +77,22 @@ internal static class SocketApiProbe
 
         await RunStage(1, "Core reads", async () =>
         {
-            await Probe(results, logger, options, cancellationToken, "GetAccountAsync", () => api.GetAccountAsync(opts));
-            await Probe(results, logger, options, cancellationToken, "ListClanDescsAsync", () => api.ListClanDescsAsync(new ListClanDescRequest { Limit = 20 }, opts));
+            await Probe(results, logger, options, cancellationToken, "GetAccountAsync", () => client.GetAccountAsync(opts));
+            await Probe(results, logger, options, cancellationToken, "ListClanDescsAsync", () => client.ListClanDescsAsync(new ListClanDescParams(limit: 20), opts));
         });
 
         await RunStage(2, "Clan + channel metadata", async () =>
         {
-            await Probe(results, logger, options, cancellationToken, "ListCategoryDescsAsync", () => api.ListCategoryDescsAsync(ctx.ClanId, opts));
-            await Probe(results, logger, options, cancellationToken, "ListFriendsAsync", () => api.ListFriendsAsync(limit: 10, options: opts));
+            await Probe(results, logger, options, cancellationToken, "ListCategoryDescsAsync", () => client.ListCategoryDescsAsync(ctx.ClanId, opts));
+            await Probe(results, logger, options, cancellationToken, "ListFriendsAsync", () => client.ListFriendsAsync(state: null, limit: 10, cursor: null, options: opts));
         });
 
         await RunStage(3, "Roles + events + permissions", async () =>
         {
             await Probe(results, logger, options, cancellationToken, "ListRolesAsync", async () =>
             {
-                var response = await api.ListRolesAsync(ctx.ClanId, limit: 20, options: opts).ConfigureAwait(false);
-                if (response.Roles?.Roles.Count > 0)
+                var response = await client.ListRolesAsync(new RoleListEventParams(clanId: ctx.ClanId, limit: 20), opts).ConfigureAwait(false);
+                if (response.Roles.Roles.Count > 0)
                 {
                     roleId = response.Roles.Roles[0].Id;
                 }
@@ -103,34 +100,34 @@ internal static class SocketApiProbe
                 return response;
             });
 
-            await Probe(results, logger, options, cancellationToken, "ListEventsAsync", () => api.ListEventsAsync(ctx.ClanId, opts));
-            await Probe(results, logger, options, cancellationToken, "GetListPermissionAsync", () => api.GetListPermissionAsync(opts));
+            await Probe(results, logger, options, cancellationToken, "ListEventsAsync", () => client.ListEventsAsync(ctx.ClanId, opts));
+            await Probe(results, logger, options, cancellationToken, "GetListPermissionAsync", () => client.GetListPermissionAsync(opts));
         });
 
         await RunStage(4, "Channel reads", async () =>
         {
-            await Probe(results, logger, options, cancellationToken, "ListChannelMessagesAsync", () => api.ListChannelMessagesAsync(ctx.ClanId, ctx.ChannelId, limit: 10, options: opts));
-            await Probe(results, logger, options, cancellationToken, "ListChannelUsersAsync", () => api.ListChannelUsersAsync(ctx.ClanId, ctx.ChannelId, ctx.ChannelType, limit: 20, options: opts));
-            await Probe(results, logger, options, cancellationToken, "GetPinMessagesListAsync", () => api.GetPinMessagesListAsync(ctx.ChannelId, ctx.ClanId, opts));
-            await Probe(results, logger, options, cancellationToken, "ListNotificationsAsync", () => api.ListNotificationsAsync(ctx.ClanId, limit: 10, category: 1, options: opts));
-            await Probe(results, logger, options, cancellationToken, "ListUserPermissionInChannelAsync", () => api.ListUserPermissionInChannelAsync(ctx.ClanId, ctx.ChannelId, opts));
+            await Probe(results, logger, options, cancellationToken, "ListChannelMessagesAsync", () => client.ListChannelMessagesAsync(ctx.ClanId, ctx.ChannelId, messageId: null, direction: null, limit: 10, topicId: null, options: opts));
+            await Probe(results, logger, options, cancellationToken, "ListChannelUsersAsync", () => client.ListChannelUsersAsync(ctx.ClanId, ctx.ChannelId, ctx.ChannelType, limit: 20, state: null, cursor: null, options: opts));
+            await Probe(results, logger, options, cancellationToken, "GetPinMessagesListAsync", () => client.GetPinMessagesListAsync(ctx.ChannelId, ctx.ClanId, opts));
+            await Probe(results, logger, options, cancellationToken, "ListNotificationsAsync", () => client.ListNotificationsAsync(ctx.ClanId, notificationId: null, limit: 10, category: 1, direction: null, options: opts));
+            await Probe(results, logger, options, cancellationToken, "ListUserPermissionInChannelAsync", () => client.ListUserPermissionInChannelAsync(ctx.ClanId, ctx.ChannelId, opts));
         });
 
         await RunStage(5, "Extended reads", async () =>
         {
             if (roleId.HasValue)
             {
-                await Probe(results, logger, options, cancellationToken, "ListRolePermissionsAsync", () => api.ListRolePermissionsAsync(roleId.Value, opts));
-                await Probe(results, logger, options, cancellationToken, "ListRoleUsersAsync", () => api.ListRoleUsersAsync(roleId.Value, limit: 10, options: opts));
+                await Probe(results, logger, options, cancellationToken, "ListRolePermissionsAsync", () => client.ListRolePermissionsAsync(roleId.Value, opts));
+                await Probe(results, logger, options, cancellationToken, "ListRoleUsersAsync", () => client.ListRoleUsersAsync(new ListRoleUsersParams(roleId: roleId.Value, limit: 10), opts));
             }
 
-            await Probe(results, logger, options, cancellationToken, "GetListEmojisByUserIdAsync", () => api.GetListEmojisByUserIdAsync(opts));
-            await Probe(results, logger, options, cancellationToken, "GetListStickersByUserIdAsync", () => api.GetListStickersByUserIdAsync(opts));
-            await Probe(results, logger, options, cancellationToken, "ListActivityAsync", () => api.ListActivityAsync(opts));
-            await Probe(results, logger, options, cancellationToken, "GetUserStatusAsync", () => api.GetUserStatusAsync(opts));
+            await Probe(results, logger, options, cancellationToken, "GetListEmojisByUserIdAsync", () => client.GetListEmojisByUserIdAsync(opts));
+            await Probe(results, logger, options, cancellationToken, "GetListStickersByUserIdAsync", () => client.GetListStickersByUserIdAsync(opts));
+            await Probe(results, logger, options, cancellationToken, "ListActivityAsync", () => client.ListActivityAsync(opts));
+            await Probe(results, logger, options, cancellationToken, "GetUserStatusAsync", () => client.GetUserStatusAsync(opts));
             await Probe(results, logger, options, cancellationToken, "ListAppsAsync", async () =>
             {
-                var apps = await api.ListAppsAsync(options: opts).ConfigureAwait(false);
+                var apps = await client.ListAppsAsync(filter: null, tombstones: null, cursor: null, options: opts).ConfigureAwait(false);
                 if (apps.Apps.Count > 0)
                 {
                     appId = apps.Apps[0].Id;
@@ -141,45 +138,36 @@ internal static class SocketApiProbe
 
             if (appId.HasValue)
             {
-                await Probe(results, logger, options, cancellationToken, "GetAppAsync", () => api.GetAppAsync(appId.Value, opts));
+                await Probe(results, logger, options, cancellationToken, "GetAppAsync", () => client.GetAppAsync(appId.Value, opts));
             }
 
-            await Probe(results, logger, options, cancellationToken, "ListAuditLogAsync", () => api.ListAuditLogAsync(ctx.ClanId, options: opts));
-            await Probe(results, logger, options, cancellationToken, "ListBannedUsersAsync", () => api.ListBannedUsersAsync(ctx.ClanId, opts));
-            await Probe(results, logger, options, cancellationToken, "GetChannelCategoryNotificationSettingsAsync", () => api.GetChannelCategoryNotificationSettingsAsync(ctx.ClanId, opts));
-            await Probe(results, logger, options, cancellationToken, "GetClanNotificationSettingAsync", () => api.GetClanNotificationSettingAsync(ctx.ClanId, opts));
+            await Probe(results, logger, options, cancellationToken, "ListAuditLogAsync", () => client.ListAuditLogAsync(ctx.ClanId, actionLog: null, userId: null, dateLog: null, options: opts));
+            await Probe(results, logger, options, cancellationToken, "ListBannedUsersAsync", () => client.ListBannedUsersAsync(ctx.ClanId, opts));
+            await Probe(results, logger, options, cancellationToken, "GetChannelCategoryNotificationSettingsAsync", () => client.GetChannelCategoryNotificationSettingsAsync(ctx.ClanId, opts));
+            await Probe(results, logger, options, cancellationToken, "GetClanNotificationSettingAsync", () => client.GetClanNotificationSettingAsync(ctx.ClanId, opts));
         });
 
         await RunStage(6, "Slow / problematic reads", async () =>
         {
-            await Probe(results, logger, options, cancellationToken, "ListChannelDescsAsync", () => api.ListChannelDescsAsync(ctx.ClanId, limit: 50, channelType: ctx.ChannelType, page: 0, options: listChannelDescsOpts));
-            await Probe(results, logger, options, cancellationToken, "ListClanUsersAsync", () => api.ListClanUsersAsync(ctx.ClanId, opts));
+            await Probe(results, logger, options, cancellationToken, "ListChannelDescsAsync", () => client.ListChannelDescsAsync(new ListChannelDescsParams(clanId: ctx.ClanId, limit: 50, channelType: ctx.ChannelType, page: 0), listChannelDescsOpts));
+            await Probe(results, logger, options, cancellationToken, "ListClanUsersAsync", () => client.ListClanUsersAsync(ctx.ClanId, opts));
         });
 
         await RunStage(7, "Realtime + writes", async () =>
         {
-            await Probe(results, logger, options, cancellationToken, "JoinClanChat", () => client.JoinClanChat(ctx.ClanId));
-            await Probe(results, logger, options, cancellationToken, "JoinChannelChat", () => client.JoinChannelChat(ctx.ClanId, ctx.ChannelId, ctx.ChannelType, ctx.IsPublic));
+            await Probe(results, logger, options, cancellationToken, "JoinClanChatRtAsync", () => client.JoinClanChatRtAsync(new ClanJoinParams(ctx.ClanId)));
+            await Probe(results, logger, options, cancellationToken, "JoinChannelChatRtAsync", () => client.JoinChannelChatRtAsync(new ChannelJoinParams(ctx.ClanId, ctx.ChannelId, ctx.ChannelType, ctx.IsPublic)));
             await Task.Delay(300, cancellationToken).ConfigureAwait(false);
-            await Probe(results, logger, options, cancellationToken, "SendRealtimeAsync:MessageTypingEvent", () => client.SendRealtimeAsync(new Envelope
-            {
-                MessageTypingEvent = new MessageTypingEvent
-                {
-                    ClanId = ctx.ClanId,
-                    ChannelId = ctx.ChannelId,
-                    SenderId = ctx.UserId,
-                    Mode = 1,
-                    IsPublic = ctx.IsPublic,
-                    SenderUsername = ctx.Username,
-                }
-            }, opts));
+            results.Add(new ProbeResult("SendMessageTypingRtAsync", true, Detail: "skipped (optional)"));
+            logger.LogInformation("[SKIP] SendMessageTypingRtAsync (optional smoke)");
+            await ProbeDelayAsync(options, cancellationToken).ConfigureAwait(false);
             await Probe(results, logger, options, cancellationToken, "Latency (automatic heartbeat)", async () => client.Latency);
-            await Probe(results, logger, options, cancellationToken, "HealthcheckAsync", () => api.HealthcheckAsync(opts));
+            await Probe(results, logger, options, cancellationToken, "HealthcheckAsync", () => client.HealthcheckAsync(opts));
             await Probe(results, logger, options, cancellationToken, "SendChannelMessageAsync", async () =>
             {
                 var content = System.Text.Json.JsonSerializer.Serialize(new { t = options.TestMessage });
                 var mode = Mezon.Net.Client.ChannelStreamModeHelper.FromChannelType(ctx.ChannelType);
-                var ack = await api.SendChannelMessageAsync(
+                var ack = await client.SendChannelMessageAsync(
                     new SendChannelMessageParams(ctx.ClanId, ctx.ChannelId, content, isPublic: ctx.IsPublic, mode: mode),
                     opts).ConfigureAwait(false);
                 sentMessageId = ack.MessageId;
@@ -188,67 +176,56 @@ internal static class SocketApiProbe
 
             if (sentMessageId is > 0)
             {
-                await Probe(results, logger, options, cancellationToken, "MarkAsReadAsync", () => api.MarkAsReadAsync(new MarkAsReadRequest
-                {
-                    ClanId = ctx.ClanId,
-                    ChannelId = ctx.ChannelId,
-                }, opts));
+                await Probe(results, logger, options, cancellationToken, "MarkAsReadAsync", () => client.MarkAsReadAsync(new MarkAsReadParams(channelId: ctx.ChannelId, clanId: ctx.ClanId), opts));
             }
         });
 
         await RunStage(8, "Account & badges", async () =>
         {
-            await Probe(results, logger, options, cancellationToken, "ListClanBadgeCountAsync", () => api.ListClanBadgeCountAsync(opts));
-            await Probe(results, logger, options, cancellationToken, "ListChannelBadgeCountAsync", () => api.ListChannelBadgeCountAsync(ctx.ClanId, limit: 20, page: 0, opts));
-            await Probe(results, logger, options, cancellationToken, "ListLogedDeviceAsync", () => api.ListLogedDeviceAsync(opts));
-            await Probe(results, logger, options, cancellationToken, "ListClanUsersStatusAsync", () => api.ListClanUsersStatusAsync(ctx.ClanId, opts));
-            await Probe(results, logger, options, cancellationToken, "EmojiRecentListAsync", () => api.EmojiRecentListAsync(opts));
+            await Probe(results, logger, options, cancellationToken, "ListClanBadgeCountAsync", () => client.ListClanBadgeCountAsync(opts));
+            await Probe(results, logger, options, cancellationToken, "ListChannelBadgeCountAsync", () => client.ListChannelBadgeCountAsync(ctx.ClanId, limit: 20, page: 0, opts));
+            await Probe(results, logger, options, cancellationToken, "ListLogedDeviceAsync", () => client.ListLogedDeviceAsync(opts));
+            await Probe(results, logger, options, cancellationToken, "ListClanUsersStatusAsync", () => client.ListClanUsersStatusAsync(ctx.ClanId, opts));
+            await Probe(results, logger, options, cancellationToken, "EmojiRecentListAsync", () => client.EmojiRecentListAsync(opts));
         });
 
         await RunStage(9, "Notifications & onboarding", async () =>
         {
-            await Probe(results, logger, options, cancellationToken, "ListMutedChannelAsync", () => api.ListMutedChannelAsync(ctx.ClanId, opts));
-            await Probe(results, logger, options, cancellationToken, "GetNotificationChannelAsync", () => api.GetNotificationChannelAsync(new NotificationChannel
-            {
-                ChannelId = ctx.ChannelId,
-            }, opts));
-            await Probe(results, logger, options, cancellationToken, "GetNotificationCategoryAsync", () => api.GetNotificationCategoryAsync(new DefaultNotificationCategory(), opts));
-            await Probe(results, logger, options, cancellationToken, "GetRoleOfUserInTheClanAsync", () => api.GetRoleOfUserInTheClanAsync(ctx.ClanId, opts));
-            await Probe(results, logger, options, cancellationToken, "ListOnboardingAsync", () => api.ListOnboardingAsync(ctx.ClanId, options: opts));
-            await Probe(results, logger, options, cancellationToken, "GetSystemMessageByClanIdAsync", () => api.GetSystemMessageByClanIdAsync(ctx.ClanId, opts));
+            await Probe(results, logger, options, cancellationToken, "ListMutedChannelAsync", () => client.ListMutedChannelAsync(ctx.ClanId, opts));
+            await Probe(results, logger, options, cancellationToken, "GetNotificationChannelAsync", () => client.GetNotificationChannelAsync(new NotificationChannelParams(channelId: ctx.ChannelId), opts));
+            await Probe(results, logger, options, cancellationToken, "GetNotificationCategoryAsync", () => client.GetNotificationCategoryAsync(new DefaultNotificationCategoryParams(), opts));
+            await Probe(results, logger, options, cancellationToken, "GetRoleOfUserInTheClanAsync", () => client.GetRoleOfUserInTheClanAsync(ctx.ClanId, opts));
+            await Probe(results, logger, options, cancellationToken, "ListOnboardingAsync", () => client.ListOnboardingAsync(ctx.ClanId, guideType: null, options: opts));
+            await Probe(results, logger, options, cancellationToken, "GetSystemMessageByClanIdAsync", () => client.GetSystemMessageByClanIdAsync(ctx.ClanId, opts));
         });
 
         await RunStage(10, "Channel extras", async () =>
         {
-            await Probe(results, logger, options, cancellationToken, "ListChannelAppsAsync", () => api.ListChannelAppsAsync(ctx.ClanId, opts));
-            await Probe(results, logger, options, cancellationToken, "GetListFavoriteChannelAsync", () => api.GetListFavoriteChannelAsync(ctx.ClanId, opts));
-            await Probe(results, logger, options, cancellationToken, "ListChannelAttachmentAsync", () => api.ListChannelAttachmentAsync(ctx.ChannelId, opts));
-            await Probe(results, logger, options, cancellationToken, "ListChannelVoiceUsersAsync", () => api.ListChannelVoiceUsersAsync(ctx.ClanId, ctx.ChannelId, ctx.ChannelType, opts));
-            await Probe(results, logger, options, cancellationToken, "ListStreamingChannelUsersAsync", () => api.ListStreamingChannelUsersAsync(ctx.ClanId, ctx.ChannelId, ctx.ChannelType, opts));
-            await Probe(results, logger, options, cancellationToken, "GetChannelCanvasListAsync", () => api.GetChannelCanvasListAsync(ctx.ChannelId, opts));
-            await Probe(results, logger, options, cancellationToken, "ListChannelSettingAsync", () => api.ListChannelSettingAsync(ctx.ClanId, opts));
-            await Probe(results, logger, options, cancellationToken, "ListChannelByUserIdAsync", () => api.ListChannelByUserIdAsync(opts));
-            await Probe(results, logger, options, cancellationToken, "ListUserClansByUserIdAsync", () => api.ListUserClansByUserIdAsync(opts));
-            await Probe(results, logger, options, cancellationToken, "GetUserProfileOnClanAsync", () => api.GetUserProfileOnClanAsync(ctx.ClanId, opts));
-            await Probe(results, logger, options, cancellationToken, "IsBannedAsync", () => api.IsBannedAsync(ctx.ChannelId, opts));
-            await Probe(results, logger, options, cancellationToken, "ListThreadDescsAsync", () => api.ListThreadDescsAsync(ctx.ChannelId, opts));
-            await Probe(results, logger, options, cancellationToken, "ListArchivedChannelDescsAsync", () => api.ListArchivedChannelDescsAsync(ctx.ClanId, opts));
-            await Probe(results, logger, options, cancellationToken, "ListUserOnlineAsync", () => api.ListUserOnlineAsync(ctx.ClanId, limit: 20, page: 0, opts));
+            await Probe(results, logger, options, cancellationToken, "ListChannelAppsAsync", () => client.ListChannelAppsAsync(ctx.ClanId, opts));
+            await Probe(results, logger, options, cancellationToken, "GetListFavoriteChannelAsync", () => client.GetListFavoriteChannelAsync(ctx.ClanId, opts));
+            await Probe(results, logger, options, cancellationToken, "ListChannelAttachmentAsync", () => client.ListChannelAttachmentAsync(ctx.ChannelId, opts));
+            await Probe(results, logger, options, cancellationToken, "ListChannelVoiceUsersAsync", () => client.ListChannelVoiceUsersAsync(ctx.ClanId, ctx.ChannelId, ctx.ChannelType, opts));
+            await Probe(results, logger, options, cancellationToken, "ListStreamingChannelUsersAsync", () => client.ListStreamingChannelUsersAsync(ctx.ClanId, ctx.ChannelId, ctx.ChannelType, opts));
+            await Probe(results, logger, options, cancellationToken, "GetChannelCanvasListAsync", () => client.GetChannelCanvasListAsync(ctx.ChannelId, opts));
+            await Probe(results, logger, options, cancellationToken, "ListChannelSettingAsync", () => client.ListChannelSettingAsync(ctx.ClanId, opts));
+            await Probe(results, logger, options, cancellationToken, "ListChannelByUserIdAsync", () => client.ListChannelByUserIdAsync(opts));
+            await Probe(results, logger, options, cancellationToken, "ListUserClansByUserIdAsync", () => client.ListUserClansByUserIdAsync(opts));
+            await Probe(results, logger, options, cancellationToken, "GetUserProfileOnClanAsync", () => client.GetUserProfileOnClanAsync(ctx.ClanId, opts));
+            await Probe(results, logger, options, cancellationToken, "IsBannedAsync", () => client.IsBannedAsync(ctx.ChannelId, opts));
+            await Probe(results, logger, options, cancellationToken, "ListThreadDescsAsync", () => client.ListThreadDescsAsync(ctx.ChannelId, opts));
+            await Probe(results, logger, options, cancellationToken, "ListArchivedChannelDescsAsync", () => client.ListArchivedChannelDescsAsync(ctx.ClanId, opts));
+            await Probe(results, logger, options, cancellationToken, "ListUserOnlineAsync", () => client.ListUserOnlineAsync(ctx.ClanId, limit: 20, page: 0, opts));
         });
 
         await RunStage(11, "Misc reads", async () =>
         {
-            await Probe(results, logger, options, cancellationToken, "ListClanWebhookAsync", () => api.ListClanWebhookAsync(ctx.ClanId, opts));
-            await Probe(results, logger, options, cancellationToken, "GetChanEncryptionMethodAsync", () => api.GetChanEncryptionMethodAsync(ctx.ChannelId, opts));
-            await Probe(results, logger, options, cancellationToken, "GetKeyServerAsync", () => api.GetKeyServerAsync(opts));
-            await Probe(results, logger, options, cancellationToken, "GetPublicKeysAsync", () => api.GetPublicKeysAsync(new[] { ctx.UserId }, opts));
-            await Probe(results, logger, options, cancellationToken, "ListChannelTimelineAsync", () => api.ListChannelTimelineAsync(new ListChannelTimelineRequest
-            {
-                ClanId = ctx.ClanId,
-                ChannelId = ctx.ChannelId,
-            }, opts));
-            await Probe(results, logger, options, cancellationToken, "ListOnboardingStepAsync", () => api.ListOnboardingStepAsync(ctx.ClanId, opts));
-            await Probe(results, logger, options, cancellationToken, "GetChannelDetailAsync", () => api.GetChannelDetailAsync(ctx.ChannelId, opts));
+            await Probe(results, logger, options, cancellationToken, "ListClanWebhookAsync", () => client.ListClanWebhookAsync(ctx.ClanId, opts));
+            await Probe(results, logger, options, cancellationToken, "GetChanEncryptionMethodAsync", () => client.GetChanEncryptionMethodAsync(ctx.ChannelId, opts));
+            await Probe(results, logger, options, cancellationToken, "GetKeyServerAsync", () => client.GetKeyServerAsync(opts));
+            await Probe(results, logger, options, cancellationToken, "GetPublicKeysAsync", () => client.GetPublicKeysAsync(new[] { ctx.UserId }, opts));
+            await Probe(results, logger, options, cancellationToken, "ListChannelTimelineAsync", () => client.ListChannelTimelineAsync(new ListChannelTimelineParams(clanId: ctx.ClanId, channelId: ctx.ChannelId), opts));
+            await Probe(results, logger, options, cancellationToken, "ListOnboardingStepAsync", () => client.ListOnboardingStepAsync(ctx.ClanId, opts));
+            await Probe(results, logger, options, cancellationToken, "GetChannelDetailAsync", () => client.GetChannelDetailAsync(ctx.ChannelId, opts));
         });
 
         if (maxStage <= 0 || maxStage >= 11)

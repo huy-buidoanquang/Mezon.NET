@@ -1,4 +1,5 @@
 using Mezon.Net.Client;
+using Mezon.Net.Example.Infrastructure;
 using Mezon.Net.Core;
 using Microsoft.Extensions.Logging;
 
@@ -50,7 +51,7 @@ internal static class SocketIdleDiagnostic
             for (var i = 0; i < 35; i++)
             {
                 await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken).ConfigureAwait(false);
-                _ = await client.ApiClient.GetAccountAsync().ConfigureAwait(false);
+                _ = await client.GetAccountAsync().ConfigureAwait(false);
                 if (i % 10 == 9)
                 {
                     logger.LogInformation("  tick {I} state={State}", i + 1, client.ConnectionState);
@@ -85,7 +86,7 @@ internal static class SocketIdleDiagnostic
         };
 
         await using var client = new MezonClient(clientOptions);
-        var session = await client.AuthenticateEmailAsync(email, password).ConfigureAwait(false);
+        var session = await client.AuthenticateEmailAsync(ExampleHelpers.CreateEmailAuthRequest(email, password)).ConfigureAwait(false);
         await client.LoginAsync(session).ConfigureAwait(false);
         await client.ConnectAsync().ConfigureAwait(false);
 
@@ -95,7 +96,7 @@ internal static class SocketIdleDiagnostic
 
         try
         {
-            await client.ApiClient.GetAccountAsync().ConfigureAwait(false);
+            await client.GetAccountAsync().ConfigureAwait(false);
             logger.LogInformation("  post-check GetAccount: OK (socket still usable)");
         }
         catch (Exception ex)

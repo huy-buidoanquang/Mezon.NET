@@ -1,6 +1,7 @@
 using Mezon.Net.Client;
 using Mezon.Net.Core;
 using Mezon.Net.Example.Infrastructure;
+using Mezon.Net.Models;
 using Microsoft.Extensions.Logging;
 
 namespace Mezon.Net.Example.Scenarios;
@@ -33,10 +34,10 @@ internal static class SocketVerification
 
         logger.LogInformation("Resolve channel metadata");
         var socketOptions = new RequestOptions { SocketSendTimeout = options.ApiTimeoutMs };
-        var account = await client.ApiClient.GetAccountAsync(socketOptions).ConfigureAwait(false);
-        var userId = account.User?.Id ?? 0;
-        var username = account.User?.Username ?? string.Empty;
-        var channel = await client.ApiClient.GetChannelDetailAsync(channelId, socketOptions).ConfigureAwait(false);
+        var account = await client.GetAccountAsync(socketOptions).ConfigureAwait(false);
+        var userId = account.User.Id;
+        var username = account.User.Username ?? string.Empty;
+        var channel = await client.GetChannelDetailAsync(channelId, socketOptions).ConfigureAwait(false);
         var channelType = channel.Type;
         var isPublic = channel.ChannelPrivate == 0;
 
@@ -102,40 +103,45 @@ internal static class SocketVerification
 
         client.ClanJoinedEvent += clanJoin =>
         {
-            logger.LogInformation("Event: ClanJoin clan_id={ClanId}", clanJoin.ClanId);
+            ClanJoinData data = clanJoin;
+            logger.LogInformation("Event: ClanJoin clan_id={ClanId}", data.ClanId);
             return Task.CompletedTask;
         };
 
         client.ChannelJoinedEvent += channelJoin =>
         {
+            ChannelJoinData data = channelJoin;
             logger.LogInformation(
                 "Event: ChannelJoin clan_id={ClanId} channel_id={ChannelId}",
-                channelJoin.ClanId,
-                channelJoin.ChannelId);
+                data.ClanId,
+                data.ChannelId);
             return Task.CompletedTask;
         };
 
         client.ChannelMessageReceivedEvent += message =>
         {
+            ChannelMessageData data = message;
             logger.LogInformation(
                 "Event: ChannelMessage channel_id={ChannelId} message_id={MessageId}",
-                message.ChannelId,
-                message.MessageId);
+                data.ChannelId,
+                data.MessageId);
             return Task.CompletedTask;
         };
 
         client.ChannelMessageSentEvent += message =>
         {
-            logger.LogInformation("Event: ChannelMessageSend channel_id={ChannelId}", message.ChannelId);
+            ChannelMessageSendData data = message;
+            logger.LogInformation("Event: ChannelMessageSend channel_id={ChannelId}", data.ChannelId);
             return Task.CompletedTask;
         };
 
         client.MessageTypingReceivedEvent += typing =>
         {
+            MessageTypingEventData data = typing;
             logger.LogInformation(
                 "Event: MessageTyping channel_id={ChannelId} sender={Sender}",
-                typing.ChannelId,
-                typing.SenderUsername);
+                data.ChannelId,
+                data.SenderUsername);
             return Task.CompletedTask;
         };
     }

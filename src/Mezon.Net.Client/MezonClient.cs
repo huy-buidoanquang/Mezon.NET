@@ -4,12 +4,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using Mezon.Net.Abstractions;
 using Mezon.Net.Core;
-using Mezon.Net.Internal.Api;
+using Mezon.Net.Core.Abstractions;
 using Mezon.Net.Logging;
 
 namespace Mezon.Net.Client
 {
-    public partial class MezonClient : BaseSocketClient, IMezonClient
+    public partial class MezonClient : BaseSocketClient, IMezonClient, IMezonClientApi, IMezonClientRealtime
     {
         private readonly SocketConnectionManager _connection;
         private readonly SemaphoreSlim _stateLock;
@@ -35,7 +35,7 @@ namespace Mezon.Net.Client
         {
         }
 
-        public MezonClient(MezonSocketClientOptions options, IMezonSocketClient socketClient) : base(options, socketClient)
+        internal MezonClient(MezonSocketClientOptions options, MezonSocketClient socketClient) : base(options, socketClient)
         {
             _stateLock = new SemaphoreSlim(1, 1);
             _logger = LogManager.CreateLogger("MezonSocketClient");
@@ -185,140 +185,6 @@ namespace Mezon.Net.Client
             await _connection.DisconnectAsync().ConfigureAwait(false);
         }
 
-        public async Task<Session> AuthenticateEmailAsync(string email, string password)
-        {
-            var res = await ApiClient.AuthenticateEmailAsync(Options.ServerKey, "", new EmailAuthenticationRequest
-            {
-                Account = new AccountEmailRequest
-                {
-                    Email = email,
-                    Password = password,
-                },
-            }).ConfigureAwait(false);
-            return new Session(res);
-        }
-
-        public async Task<LoginIDResponse> CreateQRLoginAsync(LoginRequest request)
-        {
-            var res = await ApiClient.CreateQRLoginAsync(Options.ServerKey, "", request).ConfigureAwait(false);
-            return new LoginIDResponse
-            {
-                Address = res.Address,
-                CreateTimeSeconds = res.CreateTimeSeconds,
-                LoginId = res.LoginId,
-                Platform = res.Platform,
-                Status = res.Status,
-                UserId = res.UserId,
-                Username = res.Username,
-            };
-        }
-
-        public async Task<ClanDescList> ListClanDescAsync(ListClanDescRequest request)
-        {
-            return await ApiClient.ListClanDescsAsync(request).ConfigureAwait(false);
-        }
-
-        public async Task<ChannelDescList> ListChannelDescsAsync(long clanId, int? limit = null, int? state = null, string? cursor = null, int? channelType = null, bool? isMobile = null, int? page = null, RequestOptions? options = null)
-        {
-            var request = new ListChannelDescsRequest
-            {
-                ClanId = clanId
-            };
-            if (limit.HasValue)
-            {
-                request.Limit = limit.Value;
-            }
-            if (state.HasValue)
-            {
-                request.State = state.Value;
-            }
-            if (!string.IsNullOrEmpty(cursor))
-            {
-                request.Cursor = cursor;
-            }
-            if (channelType.HasValue)
-            {
-                request.ChannelType = channelType.Value;
-            }
-            if (isMobile.HasValue)
-            {
-                request.IsMobile = isMobile.Value;
-            }
-            if (page.HasValue)
-            {
-                request.Page = page.Value;
-            }
-            return await ApiClient.ListChannelDescsAsync(request, options).ConfigureAwait(false);
-        }
-
-        public async Task<RoleListEventResponse> ListRolesAsync(long? clanId = null, int? limit = null, int? state = null, string? cursor = null, RequestOptions? options = null)
-        {
-            var request = new RoleListEventRequest();
-            if (clanId.HasValue)
-            {
-                request.ClanId = clanId.Value;
-            }
-            if (limit.HasValue)
-            {
-                request.Limit = limit.Value;
-            }
-            if (state.HasValue)
-            {
-                request.State = state.Value;
-            }
-            if (!string.IsNullOrEmpty(cursor))
-            {
-                request.Cursor = cursor;
-            }
-            return await ApiClient.ListRolesAsync(request, options).ConfigureAwait(false);
-        }
-
-        public async Task<RoleUserList> ListRoleUsersAsync(long roleId, int? limit = null, string? cursor = null, RequestOptions? options = null)
-        {
-            var request = new ListRoleUsersRequest();
-            request.RoleId = roleId;
-            if (limit.HasValue)
-            {
-                request.Limit = limit.Value;
-            }
-            if (!string.IsNullOrEmpty(cursor))
-            {
-                request.Cursor = cursor;
-            }
-            return await ApiClient.ListRoleUsersAsync(request, options).ConfigureAwait(false);
-        }
-
-        public Task<TResponse> SendSocketApiAsync<TRequest, TResponse>(
-            string apiName,
-            TRequest request,
-            Google.Protobuf.MessageParser<TResponse> responseParser,
-            RequestOptions? options = null)
-            where TRequest : Google.Protobuf.IMessage<TRequest>
-            where TResponse : Google.Protobuf.IMessage<TResponse>
-        {
-            if (ApiClient is MezonSocketClient socketClient)
-            {
-                return socketClient.SendApiAsync(apiName, request, responseParser, options);
-            }
-
-            throw new MezonConnectionException("Socket API requires a connected server.");
-        }
-
-        public Task<Mezon.Net.Internal.Realtime.Envelope> SendRealtimeAsync(Mezon.Net.Internal.Realtime.Envelope envelope, RequestOptions? options = null)
-        {
-            if (ApiClient is MezonSocketClient socketClient)
-            {
-                return socketClient.SendEnvelopeAsync(envelope, options);
-            }
-
-            throw new MezonConnectionException("Realtime socket requires MezonSocketApiClient.");
-        }
-
-        public Task<ClanDescList> GetClanDescriptionAsync(ListClanDescRequest request)
-        {
-            return ApiClient.ListClanDescsAsync(request);
-        }
-
         #region INVOKE EVENT WITH HANDLER TIMEOUT
         private async Task TimeoutWrap(string name, Func<Task> action)
         {
@@ -414,6 +280,17 @@ namespace Mezon.Net.Client
         {
             _connection.ReconnectBaseDelayMs = delayMs;
             _connection.MaxReconnectDelayMs = delayMs;
+        }
+
+        /// <summary>Internal escape hatch; prefer typed <see cref="IMezonClientRealtime"/> methods.</summary>
+        internal Task<Mezon.Net.Internal.Realtime.Envelope> SendRealtimeInternalAsync(Mezon.Net.Internal.Realtime.Envelope envelope, RequestOptions? options = null)
+        {
+            if (ApiClient is MezonSocketClient socketClient)
+            {
+                return socketClient.SendEnvelopeAsync(envelope, options);
+            }
+
+            throw new MezonConnectionException("Realtime socket requires MezonSocketApiClient.");
         }
     }
 }

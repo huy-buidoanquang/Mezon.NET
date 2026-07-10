@@ -1,44 +1,43 @@
 using System;
 using System.Threading.Tasks;
-using Mezon.Net.Internal.Api;
-using Mezon.Net.Internal.Realtime;
+using Mezon.Net.Models;
 using Mezon.Net.Sdk.Agent;
 
 namespace Mezon.Net.Sdk
 {
     public sealed partial class MezonClient
     {
-        public event Func<ChannelMessage, Task> ChannelMessageReceived
+        public event Func<ChannelMessageEventData, Task> ChannelMessageReceived
         {
             add => _engine.ChannelMessageReceivedEvent += value;
             remove => _engine.ChannelMessageReceivedEvent -= value;
         }
 
-        public event Func<ChannelCreatedEvent, Task> ChannelCreated
+        public event Func<ChannelCreatedEventEventData, Task> ChannelCreated
         {
             add => _engine.ChannelCreatedEvent += value;
             remove => _engine.ChannelCreatedEvent -= value;
         }
 
-        public event Func<ChannelUpdatedEvent, Task> ChannelUpdated
+        public event Func<ChannelUpdatedEventEventData, Task> ChannelUpdated
         {
             add => _engine.ChannelUpdatedEvent += value;
             remove => _engine.ChannelUpdatedEvent -= value;
         }
 
-        public event Func<ChannelDeletedEvent, Task> ChannelDeleted
+        public event Func<ChannelDeletedEventEventData, Task> ChannelDeleted
         {
             add => _engine.ChannelDeletedEvent += value;
             remove => _engine.ChannelDeletedEvent -= value;
         }
 
-        public event Func<MessageReaction, Task> MessageReactionReceived
+        public event Func<MessageReactionEventData, Task> MessageReactionReceived
         {
             add => _engine.MessageReactionReceivedEvent += value;
             remove => _engine.MessageReactionReceivedEvent -= value;
         }
 
-        public event Func<Notifications, Task> NotificationsReceived
+        public event Func<NotificationsEventData, Task> NotificationsReceived
         {
             add => _engine.NotificationsReceivedEvent += value;
             remove => _engine.NotificationsReceivedEvent -= value;
@@ -62,7 +61,7 @@ namespace Mezon.Net.Sdk
             remove => _engine.UserClanRemovedEvent -= value;
         }
 
-        public event Func<UserChannelAdded, Task> UserChannelAdded
+        public event Func<UserChannelAddedEventData, Task> UserChannelAdded
         {
             add => _engine.UserChannelAddedEvent += value;
             remove => _engine.UserChannelAddedEvent -= value;
@@ -128,25 +127,25 @@ namespace Mezon.Net.Sdk
             remove => _engine.WebrtcSignalingForwardedEvent -= value;
         }
 
-        public event Func<VoiceStartedEvent, Task> VoiceStarted
+        public event Func<VoiceStartedEventEventData, Task> VoiceStarted
         {
             add => _engine.VoiceStartedEvent += value;
             remove => _engine.VoiceStartedEvent -= value;
         }
 
-        public event Func<VoiceEndedEvent, Task> VoiceEnded
+        public event Func<VoiceEndedEventEventData, Task> VoiceEnded
         {
             add => _engine.VoiceEndedEvent += value;
             remove => _engine.VoiceEndedEvent -= value;
         }
 
-        public event Func<VoiceJoinedEvent, Task> VoiceJoined
+        public event Func<VoiceJoinedEventEventData, Task> VoiceJoined
         {
             add => _engine.VoiceJoinedEvent += value;
             remove => _engine.VoiceJoinedEvent -= value;
         }
 
-        public event Func<VoiceLeavedEvent, Task> VoiceLeaved
+        public event Func<VoiceLeavedEventEventData, Task> VoiceLeaved
         {
             add => _engine.VoiceLeavedEvent += value;
             remove => _engine.VoiceLeavedEvent -= value;

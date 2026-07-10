@@ -62,6 +62,12 @@ internal static class ExampleHelpers
         };
     }
 
+    public static EmailAuthenticationRequest CreateEmailAuthRequest(string email, string password)
+        => new()
+        {
+            Account = new AccountEmailRequest { Email = email, Password = password }
+        };
+
     public static async Task<MezonClient> ConnectAsync(
         MezonExampleOptions options,
         string email,
@@ -76,7 +82,7 @@ internal static class ExampleHelpers
             WireClientLog(client, logger);
         }
 
-        var session = await client.AuthenticateEmailAsync(email, password).ConfigureAwait(false);
+        var session = await client.AuthenticateEmailAsync(CreateEmailAuthRequest(email, password)).ConfigureAwait(false);
         if (!await client.LoginAsync(session).ConfigureAwait(false))
         {
             await client.DisposeAsync().ConfigureAwait(false);

@@ -1,10 +1,11 @@
+using Mezon.Net.Models;
 using Mezon.Net.Sdk;
 using Microsoft.Extensions.Logging;
 
 internal class Program
 {
     private const long TargetClanId = 2050100607154393088L;
-    private const long TargetChannelId = 2050100608064557059L;
+    private const long TargetChannelId = 2050100608064557056L;
 
     private static async Task Main(string[] args)
     {
@@ -46,9 +47,10 @@ internal class Program
         options.LogLevel = Mezon.Net.Logging.LogLevel.Trace;
         await using var client = new MezonClient(options);
         WireClientLog(client, logger);
-        client.ChannelMessageReceived += message =>
+        client.ChannelMessageReceived += evt =>
         {
-            Console.WriteLine($"[{message.ChannelId}] {message.Username}: {message}");
+            var message = (ChannelMessageData)evt;
+            Console.WriteLine($"[{message.ChannelId}] {message.Username}: {message.Content}");
             return Task.CompletedTask;
         };
 

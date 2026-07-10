@@ -8,7 +8,7 @@ using Mezon.Net.Logging;
 
 namespace Mezon.Net.Client
 {
-    public abstract class BaseMezonClient : IMezonClient
+    public abstract partial class BaseMezonClient : IMezonClient
     {
         internal readonly AsyncEvent<Func<LogMessage, Task>> _logEvent = new AsyncEvent<Func<LogMessage, Task>>();
         public event Func<LogMessage, Task> Log { add { _logEvent.Add(value); } remove { _logEvent.Remove(value); } }
@@ -36,7 +36,7 @@ namespace Mezon.Net.Client
 
         protected readonly MezonApiClientOptions Options;
 
-        public IMezonApiClient ApiClient { get; }
+        internal IMezonApiClient ApiClient { get; }
 
         internal LogManager LogManager { get; }
         /// <summary>
@@ -120,7 +120,6 @@ namespace Mezon.Net.Client
             {
                 ApiClient.ConfigureApiBasePath(_sessionManager.CurrentSession().ApiUrl ?? string.Empty);
                 await ApiClient.LoginAsync(tokenType, token).ConfigureAwait(false);
-                await OnLoginAsync(tokenType, token).ConfigureAwait(false);
                 LoginState = LoginState.LoggedIn;
             }
             catch
@@ -131,8 +130,6 @@ namespace Mezon.Net.Client
 
             await _loggedInEvent.InvokeAsync().ConfigureAwait(false);
         }
-
-        internal virtual Task OnLoginAsync(TokenType tokenType, string token) => Task.CompletedTask;
 
         public async Task LogoutAsync()
         {
@@ -158,14 +155,10 @@ namespace Mezon.Net.Client
 
             await _sessionManager.LogoutAsync().ConfigureAwait(false);
             await ApiClient.LogoutAsync().ConfigureAwait(false);
-
-            await OnLogoutAsync().ConfigureAwait(false);
             LoginState = LoginState.LoggedOut;
 
             await _loggedOutEvent.InvokeAsync().ConfigureAwait(false);
         }
-
-        internal virtual Task OnLogoutAsync() => Task.CompletedTask;
 
         /// <inheritdoc />
         Task IMezonClient.ConnectAsync()

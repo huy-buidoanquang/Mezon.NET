@@ -137,6 +137,17 @@ public sealed class DevTransportIntegrationTests
     {
         var options = new MezonSocketClientOptions(DevApiHost, DevApiPort, useSSL: true);
         var client = new MezonClient(options);
-        return await client.AuthenticateEmailAsync(DevEmail, DevPassword).ConfigureAwait(false);
+        return await client.AuthenticateEmailAsync(CreateAuthRequest()).ConfigureAwait(false);
     }
+
+    private static EmailAuthenticationRequest CreateAuthRequest() =>
+        new()
+        {
+            Account = new AccountEmailRequest
+            {
+                Email = DevEmail,
+                Password = DevPassword,
+            },
+            Create = false,
+        };
 }
