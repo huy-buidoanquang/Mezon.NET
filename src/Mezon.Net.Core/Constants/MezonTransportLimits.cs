@@ -6,7 +6,7 @@ namespace Mezon.Net.Core.Constants
     public static class MezonTransportLimits
     {
         public const int MaxRequestsPerSecond = 60;
-        public const int MaxRequestsPerMinute = 200;
+        public const int MaxRequestsPerMinute = 500;
         public const int MaxConnectRequestsPerSecond = 2;
     }
 }

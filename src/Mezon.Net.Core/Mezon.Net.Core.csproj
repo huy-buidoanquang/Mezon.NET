@@ -80,8 +80,6 @@
 
     <Protobuf Include="Protobuf\Realtime\realtime.proto" GrpcServices="None" AdditionalImportDirs="$(Protobuf_ImportPaths)" />
 
-    <Protobuf Include="Protobuf\apigrpc.proto" GrpcServices="None" AdditionalImportDirs="$(Protobuf_ImportPaths)" />
-
   </ItemGroup>
 
 

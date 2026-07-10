@@ -158,10 +158,10 @@ namespace Mezon.Net.Transport
             {
                 if (ErrorOccurred != null)
                 {
-                    await ErrorOccurred.Invoke(new InvalidOperationException("Unauthorized.")).ConfigureAwait(false);
+                    await ErrorOccurred.Invoke(new NetworkTransportUnauthorizationException()).ConfigureAwait(false);
                 }
 
-                throw new InvalidOperationException("Unauthorized.");
+                throw new NetworkTransportUnauthorizationException();
             }
 
             var padding = (4 - (tokenBytes.Length % 4)) & 3;
@@ -200,7 +200,7 @@ namespace Mezon.Net.Transport
             }
         }
 
-        private async Task ReceiveLoopAsync(PipeReader reader, int generation, CancellationToken cancellationToken)
+        private async Task ReceiveLoopAsync(PipeReader reader, int connectionVer, CancellationToken cancellationToken)
         {
             try
             {
@@ -257,7 +257,7 @@ namespace Mezon.Net.Transport
                 {
                 }
 
-                if (generation == _connectionVersion && _state == ConnectionState.Connected)
+                if (connectionVer == _connectionVersion && _state == ConnectionState.Connected)
                 {
                     try
                     {
@@ -283,7 +283,8 @@ namespace Mezon.Net.Transport
         {
             if (_state != ConnectionState.Connected || _tcpClient == null || !_tcpClient.Connected || _sendChannel == null)
             {
-                return default;
+                return new ValueTask(Task.FromException(new InvalidOperationException(
+                    $"Cannot send on TCP (transportState={_state}, tcpConnected={_tcpClient?.Connected}, sendChannel={_sendChannel != null}).")));
             }
 
             switch (type)
@@ -298,7 +299,7 @@ namespace Mezon.Net.Transport
                         ? default
                         : new ValueTask(Task.FromException(new InvalidOperationException("Cannot queue message for sending.")));
                 default:
-                    return default;
+                    return new ValueTask(Task.FromException(new InvalidOperationException($"Unsupported TCP message type '{type}'.")));
             }
         }
 

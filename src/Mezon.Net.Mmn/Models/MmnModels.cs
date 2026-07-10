@@ -40,7 +40,7 @@ namespace Mezon.Net.Mmn.Models
 
     public sealed class ZkProofRequest
     {
-        public string UserId { get; set; } = string.Empty;
+        public long UserId { get; set; } = 0;
         public string Jwt { get; set; } = string.Empty;
         public string Address { get; set; } = string.Empty;
         public string EphemeralPublicKey { get; set; } = string.Empty;

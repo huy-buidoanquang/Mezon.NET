@@ -29,8 +29,7 @@ public sealed class DevTransportProbe
 
         var options = new MezonSocketClientOptions(DevApiHost, DevApiPort, useSSL: true);
         var client = new MezonClient(options);
-        var auth = await client.AuthenticateEmailAsync(DevEmail, DevPassword).ConfigureAwait(false);
-        var session = new Mezon.Net.Api.Session(auth);
+        var session = await client.AuthenticateEmailAsync(DevEmail, DevPassword).ConfigureAwait(false);
 
         Assert.False(string.IsNullOrEmpty(session.SessionId), "SessionId required");
         Assert.False(string.IsNullOrEmpty(session.AuthToken), "AuthToken required");

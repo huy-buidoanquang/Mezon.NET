@@ -133,7 +133,7 @@ public sealed class DevTransportIntegrationTests
         return auth.SessionId;
     }
 
-    private static async Task<Mezon.Net.Api.AuthenticationResponse> AuthenticateRawAsync()
+    private static async Task<Session> AuthenticateRawAsync()
     {
         var options = new MezonSocketClientOptions(DevApiHost, DevApiPort, useSSL: true);
         var client = new MezonClient(options);

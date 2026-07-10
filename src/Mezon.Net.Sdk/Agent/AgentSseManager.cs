@@ -1,5 +1,4 @@
 using System;
-using System.Buffers;
 using System.IO;
 using System.Net.Http;
 using System.Text;
@@ -19,13 +18,13 @@ namespace Mezon.Net.Sdk.Agent
     {
         private readonly HttpClient _http;
         private readonly Uri _endpoint;
-        private readonly string _appId;
+        private readonly long _appId;
         private readonly string _token;
         private CancellationTokenSource? _cts;
 
         public event Func<AgentSseSessionEvent, Task>? MessageReceived;
 
-        public AgentSseManager(string baseUrl, string appId, string token, HttpClient? httpClient = null)
+        public AgentSseManager(string baseUrl, long appId, string token, HttpClient? httpClient = null)
         {
             _endpoint = new Uri(new Uri(baseUrl.TrimEnd('/') + "/"), "api/sse/metadata");
             _appId = appId;
@@ -43,7 +42,7 @@ namespace Mezon.Net.Sdk.Agent
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, _endpoint);
             request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + _token);
-            request.Headers.TryAddWithoutValidation("X-App-Id", _appId);
+            request.Headers.TryAddWithoutValidation("X-App-Id", _appId.ToString());
 
             using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
             response.EnsureSuccessStatusCode();

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Newtonsoft.Json;
 
-namespace Mezon.Net.Api
+namespace Mezon.Net.Client
 {
     public class UpdateRoleRequest
     {

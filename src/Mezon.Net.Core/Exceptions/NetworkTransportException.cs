@@ -1,8 +1,8 @@
 using System;
 
-namespace Mezon.Net.Core.Exceptions
+namespace Mezon.Net.Core
 {
-    public class NetworkTransportException : Exception
+    public class NetworkTransportException : MezonException
     {
         public NetworkTransportException(string message) : base(message)
         {
@@ -18,6 +18,7 @@ namespace Mezon.Net.Core.Exceptions
         public NetworkTransportTimeoutException(string message) : base(message)
         {
         }
+
         public NetworkTransportTimeoutException(string message, Exception innerException) : base(message, innerException)
         {
         }

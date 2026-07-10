@@ -1,8 +1,10 @@
-using Mezon.Net.Api;
 using Mezon.Net.Core.Constants;
 
 namespace Mezon.Net.Client
 {
+    /// <summary>
+    ///     Represents a configuration class for <see cref="MezonSocketClient"/>.
+    /// </summary>
     public class MezonSocketClientOptions : MezonApiClientOptions
     {
         public const int DefaultConnectionTimeoutInMilliseconds = 30000;

@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Text;
 using Google.Protobuf;
 using Mezon.Net.Client;
 using Mezon.Net.Core;
@@ -7,8 +6,6 @@ using Mezon.Net.Core.Protocol;
 using Mezon.Net.Internal.Api;
 using Mezon.Net.Internal.Realtime;
 using Microsoft.Extensions.Logging;
-
-using Mezon.Net.Example.Infrastructure;
 
 namespace Mezon.Net.Example.Diagnostics;
 
@@ -50,7 +47,12 @@ internal static class ListChannelDescsDiagnostic
         // Experiment 1: first API call after connect (no prior socket API traffic)
         await RunCase(logger, "isolated-first-call limit=5", delayMs, async () =>
         {
-            await api.ListChannelDescsAsync(clanId, limit: 5, options: opts).ConfigureAwait(false);
+            var request = new ListChannelDescsRequest()
+            {
+                ClanId = clanId,
+                Limit = 5
+            };
+            await api.ListChannelDescsAsync(request, options: opts).ConfigureAwait(false);
         }).ConfigureAwait(false);
 
         // Experiment 2: vary limit (server proto says 1..100)
@@ -58,7 +60,12 @@ internal static class ListChannelDescsDiagnostic
         {
             await RunCase(logger, $"limit={limit?.ToString() ?? "null"}", delayMs, async () =>
             {
-                await api.ListChannelDescsAsync(clanId, limit: limit, options: opts).ConfigureAwait(false);
+                var request = new ListChannelDescsRequest()
+                {
+                    ClanId = clanId,
+                    Limit = limit ?? 0
+                };
+                await api.ListChannelDescsAsync(request, options: opts).ConfigureAwait(false);
             }).ConfigureAwait(false);
         }
 
@@ -72,7 +79,12 @@ internal static class ListChannelDescsDiagnostic
 
         await RunCase(logger, "after-burst limit=5", delayMs, async () =>
         {
-            await api.ListChannelDescsAsync(clanId, limit: 5, options: opts).ConfigureAwait(false);
+            var request = new ListChannelDescsRequest()
+            {
+                ClanId = clanId,
+                Limit = 5
+            };
+            await api.ListChannelDescsAsync(request, options: opts).ConfigureAwait(false);
         }).ConfigureAwait(false);
 
         // Experiment 4: long cooldown then retry
@@ -81,7 +93,12 @@ internal static class ListChannelDescsDiagnostic
 
         await RunCase(logger, "after-cooldown limit=5", delayMs, async () =>
         {
-            await api.ListChannelDescsAsync(clanId, limit: 5, options: opts).ConfigureAwait(false);
+            var request = new ListChannelDescsRequest()
+            {
+                ClanId = clanId,
+                Limit = 5
+            };
+            await api.ListChannelDescsAsync(request, options: opts).ConfigureAwait(false);
         }).ConfigureAwait(false);
 
         // Experiment 5: compare ListCategoryDescs (works) vs ListChannelDescs back-to-back
@@ -93,7 +110,12 @@ internal static class ListChannelDescsDiagnostic
 
         await RunCase(logger, "ListChannelDescs after control", delayMs, async () =>
         {
-            var ch = await api.ListChannelDescsAsync(clanId, limit: 5, options: opts).ConfigureAwait(false);
+            var request = new ListChannelDescsRequest()
+            {
+                ClanId = clanId,
+                Limit = 5
+            };
+            var ch = await api.ListChannelDescsAsync(request, options: opts).ConfigureAwait(false);
             logger.LogInformation("  channels count={Count}", ch.Channeldesc.Count);
         }).ConfigureAwait(false);
 
@@ -107,7 +129,7 @@ internal static class ListChannelDescsDiagnostic
                 Page = 0,
                 State = 0,
             };
-            await client.SendSocketApiAsync("ListChannelDescs", request, ChannelDescList.Parser, opts).ConfigureAwait(false);
+            await client.ListChannelDescsAsync(clanId, limit: 5, state: 0, page: 0).ConfigureAwait(false);
         }).ConfigureAwait(false);
 
         await client.DisconnectAsync().ConfigureAwait(false);
@@ -174,10 +196,10 @@ internal static class ListChannelDescsDiagnostic
         };
 
         var client = new MezonClient(clientOptions);
-        var auth = await client.AuthenticateEmailAsync(email, password).ConfigureAwait(false);
-        logger.LogInformation("Auth OK tcp={TcpUrl}", auth.TcpUrl);
+        var session = await client.AuthenticateEmailAsync(email, password).ConfigureAwait(false);
+        logger.LogInformation("Auth OK tcp={TcpUrl}", session.TcpUrl);
 
-        if (!await client.LoginAsync(new Mezon.Net.Api.Session(auth)).ConfigureAwait(false))
+        if (!await client.LoginAsync(session).ConfigureAwait(false))
         {
             throw new InvalidOperationException("Login failed.");
         }

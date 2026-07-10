@@ -52,8 +52,8 @@ internal static class ListRolesWireDebugDiagnostic
             return Task.CompletedTask;
         };
 
-        var auth = await client.AuthenticateEmailAsync(email, password).ConfigureAwait(false);
-        await client.LoginAsync(new Mezon.Net.Api.Session(auth)).ConfigureAwait(false);
+        var session = await client.AuthenticateEmailAsync(email, password).ConfigureAwait(false);
+        await client.LoginAsync(session).ConfigureAwait(false);
         await client.ConnectAsync().ConfigureAwait(false);
 
         var api = client.ApiClient;
@@ -67,7 +67,7 @@ internal static class ListRolesWireDebugDiagnostic
         await RunCase(logger, "ListFriends (control)", () => api.ListFriendsAsync(limit: 10, options: opts)).ConfigureAwait(false);
         await Task.Delay(options.ApiDelayMs, cancellationToken).ConfigureAwait(false);
 
-        await RunCase(logger, "ListRoles (failing)", () => api.ListRolesAsync(clanId, limit: 20, options: opts)).ConfigureAwait(false);
+        await RunCase(logger, "ListRoles (failing)", () => client.ListRolesAsync(clanId, limit: 20, options: opts)).ConfigureAwait(false);
         await Task.Delay(options.ApiDelayMs, cancellationToken).ConfigureAwait(false);
 
         await RunCase(logger, "GetAccount (after ListRoles)", () => api.GetAccountAsync(opts)).ConfigureAwait(false);

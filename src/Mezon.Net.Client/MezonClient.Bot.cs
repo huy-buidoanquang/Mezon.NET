@@ -9,7 +9,7 @@ namespace Mezon.Net.Client
         /// Authenticates a bot application using <c>botId</c> and API token (parity mezon-sdk <c>login()</c> auth step).
         /// Call <see cref="IMezonClient.ConnectAsync"/> after a successful login.
         /// </summary>
-        public static Task<bool> LoginAsBotAsync(this MezonClient client, string botId, string token, bool autoRefreshSession = true)
+        public static Task<bool> LoginAsBotAsync(this MezonClient client, long botId, string token, bool autoRefreshSession = true)
             => client.LoginAsBotInternalAsync(botId, token, autoRefreshSession);
     }
 }

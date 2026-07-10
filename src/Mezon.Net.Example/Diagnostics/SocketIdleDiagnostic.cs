@@ -32,14 +32,13 @@ internal static class SocketIdleDiagnostic
             return client.ConnectionState;
         }, options, transportType, email, password, logger, cancellationToken).ConfigureAwait(false);
 
-        // Case B: connect then Ping every 10s for 35s
-        await RunCase("B: Ping every 10s for 35s", async client =>
+        // Case B: connect then rely on automatic heartbeat for 35s
+        await RunCase("B: automatic heartbeat for 35s", async client =>
         {
             for (var i = 0; i < 4; i++)
             {
                 await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken).ConfigureAwait(false);
-                await client.Ping().ConfigureAwait(false);
-                logger.LogInformation("  ping #{I} state={State} latency={Latency}", i + 1, client.ConnectionState, client.Latency);
+                logger.LogInformation("  tick #{I} state={State} latency={Latency}", i + 1, client.ConnectionState, client.Latency);
             }
 
             return client.ConnectionState;
@@ -86,8 +85,8 @@ internal static class SocketIdleDiagnostic
         };
 
         await using var client = new MezonClient(clientOptions);
-        var auth = await client.AuthenticateEmailAsync(email, password).ConfigureAwait(false);
-        await client.LoginAsync(new Mezon.Net.Api.Session(auth)).ConfigureAwait(false);
+        var session = await client.AuthenticateEmailAsync(email, password).ConfigureAwait(false);
+        await client.LoginAsync(session).ConfigureAwait(false);
         await client.ConnectAsync().ConfigureAwait(false);
 
         logger.LogInformation("  connected state={State}", client.ConnectionState);

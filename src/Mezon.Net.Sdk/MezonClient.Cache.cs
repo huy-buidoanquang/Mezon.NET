@@ -1,4 +1,3 @@
-using System;
 using System.Threading.Tasks;
 using Mezon.Net.Core.Constants;
 using Mezon.Net.Internal.Api;
@@ -16,7 +15,7 @@ namespace Mezon.Net.Sdk
             }
 
             _cacheListenersBound = true;
-            _engine.ChannelMessageEvent += OnChannelMessageInternalAsync;
+            _engine.ChannelMessageReceivedEvent += OnChannelMessageInternalAsync;
             _engine.ChannelCreatedEvent += OnChannelCreatedInternalAsync;
             _engine.ChannelUpdatedEvent += OnChannelUpdatedInternalAsync;
             _engine.ChannelDeletedEvent += OnChannelDeletedInternalAsync;
@@ -83,10 +82,9 @@ namespace Mezon.Net.Sdk
                 return;
             }
 
-            var botId = long.TryParse(Options.BotId, out var parsedBotId) ? parsedBotId : 0;
             foreach (var user in channelEvent.Users)
             {
-                if (user.UserId == botId)
+                if (user.UserId == Options.BotId)
                 {
                     var desc = channelEvent.ChannelDesc;
                     await _engine.JoinChannelChat(channelEvent.ClanId, desc.ChannelId, desc.Type, desc.ChannelPrivate == 0).ConfigureAwait(false);

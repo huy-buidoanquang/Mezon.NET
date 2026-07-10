@@ -39,8 +39,8 @@ namespace Mezon.Net.Client
         /// <summary>Initial reconnect backoff for tests; production default is 1000ms.</summary>
         internal int ReconnectBaseDelayMs { get; set; } = 1000;
 
-        /// <summary>Maximum reconnect backoff for tests; production default is 60000ms.</summary>
-        internal int MaxReconnectDelayMs { get; set; } = 60000;
+        /// <summary>Maximum reconnect backoff for tests; production default is 30000ms.</summary>
+        internal int MaxReconnectDelayMs { get; set; } = 30000;
 
         public ConnectionState State { get; private set; }
         public CancellationToken CancelToken { get; private set; }
@@ -62,7 +62,6 @@ namespace Mezon.Net.Client
             _connectionTimeoutInMilliseconds = connectionTimeoutInMilliseconds;
             _onConnecting = onConnecting;
             _onDisconnecting = onDisconnecting;
-
             clientDisconnectHandler(HandleTransportDisconnectedAsync);
         }
 
@@ -70,23 +69,23 @@ namespace Mezon.Net.Client
         {
             if (ex != null)
             {
-                var closed = ex as WebSocketClosedException;
+                var closed = ex as SocketClosedException;
                 if (closed?.CloseCode == 4006)
                 {
-                    CriticalError(new WebSocketException(WebSocketError.ConnectionClosedPrematurely, "WebSocket session expired", ex));
+                    CriticalError(new WebSocketException(WebSocketError.ConnectionClosedPrematurely, "Socket session expired", ex));
                 }
                 else if (closed?.CloseCode == 4014)
                 {
-                    CriticalError(new WebSocketException(WebSocketError.ConnectionClosedPrematurely, "WebSocket connection was closed", ex));
+                    CriticalError(new WebSocketException(WebSocketError.ConnectionClosedPrematurely, "Socket connection was closed", ex));
                 }
                 else
                 {
-                    Error(new WebSocketException(WebSocketError.ConnectionClosedPrematurely, "WebSocket connection was closed", ex));
+                    Error(new WebSocketException(WebSocketError.ConnectionClosedPrematurely, "Socket connection was closed", ex));
                 }
             }
             else
             {
-                Error(new WebSocketException(WebSocketError.ConnectionClosedPrematurely, "WebSocket connection was closed"));
+                Error(new WebSocketException(WebSocketError.ConnectionClosedPrematurely, "Socket connection was closed"));
             }
 
             return Task.CompletedTask;
@@ -208,6 +207,7 @@ namespace Mezon.Net.Client
 
             _connectionPromise = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             State = ConnectionState.Connecting;
+            await _logger.InfoAsync("Connecting").ConfigureAwait(false);
 
             if (_readyPromise == null || _readyPromise.Task.IsCompleted)
             {
@@ -233,6 +233,7 @@ namespace Mezon.Net.Client
 
                 await _onConnecting().ConfigureAwait(false);
                 State = ConnectionState.Connected;
+                await _logger.InfoAsync("Connected").ConfigureAwait(false);
                 await _connectedEvent.InvokeAsync().ConfigureAwait(false);
                 readyPromise.TrySetResult(true);
             }
@@ -263,13 +264,13 @@ namespace Mezon.Net.Client
             await _onDisconnecting(ex).ConfigureAwait(false);
 
             State = ConnectionState.Disconnected;
+            await _logger.InfoAsync("Disconnected").ConfigureAwait(false);
             await _disconnectedEvent.InvokeAsync(ex).ConfigureAwait(false);
             if (isReconnecting)
             {
                 await _reconnectingEvent.InvokeAsync(ex).ConfigureAwait(false);
+                await _logger.InfoAsync("Reconnecting").ConfigureAwait(false);
             }
-
-            await _logger.InfoAsync("Disconnected").ConfigureAwait(false);
         }
 
         private async Task AcquireConnectionLock()

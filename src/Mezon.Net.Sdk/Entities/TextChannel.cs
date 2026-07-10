@@ -1,6 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
-using Mezon.Net.Api;
+using Mezon.Net.Client;
 using Mezon.Net.Client.Messaging;
 using Mezon.Net.Core;
 using Mezon.Net.Core.Constants;
@@ -36,6 +36,9 @@ namespace Mezon.Net.Sdk.Entities
 
         public bool IsPublic => !IsPrivate;
 
+        public Task JoinAsync()
+            => _client.Engine.JoinChannelChat(ClanId, Id, Type, IsPublic);
+
         public Task<ChannelMessageAck> SendAsync(
             string content,
             long? topicId = null,
@@ -56,15 +59,8 @@ namespace Mezon.Net.Sdk.Entities
             RequestOptions? options = null)
         {
             var mode = ChannelModeConverter.ToStreamMode(Type);
-            var send = MessageSendHelper.ToChannelMessageSend(new SendChannelMessageParams(ClanId, Id, content, isPublic: IsPublic, mode: mode));
-            var envelope = new Envelope
-            {
-                EphemeralMessageSend = new EphemeralMessageSend
-                {
-                    Message = send,
-                },
-            };
-            envelope.EphemeralMessageSend.ReceiverIds.Add(receiverId);
+            var parameters = new SendChannelMessageParams(ClanId, Id, content, isPublic: IsPublic, mode: mode);
+            var envelope = MessageSendHelper.ToEphemeralEnvelope(parameters, receiverId);
             return _client.SendQueue.EnqueueAsync(Id, async () =>
             {
                 var response = await _client.Engine.SendRealtimeAsync(envelope, options).ConfigureAwait(false);

@@ -100,13 +100,13 @@ internal static class SocketVerification
             return Task.CompletedTask;
         };
 
-        client.ClanJoinEvent += clanJoin =>
+        client.ClanJoinedEvent += clanJoin =>
         {
             logger.LogInformation("Event: ClanJoin clan_id={ClanId}", clanJoin.ClanId);
             return Task.CompletedTask;
         };
 
-        client.ChannelJoinEvent += channelJoin =>
+        client.ChannelJoinedEvent += channelJoin =>
         {
             logger.LogInformation(
                 "Event: ChannelJoin clan_id={ClanId} channel_id={ChannelId}",
@@ -115,7 +115,7 @@ internal static class SocketVerification
             return Task.CompletedTask;
         };
 
-        client.ChannelMessageEvent += message =>
+        client.ChannelMessageReceivedEvent += message =>
         {
             logger.LogInformation(
                 "Event: ChannelMessage channel_id={ChannelId} message_id={MessageId}",
@@ -124,13 +124,13 @@ internal static class SocketVerification
             return Task.CompletedTask;
         };
 
-        client.ChannelMessageSendEvent += message =>
+        client.ChannelMessageSentEvent += message =>
         {
             logger.LogInformation("Event: ChannelMessageSend channel_id={ChannelId}", message.ChannelId);
             return Task.CompletedTask;
         };
 
-        client.MessageTypingEvent += typing =>
+        client.MessageTypingReceivedEvent += typing =>
         {
             logger.LogInformation(
                 "Event: MessageTyping channel_id={ChannelId} sender={Sender}",

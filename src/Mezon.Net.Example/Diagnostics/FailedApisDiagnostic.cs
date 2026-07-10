@@ -1,10 +1,7 @@
 using System.Diagnostics;
-using Mezon.Net.Api;
 using Mezon.Net.Client;
 using Mezon.Net.Core;
 using Microsoft.Extensions.Logging;
-
-using Mezon.Net.Example.Infrastructure;
 
 namespace Mezon.Net.Example.Diagnostics;
 
@@ -43,15 +40,14 @@ internal static class FailedApisDiagnostic
 
         await RunCaseAsync("ListRoleUsersAsync", options, transportType, email, password, async (client, o, opts) =>
         {
-            var api = client.ApiClient;
-            roleId ??= (await api.ListRolesAsync(o.ClanId, limit: 5, options: opts).ConfigureAwait(false))
+            roleId ??= (await client.ListRolesAsync(o.ClanId, limit: 5, options: opts).ConfigureAwait(false))
                 .Roles?.Roles.FirstOrDefault()?.Id;
             if (!roleId.HasValue)
             {
                 throw new InvalidOperationException("No roles available.");
             }
 
-            await api.ListRoleUsersAsync(roleId.Value, limit: 10, options: opts).ConfigureAwait(false);
+            await client.ListRoleUsersAsync(roleId.Value, limit: 10, options: opts).ConfigureAwait(false);
         }, logger, cancellationToken).ConfigureAwait(false);
 
         await RunCaseAsync("ListActivityAsync", options, transportType, email, password,
@@ -67,7 +63,7 @@ internal static class FailedApisDiagnostic
             (client, o, opts) => client.ApiClient.GetChannelCategoryNotificationSettingsAsync(o.ClanId, opts), logger, cancellationToken).ConfigureAwait(false);
 
         await RunCaseAsync("ListChannelDescsAsync", options, transportType, email, password,
-            (client, o, opts) => client.ApiClient.ListChannelDescsAsync(o.ClanId, limit: 20, channelType: 1, page: 0, options: opts), logger, cancellationToken,
+            (client, o, opts) => client.ListChannelDescsAsync(o.ClanId, limit: 20, channelType: 1, page: 0, options: opts), logger, cancellationToken,
             timeoutMs: options.ListChannelDescsTimeoutMs).ConfigureAwait(false);
 
         await RunCaseAsync("HealthcheckAsync", options, transportType, email, password,
@@ -108,8 +104,8 @@ internal static class FailedApisDiagnostic
             };
 
             await using var client = new MezonClient(clientOptions);
-            var auth = await client.AuthenticateEmailAsync(email, password).ConfigureAwait(false);
-            await client.LoginAsync(new Mezon.Net.Api.Session(auth)).ConfigureAwait(false);
+            var session = await client.AuthenticateEmailAsync(email, password).ConfigureAwait(false);
+            await client.LoginAsync(session).ConfigureAwait(false);
             await client.ConnectAsync().ConfigureAwait(false);
             await Task.Delay(500, cancellationToken).ConfigureAwait(false);
 

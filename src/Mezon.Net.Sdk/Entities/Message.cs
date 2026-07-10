@@ -1,5 +1,5 @@
 using System.Threading.Tasks;
-using Mezon.Net.Api;
+using Mezon.Net.Client;
 using Mezon.Net.Client.Messaging;
 using Mezon.Net.Core;
 using Mezon.Net.Core.Constants;

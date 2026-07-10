@@ -8,98 +8,182 @@ namespace Mezon.Net.Sdk
 {
     public sealed partial class MezonClient
     {
-        public void OnChannelMessage(Func<ChannelMessage, Task> handler)
-            => _engine.ChannelMessageEvent += handler;
+        public event Func<ChannelMessage, Task> ChannelMessageReceived
+        {
+            add => _engine.ChannelMessageReceivedEvent += value;
+            remove => _engine.ChannelMessageReceivedEvent -= value;
+        }
 
-        public void OnChannelCreated(Func<ChannelCreatedEvent, Task> handler)
-            => _engine.ChannelCreatedEvent += handler;
+        public event Func<ChannelCreatedEvent, Task> ChannelCreated
+        {
+            add => _engine.ChannelCreatedEvent += value;
+            remove => _engine.ChannelCreatedEvent -= value;
+        }
 
-        public void OnChannelUpdated(Func<ChannelUpdatedEvent, Task> handler)
-            => _engine.ChannelUpdatedEvent += handler;
+        public event Func<ChannelUpdatedEvent, Task> ChannelUpdated
+        {
+            add => _engine.ChannelUpdatedEvent += value;
+            remove => _engine.ChannelUpdatedEvent -= value;
+        }
 
-        public void OnChannelDeleted(Func<ChannelDeletedEvent, Task> handler)
-            => _engine.ChannelDeletedEvent += handler;
+        public event Func<ChannelDeletedEvent, Task> ChannelDeleted
+        {
+            add => _engine.ChannelDeletedEvent += value;
+            remove => _engine.ChannelDeletedEvent -= value;
+        }
 
-        public void OnChannelMessage(Func<ChannelMessage, ValueTask> handler)
-            => _engine.ChannelMessageEvent += message => handler(message).AsTask();
+        public event Func<MessageReaction, Task> MessageReactionReceived
+        {
+            add => _engine.MessageReactionReceivedEvent += value;
+            remove => _engine.MessageReactionReceivedEvent -= value;
+        }
 
-        public void OnMessageReaction(Func<MessageReaction, Task> handler)
-            => _engine.MessageReactionEvent += handler;
+        public event Func<Notifications, Task> NotificationsReceived
+        {
+            add => _engine.NotificationsReceivedEvent += value;
+            remove => _engine.NotificationsReceivedEvent -= value;
+        }
 
-        public void OnNotifications(Func<Notifications, Task> handler)
-            => _engine.NotificationsEvent += handler;
+        public event Func<Task> TokenSent
+        {
+            add => _engine.TokenSentEvent += value;
+            remove => _engine.TokenSentEvent -= value;
+        }
 
-        public void OnTokenSend(Func<Task> handler)
-            => _engine.TokenSentEvent += handler;
+        public event Func<Task> UserChannelRemoved
+        {
+            add => _engine.UserChannelRemovedEvent += value;
+            remove => _engine.UserChannelRemovedEvent -= value;
+        }
 
-        public void OnUserChannelRemoved(Func<Task> handler)
-            => _engine.UserChannelRemovedEvent += handler;
+        public event Func<Task> UserClanRemoved
+        {
+            add => _engine.UserClanRemovedEvent += value;
+            remove => _engine.UserClanRemovedEvent -= value;
+        }
 
-        public void OnUserClanRemoved(Func<Task> handler)
-            => _engine.UserClanRemovedEvent += handler;
+        public event Func<UserChannelAdded, Task> UserChannelAdded
+        {
+            add => _engine.UserChannelAddedEvent += value;
+            remove => _engine.UserChannelAddedEvent -= value;
+        }
 
-        public void OnUserChannelAdded(Func<UserChannelAdded, Task> handler)
-            => _engine.UserChannelAddedEvent += handler;
+        public event Func<Task> CoffeeGiven
+        {
+            add => _engine.CoffeeGivenEvent += value;
+            remove => _engine.CoffeeGivenEvent -= value;
+        }
 
-        public void OnGiveCoffee(Func<Task> handler)
-            => _engine.GiveCoffeeEvent += handler;
+        public event Func<Task> RoleChanged
+        {
+            add => _engine.RoleChangedEvent += value;
+            remove => _engine.RoleChangedEvent -= value;
+        }
 
-        public void OnRoleEvent(Func<Task> handler)
-            => _engine.RoleEvent += handler;
+        public event Func<Task> RoleAssigned
+        {
+            add => _engine.RoleAssignedEvent += value;
+            remove => _engine.RoleAssignedEvent -= value;
+        }
 
-        public void OnRoleAssign(Func<Task> handler)
-            => _engine.RoleAssignEvent += handler;
+        public event Func<Task> ClanUserAdded
+        {
+            add => _engine.ClanUserAddedEvent += value;
+            remove => _engine.ClanUserAddedEvent -= value;
+        }
 
-        public void OnAddClanUser(Func<Task> handler)
-            => _engine.AddClanUserEvent += handler;
+        public event Func<Task> ClanEventCreated
+        {
+            add => _engine.ClanEventCreated += value;
+            remove => _engine.ClanEventCreated -= value;
+        }
 
-        public void OnClanEventCreated(Func<Task> handler)
-            => _engine.ClanEventCreated += handler;
+        public event Func<Task> MessageButtonClicked
+        {
+            add => _engine.MessageButtonClickedEvent += value;
+            remove => _engine.MessageButtonClickedEvent -= value;
+        }
 
-        public void OnMessageButtonClicked(Func<Task> handler)
-            => _engine.MessageButtonClickedEvent += handler;
+        public event Func<Task> StreamingJoined
+        {
+            add => _engine.StreamingJoinedEvent += value;
+            remove => _engine.StreamingJoinedEvent -= value;
+        }
 
-        public void OnStreamingJoined(Func<Task> handler)
-            => _engine.StreamingJoinedEvent += handler;
+        public event Func<Task> StreamingLeaved
+        {
+            add => _engine.StreamingLeavedEvent += value;
+            remove => _engine.StreamingLeavedEvent -= value;
+        }
 
-        public void OnStreamingLeaved(Func<Task> handler)
-            => _engine.StreamingLeavedEvent += handler;
+        public event Func<Task> DropdownBoxSelected
+        {
+            add => _engine.DropdownBoxSelectedEvent += value;
+            remove => _engine.DropdownBoxSelectedEvent -= value;
+        }
 
-        public void OnDropdownBoxSelected(Func<Task> handler)
-            => _engine.DropdownBoxSelectedEvent += handler;
+        public event Func<Task> WebrtcSignalingForwarded
+        {
+            add => _engine.WebrtcSignalingForwardedEvent += value;
+            remove => _engine.WebrtcSignalingForwardedEvent -= value;
+        }
 
-        public void OnWebrtcSignalingFwd(Func<Task> handler)
-            => _engine.WebrtcSignalingFwdEvent += handler;
+        public event Func<VoiceStartedEvent, Task> VoiceStarted
+        {
+            add => _engine.VoiceStartedEvent += value;
+            remove => _engine.VoiceStartedEvent -= value;
+        }
 
-        public void OnVoiceStarted(Func<VoiceStartedEvent, Task> handler)
-            => _engine.VoiceStartedEvent += handler;
+        public event Func<VoiceEndedEvent, Task> VoiceEnded
+        {
+            add => _engine.VoiceEndedEvent += value;
+            remove => _engine.VoiceEndedEvent -= value;
+        }
 
-        public void OnVoiceEnded(Func<VoiceEndedEvent, Task> handler)
-            => _engine.VoiceEndedEvent += handler;
+        public event Func<VoiceJoinedEvent, Task> VoiceJoined
+        {
+            add => _engine.VoiceJoinedEvent += value;
+            remove => _engine.VoiceJoinedEvent -= value;
+        }
 
-        public void OnVoiceJoined(Func<VoiceJoinedEvent, Task> handler)
-            => _engine.VoiceJoinedEvent += handler;
+        public event Func<VoiceLeavedEvent, Task> VoiceLeaved
+        {
+            add => _engine.VoiceLeavedEvent += value;
+            remove => _engine.VoiceLeavedEvent -= value;
+        }
 
-        public void OnVoiceLeaved(Func<VoiceLeavedEvent, Task> handler)
-            => _engine.VoiceLeavedEvent += handler;
+        public event Func<Task> AIAgentEnabled
+        {
+            add => _engine.AIAgentEnabledEvent += value;
+            remove => _engine.AIAgentEnabledEvent -= value;
+        }
 
-        public void OnAIAgentEnable(Func<Task> handler)
-            => _engine.AiagentEnabledEvent += handler;
+        public event Func<Task> QuickMenuReceived
+        {
+            add => _engine.QuickMenuReceivedEvent += value;
+            remove => _engine.QuickMenuReceivedEvent -= value;
+        }
 
-        public void OnQuickMenu(Func<Task> handler)
-            => _engine.QuickMenuEvent += handler;
+        public event Func<AgentSseSessionEvent, Task> AgentSessionStarted
+        {
+            add => AgentSessionStartedInternal += value;
+            remove => AgentSessionStartedInternal -= value;
+        }
 
-        public void OnAIAgentSessionStarted(Func<AgentSseSessionEvent, Task> handler)
-            => AgentSessionStarted += handler;
+        public event Func<AgentSseSessionEvent, Task> AgentSessionEnded
+        {
+            add => AgentSessionEndedInternal += value;
+            remove => AgentSessionEndedInternal -= value;
+        }
 
-        public void OnAIAgentSessionEnded(Func<AgentSseSessionEvent, Task> handler)
-            => AgentSessionEnded += handler;
+        public event Func<AgentSseSessionEvent, Task> AgentSessionSummaryDone
+        {
+            add => AgentSessionSummaryDoneInternal += value;
+            remove => AgentSessionSummaryDoneInternal -= value;
+        }
 
-        public void OnAIAgentSessionSummaryDone(Func<AgentSseSessionEvent, Task> handler)
-            => AgentSessionSummaryDone += handler;
-
-        internal event Func<AgentSseSessionEvent, Task>? AgentSessionStarted;
-        internal event Func<AgentSseSessionEvent, Task>? AgentSessionEnded;
-        internal event Func<AgentSseSessionEvent, Task>? AgentSessionSummaryDone;
+        internal event Func<AgentSseSessionEvent, Task>? AgentSessionStartedInternal;
+        internal event Func<AgentSseSessionEvent, Task>? AgentSessionEndedInternal;
+        internal event Func<AgentSseSessionEvent, Task>? AgentSessionSummaryDoneInternal;
     }
 }

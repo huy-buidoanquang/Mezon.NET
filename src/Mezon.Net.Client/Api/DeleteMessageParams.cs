@@ -1,4 +1,4 @@
-namespace Mezon.Net.Api
+namespace Mezon.Net.Client
 {
     public readonly struct DeleteMessageParams
     {

@@ -8,7 +8,6 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using Mezon.Net.Core;
 using Mezon.Net.Core.Abstractions;
-using Mezon.Net.Core.Exceptions;
 using Mezon.Net.Transport.Internal;
 
 namespace Mezon.Net.Transport
@@ -239,7 +238,8 @@ namespace Mezon.Net.Transport
         {
             if (_wsClient?.State != WebSocketState.Open || _state != ConnectionState.Connected || _sendChannel == null)
             {
-                return default;
+                return new ValueTask(Task.FromException(new InvalidOperationException(
+                    $"Cannot send on WebSocket (wsState={_wsClient?.State}, transportState={_state}, sendChannel={_sendChannel != null}).")));
             }
 
             switch (type)
@@ -252,7 +252,7 @@ namespace Mezon.Net.Transport
                 case MezonMessageType.Heartbeat:
                     return new ValueTask(Task.FromException(new InvalidOperationException("WebSocket heartbeat must be sent as a Ping envelope.")));
                 default:
-                    return default;
+                    return new ValueTask(Task.FromException(new InvalidOperationException($"Unsupported WebSocket message type '{type}'.")));
             }
         }
 

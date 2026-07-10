@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
-using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -15,10 +14,10 @@ using Mezon.Net.Queue;
 using Mezon.Net.Utils;
 using Newtonsoft.Json;
 using static Mezon.Net.Core.Abstractions.IMezonNetworkTransporter;
-using PbSession = Mezon.Net.Internal.Api.Session;
+using MezonSession = Mezon.Net.Internal.Api.Session;
 using Stream = System.IO.Stream;
 
-namespace Mezon.Net.Api
+namespace Mezon.Net.Client
 {
     internal class MezonApiClient : IMezonApiClient, IDisposable, IAsyncDisposable
     {
@@ -299,7 +298,7 @@ namespace Mezon.Net.Api
         {
             if (LoginState != LoginState.LoggedIn)
             {
-                throw new InvalidOperationException("Client is not logged in.");
+                throw new MezonAuthenticationException("Client is not logged in.");
             }
         }
 
@@ -318,31 +317,30 @@ namespace Mezon.Net.Api
             return sb.ToString();
         }
 
-        public Task UpdateAccountAsync(UpdateAccountRequest body)
+        public void ConfigureApiBasePath(string apiBasePath)
+        {
+            if (!string.IsNullOrWhiteSpace(apiBasePath))
+            {
+                ConfigureGatewayBasePath(apiBasePath);
+            }
+        }
+
+        public Task UpdateAccountAsync(global::Mezon.Net.Internal.Api.UpdateAccountRequest body)
         {
             Check.NotNull(body, nameof(body));
             return SendJsonNoResAsync("PUT", "/v2/account", body);
         }
 
-        public async Task<AuthenticationResponse> CheckLoginRequestAsync(string basicAuthUsername, string basicAuthPassword, ConfirmLoginRequest body, RequestOptions? options = null)
+        public async Task<MezonSession> CheckLoginRequestAsync(string basicAuthUsername, string basicAuthPassword, global::Mezon.Net.Internal.Api.ConfirmLoginRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
             options ??= RequestOptions.CreateOrClone(options);
             AddBasicAuthHeader(basicAuthUsername, basicAuthPassword, options);
             options.RequestHeaders.Add("Accept", new[] { "application/x-protobuf" });
-            var response = PbSession.Parser.ParseFrom(await SendJsonAsync("POST", "/v2/account/authenticate/checklogin", body, options: options));
-            return new AuthenticationResponse
-            {
-                ApiUrl = response.ApiUrl,
-                Created = response.Created,
-                IsRemember = response.IsRemember,
-                RefreshToken = response.RefreshToken,
-                Token = response.Token,
-                UserId = response.UserId,
-            };
+            return MezonSession.Parser.ParseFrom(await SendJsonAsync("POST", "/v2/account/authenticate/checklogin", body, options: options));
         }
 
-        public Task ConfirmLoginAsync(ConfirmLoginRequest body, RequestOptions? options = null)
+        public Task ConfirmLoginAsync(global::Mezon.Net.Internal.Api.ConfirmLoginRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
             options ??= RequestOptions.CreateOrClone(options);
@@ -350,46 +348,25 @@ namespace Mezon.Net.Api
             return SendJsonNoResAsync("POST", "/v2/account/authenticate/confirmlogin", body, options: options);
         }
 
-        public async Task<LoginIDResponse> CreateQRLoginAsync(string basicAuthUsername, string basicAuthPassword, LoginIDRequest body, RequestOptions? options = null)
+        public async Task<global::Mezon.Net.Internal.Api.LoginIDResponse> CreateQRLoginAsync(string basicAuthUsername, string basicAuthPassword, global::Mezon.Net.Internal.Api.LoginRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
             options ??= RequestOptions.CreateOrClone(options);
             AddBasicAuthHeader(basicAuthUsername, basicAuthPassword, options);
-            var response = Internal.Api.LoginIDResponse.Parser.ParseFrom(await SendJsonAsync("POST", "/v2/account/authenticate/createqrlogin", body, options: options));
-            return new LoginIDResponse
-            {
-                Address = response.Address,
-                CreateTimeSecond = response.CreateTimeSeconds,
-                LoginId = response.LoginId,
-                Platform = response.Platform,
-                Status = response.Status,
-                UserId = response.UserId,
-            };
+            return Internal.Api.LoginIDResponse.Parser.ParseFrom(await SendJsonAsync("POST", "/v2/account/authenticate/createqrlogin", body, options: options));
         }
 
-        public async Task<AuthenticationResponse> AuthenticateEmailAsync(string basicAuthUsername, string basicAuthPassword, EmailAuthenticationRequest body, RequestOptions? options = null)
+        public async Task<MezonSession> AuthenticateEmailAsync(string basicAuthUsername, string basicAuthPassword, EmailAuthenticationRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
             options ??= RequestOptions.CreateOrClone(options);
             options.IgnoreState = true;
             AddBasicAuthHeader(basicAuthUsername, basicAuthPassword, options);
             options.RequestHeaders.Add("Accept", new[] { "application/x-protobuf" });
-            var response = PbSession.Parser.ParseFrom(await SendJsonAsync("POST", "/v2/account/authenticate/email", body, options: options));
-            return new AuthenticationResponse
-            {
-                ApiUrl = response.ApiUrl,
-                WsUrl = response.WsUrl,
-                TcpUrl = response.TcpUrl,
-                Created = response.Created,
-                IsRemember = response.IsRemember,
-                RefreshToken = response.RefreshToken,
-                Token = response.Token,
-                SessionId = response.SessionId,
-                UserId = response.UserId,
-            };
+            return MezonSession.Parser.ParseFrom(await SendJsonAsync("POST", "/v2/account/authenticate/email", body, options: options));
         }
 
-        public async Task<AuthenticationResponse> AuthenticateMezonAsync(string basicAuthUsername, string basicAuthPassword, AccountMezonRequest body, AccountMezonParams args, RequestOptions? options = null)
+        public async Task<MezonSession> AuthenticateMezonAsync(string basicAuthUsername, string basicAuthPassword, global::Mezon.Net.Internal.Api.AccountMezon body, AccountMezonParams args, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
             options ??= RequestOptions.CreateOrClone(options);
@@ -412,99 +389,39 @@ namespace Mezon.Net.Api
                     .Append(args.Username.Value);
             }
 
-            var response = PbSession.Parser.ParseFrom(await SendJsonAsync("POST", $"/v2/account/authenticate/mezon?{queryArgs}", body, options: options));
-            return new AuthenticationResponse
-            {
-                ApiUrl = response.ApiUrl,
-                Created = response.Created,
-                IsRemember = response.IsRemember,
-                RefreshToken = response.RefreshToken,
-                Token = response.Token,
-                UserId = response.UserId,
-            };
+            return MezonSession.Parser.ParseFrom(await SendJsonAsync("POST", $"/v2/account/authenticate/mezon?{queryArgs}", body, options: options));
         }
 
-        public async Task<AccountConfirmResponse> AuthenticateSMSOTPAsync(string basicAuthUsername, string basicAuthPassword, AuthenticateSMSRequest body, RequestOptions? options = null)
+        public async Task<LinkAccountConfirmRequest> AuthenticateSMSOTPAsync(string basicAuthUsername, string basicAuthPassword, AuthenticateSMSRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
             options ??= RequestOptions.CreateOrClone(options);
             AddBasicAuthHeader(basicAuthUsername, basicAuthPassword, options);
             options.RequestHeaders.Add("Accept", new[] { "application/x-protobuf" });
-
-            var response = LinkAccountConfirmRequest.Parser.ParseFrom(await SendJsonAsync("POST", "/v2/account/authenticate/emailotp", body, options: options));
-            return new AccountConfirmResponse
-            {
-                RequestId = response.ReqId,
-                Status = response.Status,
-                OTP = response.OtpCode
-            };
+            return LinkAccountConfirmRequest.Parser.ParseFrom(await SendJsonAsync("POST", "/v2/account/authenticate/emailotp", body, options: options));
         }
 
-        public virtual async Task<AuthenticationResponse> RefreshSessionAsync(string basicAuthUsername, string basicAuthPassword, SessionRefreshRequest body, RequestOptions? options = null)
-        {
-            Check.NotNull(body, nameof(body));
-            options = RequestOptions.CreateOrClone(options);
-            AddBasicAuthHeader(basicAuthUsername, basicAuthPassword, options);
-            var request = new Internal.Api.SessionRefreshRequest();
-            request.IsRemember = body.IsRemember ?? false;
-            request.Token = body.Token;
-            request.Vars.Add(body.Vars ?? new Dictionary<string, string>());
-            var response = new AuthenticationResponse();
-            return new AuthenticationResponse
-            {
-                ApiUrl = response.ApiUrl,
-                Created = response.Created,
-                IsRemember = response.IsRemember,
-                RefreshToken = response.RefreshToken,
-                Token = response.Token,
-                UserId = response.UserId,
-            };
-        }
-
-        public async Task<AuthenticationResponse> AuthenticateAppAsync(string basicAuthUsername, string basicAuthPassword, AppAuthenticationRequest body, RequestOptions? options = null)
+        public async Task<MezonSession> AuthenticateAppAsync(string basicAuthUsername, string basicAuthPassword, AppAuthenticationRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
             options = RequestOptions.CreateOrClone(options);
             options.IgnoreState = true;
             AddBasicAuthHeader(basicAuthUsername, basicAuthPassword, options);
-            var response = PbSession.Parser.ParseFrom(await SendJsonAsync("POST", "/v2/apps/authenticate/token", body, options: options));
-            return new AuthenticationResponse
-            {
-                ApiUrl = response.ApiUrl,
-                Created = response.Created,
-                IsRemember = response.IsRemember,
-                RefreshToken = response.RefreshToken,
-                Token = response.Token,
-                UserId = response.UserId,
-                WsUrl = response.WsUrl,
-                TcpUrl = response.TcpUrl,
-                IdToken = response.IdToken,
-            };
-        }
-
-        public void ConfigureApiBasePath(string apiBasePath)
-        {
-            if (!string.IsNullOrWhiteSpace(apiBasePath))
-            {
-                ConfigureGatewayBasePath(apiBasePath);
-            }
-        }
-
-        public async Task<bool> AuthenticateAppLogoutAsync(AppAuthenticationLogoutRequest body, RequestOptions? options = null)
-        {
-            Check.NotNull(body, nameof(body));
-            options = RequestOptions.CreateOrClone(options);
-            options.IgnoreState = true;
-            await SendJsonNoResAsync("DELETE", "/v2/apps/authenticate/token", body, options: options).ConfigureAwait(false);
-            return true;
-        }
-
-        public virtual Task<ClanDescList> ListClanDescsAsync(PaginationParams args, RequestOptions? options = null)
-        {
-            throw new NotImplementedException();
+            options.RequestHeaders.Add("Accept", new[] { "application/x-protobuf" });
+            return MezonSession.Parser.ParseFrom(await SendJsonAsync("POST", "/v2/apps/authenticate/token", body, options: options));
         }
 
         #region Socket API stubs
+
+        public virtual async Task<MezonSession> RefreshSessionAsync(string basicAuthUsername, string basicAuthPassword, global::Mezon.Net.Internal.Api.SessionRefreshRequest body, RequestOptions? options = null)
+        {
+            throw new NotSupportedException("Socket API is not available on REST-only client.");
+        }
+
+        public virtual Task<ClanDescList> ListClanDescsAsync(ListClanDescRequest body, RequestOptions? options = null)
+        {
+            throw new NotSupportedException("Socket API is not available on REST-only client.");
+        }
 
         public virtual Task DeleteAccountAsync(RequestOptions? options = null)
         {
@@ -611,7 +528,7 @@ namespace Mezon.Net.Api
             throw new NotSupportedException("Socket API is not available on REST-only client.");
         }
 
-        public virtual Task<RoleListEventResponse> ListRolesAsync(long? clanId = null, int? limit = null, int? state = null, string? cursor = null, RequestOptions? options = null)
+        public virtual Task<RoleListEventResponse> ListRolesAsync(RoleListEventRequest request, RequestOptions? options = null)
         {
             throw new NotSupportedException("Socket API is not available on REST-only client.");
         }
@@ -816,7 +733,7 @@ namespace Mezon.Net.Api
             throw new NotSupportedException("Socket API is not available on REST-only client.");
         }
 
-        public virtual Task<RoleUserList> ListRoleUsersAsync(long roleId, int? limit = null, string? cursor = null, RequestOptions? options = null)
+        public virtual Task<RoleUserList> ListRoleUsersAsync(ListRoleUsersRequest request, RequestOptions? options = null)
         {
             throw new NotSupportedException("Socket API is not available on REST-only client.");
         }
@@ -941,7 +858,7 @@ namespace Mezon.Net.Api
             throw new NotSupportedException("Socket API is not available on REST-only client.");
         }
 
-        public virtual Task<ChannelDescList> ListChannelDescsAsync(long clanId, int? limit = null, int? state = null, string? cursor = null, int? channelType = null, bool? isMobile = null, int? page = null, RequestOptions? options = null)
+        public virtual Task<ChannelDescList> ListChannelDescsAsync(ListChannelDescsRequest request, RequestOptions? options = null)
         {
             throw new NotSupportedException("Socket API is not available on REST-only client.");
         }
@@ -1236,7 +1153,7 @@ namespace Mezon.Net.Api
             throw new NotSupportedException("Socket API is not available on REST-only client.");
         }
 
-        public virtual Task<ChannelMessageAck> SendChannelMessageAsync(in Mezon.Net.Api.SendChannelMessageParams message, RequestOptions? options = null)
+        public virtual Task<ChannelMessageAck> SendChannelMessageAsync(SendChannelMessageParams message, RequestOptions? options = null)
         {
             throw new NotSupportedException("Socket API is not available on REST-only client.");
         }

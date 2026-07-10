@@ -20,10 +20,10 @@ public sealed class EventDispatchTests
         TopicInMessageEvent? topic = null;
 
         client.ApiRequestReceivedEvent += payload => { apiRequest = payload; return Task.CompletedTask; };
-        client.ListChannelUsersBannedEvent += payload => { banned = payload; return Task.CompletedTask; };
-        client.RefreshSessionEvent += payload => { session = payload; return Task.CompletedTask; };
-        client.ChannelArchiveEvent += payload => { archive = payload; return Task.CompletedTask; };
-        client.TopicInMessageEvent += payload => { topic = payload; return Task.CompletedTask; };
+        client.ChannelUsersBannedListedEvent += payload => { banned = payload; return Task.CompletedTask; };
+        client.SessionRefreshedEvent += payload => { session = payload; return Task.CompletedTask; };
+        client.ChannelArchivedEvent += payload => { archive = payload; return Task.CompletedTask; };
+        client.TopicInMessageReceivedEvent += payload => { topic = payload; return Task.CompletedTask; };
 
         var envelopes = new[]
         {
@@ -54,7 +54,7 @@ public sealed class AllocationSmokeTests
     [Fact]
     public void SendChannelMessageParams_struct_has_expected_size()
     {
-        var size = Unsafe.SizeOf<Mezon.Net.Api.SendChannelMessageParams>();
+        var size = Unsafe.SizeOf<Mezon.Net.Client.SendChannelMessageParams>();
         Assert.True(size < 64);
     }
 }

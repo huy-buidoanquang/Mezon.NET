@@ -1,11 +1,11 @@
 using System.Threading.Tasks;
-using Mezon.Net.Api;
+using Mezon.Net.Core;
 
 namespace Mezon.Net.Client
 {
     public partial class MezonClient
     {
-        internal async Task<bool> LoginAsBotInternalAsync(string botId, string token, bool autoRefreshSession)
+        internal async Task<bool> LoginAsBotInternalAsync(long botId, string token, bool autoRefreshSession)
         {
             await StateLock.WaitAsync().ConfigureAwait(false);
             try
@@ -19,6 +19,10 @@ namespace Mezon.Net.Client
 
                 await LoginInternalAsync(TokenType, session.AuthToken).ConfigureAwait(false);
                 return true;
+            }
+            catch (MezonException)
+            {
+                throw;
             }
             catch
             {

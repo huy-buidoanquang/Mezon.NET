@@ -1,6 +1,4 @@
-using System.Threading;
 using System.Threading.Tasks;
-using Mezon.Net.Api;
 using Mezon.Net.Core;
 using Mezon.Net.Core.Entities;
 using Mezon.Net.Internal.Api;
@@ -30,10 +28,10 @@ namespace Mezon.Net.Sdk.Entities
         internal void UpdateFrom(ClanDesc desc) => _desc = desc;
 
         public Task<ChannelDescList> LoadChannelsAsync(int? channelType = null, RequestOptions? options = null)
-            => _client.Api.ListChannelDescsAsync(Id, channelType: channelType, options: options);
+            => _client.Engine.ListChannelDescsAsync(Id, channelType: channelType, options: options);
 
         public Task<RoleListEventResponse> ListRolesAsync(int? limit = null, int? state = null, string? cursor = null, RequestOptions? options = null)
-            => _client.Api.ListRolesAsync(Id, limit, state, cursor, options);
+            => _client.Engine.ListRolesAsync(Id, limit, state, cursor, options);
 
         public Task UpdateRoleAsync(global::Mezon.Net.Internal.Api.UpdateRoleRequest body, RequestOptions? options = null)
             => _client.Api.UpdateRoleAsync(body, options);

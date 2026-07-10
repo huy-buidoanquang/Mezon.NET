@@ -3,8 +3,9 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
 using Mezon.Net.Abstractions;
 using Mezon.Net.Core;
+using MezonSession = Mezon.Net.Internal.Api.Session;
 
-namespace Mezon.Net.Api
+namespace Mezon.Net.Client
 {
     public class Session : ISession
     {
@@ -27,17 +28,18 @@ namespace Mezon.Net.Api
         public string? TcpUrl { get; private set; }
         public string? IdToken { get; private set; }
 
-        public Session(AuthenticationResponse authenticationRes)
+        public Session(MezonSession mezonSession)
         {
-            SessionId = authenticationRes.SessionId;
-            Created = authenticationRes.Created;
+            SessionId = mezonSession.SessionId;
+            Created = mezonSession.Created;
             CreatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            ApiUrl = authenticationRes.ApiUrl;
-            WsUrl = authenticationRes.WsUrl;
-            TcpUrl = authenticationRes.TcpUrl;
-            IdToken = authenticationRes.IdToken;
-            AuthToken = authenticationRes.Token ?? string.Empty;
-            RefreshToken = authenticationRes.RefreshToken ?? string.Empty;
+            ApiUrl = mezonSession.ApiUrl;
+            WsUrl = mezonSession.WsUrl;
+            TcpUrl = mezonSession.TcpUrl;
+            IdToken = mezonSession.IdToken;
+            IsRemember = mezonSession.IsRemember;
+            AuthToken = mezonSession.Token ?? string.Empty;
+            RefreshToken = mezonSession.RefreshToken ?? string.Empty;
             InitializeSession();
         }
 
@@ -122,7 +124,7 @@ namespace Mezon.Net.Api
             return DateTimeOffset.FromUnixTimeSeconds(RefreshExpiresAt) < DateTimeOffset.UtcNow;
         }
 
-        public static Session Restore(AuthenticationResponse authenticationResponse)
+        public static Session Restore(MezonSession authenticationResponse)
         {
             return new Session(authenticationResponse);
         }

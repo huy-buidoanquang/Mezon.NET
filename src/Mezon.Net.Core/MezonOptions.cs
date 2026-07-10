@@ -1,5 +1,4 @@
 using System.Reflection;
-using Mezon.Net.Abstractions;
 using Mezon.Net.Logging;
 
 namespace Mezon.Net.Core
@@ -13,7 +12,7 @@ namespace Mezon.Net.Core
         public const string DefaultZKApi = "https://dong.mezon.ai/zk-api/";
         public const string DefaultServerKey = "defaultkey";
         public const string DefaultHost = "dev-mezon.nccsoft.vn";
-        public const string DefaultPort = "8080";
+        public const string DefaultPort = "8088";
         public const bool DefaultUseSSL = true;
 
         /// <summary>

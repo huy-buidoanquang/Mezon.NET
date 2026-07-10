@@ -1,7 +1,6 @@
-using System;
 using Newtonsoft.Json;
 
-namespace Mezon.Net.Api
+namespace Mezon.Net.Client
 {
     public class LoginIDResponse
     {
@@ -9,7 +8,7 @@ namespace Mezon.Net.Api
         public string? Address { get; set; }
 
         [JsonProperty("create_time_second")]
-        public long? CreateTimeSecond { get; set; }
+        public long? CreateTimeSeconds { get; set; }
 
         [JsonProperty("login_id")]
         public long LoginId { get; set; } = 0;

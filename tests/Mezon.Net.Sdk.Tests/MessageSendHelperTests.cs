@@ -1,5 +1,5 @@
 using Mezon.Net.Client.Messaging;
-using Mezon.Net.Api;
+using Mezon.Net.Client;
 using Xunit;
 
 namespace Mezon.Net.Sdk.Tests

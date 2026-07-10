@@ -40,6 +40,66 @@ public sealed class MezonClientReconnectTests
     }
 
     [Fact]
+    public async Task Heartbeat_timeout_triggers_reconnect_when_transport_does_not_raise_closed()
+    {
+        var transport = new FakeNetworkTransporter();
+        var options = SocketTestDoubles.CreateOptions(transport, heartbeatMs: 120);
+        var socketClient = await SocketTestDoubles.CreateLoggedInSocketClientAsync(options, transport).ConfigureAwait(false);
+        var client = new MezonClient(options, socketClient);
+        client.SetReconnectDelayForTests(80);
+
+        await client.ConnectAsync().ConfigureAwait(false);
+        transport.AutoRespondToHeartbeat = false;
+
+        var deadline = Environment.TickCount64 + 8000;
+        while (Environment.TickCount64 < deadline)
+        {
+            if (transport.ConnectCount >= 2 && transport.DisconnectCount >= 1)
+            {
+                break;
+            }
+
+            await Task.Delay(50).ConfigureAwait(false);
+        }
+
+        Assert.True(transport.DisconnectCount >= 1, "Expected heartbeat timeout to force a disconnect.");
+        Assert.True(transport.ConnectCount >= 2, "Expected reconnect after heartbeat timeout.");
+
+        transport.AutoRespondToHeartbeat = true;
+        await client.DisconnectAsync().ConfigureAwait(false);
+    }
+
+    [Fact]
+    public async Task Heartbeat_timeout_reconnects_when_transport_fires_closed_during_disconnect()
+    {
+        var transport = new FakeNetworkTransporter { InvokeClosedDuringDisconnect = true };
+        var options = SocketTestDoubles.CreateOptions(transport, heartbeatMs: 120);
+        var socketClient = await SocketTestDoubles.CreateLoggedInSocketClientAsync(options, transport).ConfigureAwait(false);
+        var client = new MezonClient(options, socketClient);
+        client.SetReconnectDelayForTests(80);
+
+        await client.ConnectAsync().ConfigureAwait(false);
+        transport.AutoRespondToHeartbeat = false;
+
+        var deadline = Environment.TickCount64 + 8000;
+        while (Environment.TickCount64 < deadline)
+        {
+            if (transport.ConnectCount >= 2 && transport.DisconnectCount >= 1)
+            {
+                break;
+            }
+
+            await Task.Delay(50).ConfigureAwait(false);
+        }
+
+        Assert.True(transport.DisconnectCount >= 1, "Expected heartbeat timeout to force a disconnect.");
+        Assert.True(transport.ConnectCount >= 2, "Expected reconnect after heartbeat timeout with nested Closed during disconnect.");
+
+        transport.AutoRespondToHeartbeat = true;
+        await client.DisconnectAsync().ConfigureAwait(false);
+    }
+
+    [Fact]
     public async Task ConnectAsync_does_not_hang_when_transport_fires_closed_during_connect_failure()
     {
         var transport = new FakeNetworkTransporter();
