@@ -2,10 +2,10 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Mezon.Net.Abstractions;
-using Mezon.Net.Api;
 using Mezon.Net.Client.Managers;
 using Mezon.Net.Core;
 using Mezon.Net.Internal.Api;
+using Mezon.Net.Logging;
 using Mezon.Net.Mmn;
 using Mezon.Net.Mmn.Models;
 using Mezon.Net.Sdk.Agent;
@@ -16,6 +16,9 @@ namespace Mezon.Net.Sdk
 {
     public sealed partial class MezonClient : IAsyncDisposable
     {
+        internal readonly AsyncEvent<Func<LogMessage, Task>> _logEvent = new AsyncEvent<Func<LogMessage, Task>>();
+        public event Func<LogMessage, Task> Log { add { _logEvent.Add(value); } remove { _logEvent.Remove(value); } }
+
         private readonly Client.MezonClient _engine;
         private readonly DmChannelManager _dmChannels = new DmChannelManager();
         private readonly ChannelSendQueue _sendQueue = new ChannelSendQueue();
@@ -24,26 +27,35 @@ namespace Mezon.Net.Sdk
         private MmnClient? _mmnClient;
         private ZkClient? _zkClient;
         private AgentSseManager? _agentManager;
+        internal readonly Logger _logger;
+
+        private readonly SemaphoreSlim _initializeGate = new SemaphoreSlim(1, 1);
+        private TaskCompletionSource<bool>? _firstConnectTcs;
+        private CancellationToken _connectCancellationToken;
+        private bool _readyInvoked;
 
         public MezonClient(MezonClientOptions options)
         {
             Options = options ?? throw new ArgumentNullException(nameof(options));
-            _engine = new Client.MezonClient(options.ToSocketOptions());
+            _engine = new Client.MezonClient(options);
+            _engine.Log += async msg => await _logEvent.InvokeAsync(msg).ConfigureAwait(false);
+            _engine.Connected += OnEngineConnectedAsync;
+            _logger = _engine.LogManager.CreateLogger("MezonSdkClient");
             Clans = new EntityCache<Clan>(options.CacheCapacity);
             Channels = new EntityCache<TextChannel>(options.CacheCapacity);
             Users = new EntityCache<Entities.User>(options.CacheCapacity);
         }
 
         public MezonClientOptions Options { get; }
-        public Client.MezonClient Engine => _engine;
-        public IMezonApiClient Api => _engine.ApiClient;
-        public DmChannelManager DmChannels => _dmChannels;
-        public ChannelSendQueue SendQueue => _sendQueue;
+        internal Client.MezonClient Engine => _engine;
+        internal IMezonApiClient Api => _engine.ApiClient;
+        internal DmChannelManager DmChannels => _dmChannels;
+        internal ChannelSendQueue SendQueue => _sendQueue;
         public EntityCache<Clan> Clans { get; }
         public EntityCache<TextChannel> Channels { get; }
         public EntityCache<Entities.User> Users { get; }
 
-        public string BotId => Options.BotId;
+        public long BotId => Options.BotId;
         public ConnectionState ConnectionState => _engine.ConnectionState;
         public long Latency => _engine.Latency;
 
@@ -55,9 +67,9 @@ namespace Mezon.Net.Sdk
 
         public async Task<bool> LoginAsync(CancellationToken cancellationToken = default)
         {
-            if (string.IsNullOrWhiteSpace(Options.BotId) || string.IsNullOrWhiteSpace(Options.Token))
+            if (Options.BotId == 0 || string.IsNullOrWhiteSpace(Options.Token))
             {
-                throw new InvalidOperationException("BotId and Token are required.");
+                throw new ArgumentException("BotId and Token are required.");
             }
 
             if (!await _engine.LoginAsBotInternalAsync(Options.BotId, Options.Token, autoRefreshSession: true).ConfigureAwait(false))
@@ -65,17 +77,77 @@ namespace Mezon.Net.Sdk
                 return false;
             }
 
+            _connectCancellationToken = cancellationToken;
+            _readyInvoked = false;
+            _firstConnectTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
             await _engine.ConnectAsync().ConfigureAwait(false);
-            await _dmChannels.InitializeAsync(Api, _engine).ConfigureAwait(false);
-            await SeedClanCacheAsync(cancellationToken).ConfigureAwait(false);
-            BindCacheListeners();
-            await InitializeMmnAsync(cancellationToken).ConfigureAwait(false);
-            if (Ready != null)
-            {
-                await Ready.Invoke().ConfigureAwait(false);
-            }
+            await AwaitFirstConnectAsync(_firstConnectTcs.Task, cancellationToken).ConfigureAwait(false);
 
             return true;
+        }
+
+        private static async Task AwaitFirstConnectAsync(Task<bool> connectTask, CancellationToken cancellationToken)
+        {
+            if (!cancellationToken.CanBeCanceled)
+            {
+                await connectTask.ConfigureAwait(false);
+                return;
+            }
+
+            var cancelWait = new TaskCompletionSource<bool>();
+            using (cancellationToken.Register(state => ((TaskCompletionSource<bool>)state!).TrySetCanceled(), cancelWait))
+            {
+                var completed = await Task.WhenAny(connectTask, cancelWait.Task).ConfigureAwait(false);
+                await completed.ConfigureAwait(false);
+            }
+        }
+
+        private async Task OnEngineConnectedAsync()
+        {
+            await _initializeGate.WaitAsync(_connectCancellationToken).ConfigureAwait(false);
+            try
+            {
+                await InitializeAfterConnectedAsync(_connectCancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _firstConnectTcs?.TrySetException(ex);
+                await _logger.ErrorAsync("Failed to initialize after socket connected.", ex).ConfigureAwait(false);
+                return;
+            }
+            finally
+            {
+                _initializeGate.Release();
+            }
+
+            _firstConnectTcs?.TrySetResult(true);
+
+            if (!_readyInvoked)
+            {
+                _readyInvoked = true;
+                if (Ready != null)
+                {
+                    await Ready.Invoke().ConfigureAwait(false);
+                }
+            }
+        }
+
+        private async Task InitializeAfterConnectedAsync(CancellationToken cancellationToken)
+        {
+            await _dmChannels.InitializeAsync(Api, _engine).ConfigureAwait(false);
+            await SeedClanCacheAsync(cancellationToken).ConfigureAwait(false);
+            await RejoinCachedChannelsAsync().ConfigureAwait(false);
+            BindCacheListeners();
+            await InitializeMmnAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        private async Task RejoinCachedChannelsAsync()
+        {
+            foreach (var channel in Channels.Values)
+            {
+                await channel.JoinAsync().ConfigureAwait(false);
+            }
         }
 
         public Task ConnectAgentSseAsync(CancellationToken cancellationToken = default)
@@ -86,13 +158,22 @@ namespace Mezon.Net.Sdk
                 switch (evt.EventType)
                 {
                     case "room_started":
-                        if (AgentSessionStarted != null) await AgentSessionStarted(evt).ConfigureAwait(false);
+                        if (AgentSessionStartedInternal != null)
+                        {
+                            await AgentSessionStartedInternal(evt).ConfigureAwait(false);
+                        }
                         break;
                     case "room_ended":
-                        if (AgentSessionEnded != null) await AgentSessionEnded(evt).ConfigureAwait(false);
+                        if (AgentSessionEndedInternal != null)
+                        {
+                            await AgentSessionEndedInternal(evt).ConfigureAwait(false);
+                        }
                         break;
                     case "room_summary_done":
-                        if (AgentSessionSummaryDone != null) await AgentSessionSummaryDone(evt).ConfigureAwait(false);
+                        if (AgentSessionSummaryDoneInternal != null)
+                        {
+                            await AgentSessionSummaryDoneInternal(evt).ConfigureAwait(false);
+                        }
                         break;
                 }
             };
@@ -111,9 +192,7 @@ namespace Mezon.Net.Sdk
             return _mmnClient!.GenerateEphemeralKeyPair();
         }
 
-        public string GetAddress(long userId) => GetAddress(userId.ToString());
-
-        public string GetAddress(string userId)
+        public string GetAddress(long userId)
         {
             EnsureMmnClient();
             return _mmnClient!.GetAddressFromUserId(userId);
@@ -125,7 +204,7 @@ namespace Mezon.Net.Sdk
             return _zkClient!.GetZkProofsAsync(request, cancellationToken);
         }
 
-        public Task<NonceResult> GetCurrentNonceAsync(string userId, string tag = "pending", CancellationToken cancellationToken = default)
+        public Task<NonceResult> GetCurrentNonceAsync(long userId, string tag = "pending", CancellationToken cancellationToken = default)
         {
             EnsureMmnClient();
             var address = GetAddress(userId);
@@ -149,7 +228,7 @@ namespace Mezon.Net.Sdk
 
         private async ValueTask<Clan> FetchClanAsync(long clanId, CancellationToken cancellationToken)
         {
-            var list = await Api.ListClanDescsAsync(new PaginationParams()).ConfigureAwait(false);
+            var list = await Api.ListClanDescsAsync(new ListClanDescRequest()).ConfigureAwait(false);
             foreach (var clan in list.Clandesc)
             {
                 if (clan.ClanId == clanId)
@@ -158,14 +237,16 @@ namespace Mezon.Net.Sdk
                 }
             }
 
-            throw new InvalidOperationException($"Clan {clanId} was not found.");
+            throw new MezonEntityNotFoundException(nameof(Clan), clanId);
         }
 
         private async ValueTask<TextChannel> FetchChannelAsync(long channelId, CancellationToken cancellationToken)
         {
             var detail = await Api.GetChannelDetailAsync(channelId).ConfigureAwait(false);
             var clan = await GetClanAsync(detail.ClanId, cancellationToken).ConfigureAwait(false);
-            return new TextChannel(this, detail, clan);
+            var channel = new TextChannel(this, detail, clan);
+            await channel.JoinAsync().ConfigureAwait(false);
+            return channel;
         }
 
         private ValueTask<Entities.User> FetchUserAsync(long userId, CancellationToken cancellationToken)
@@ -176,7 +257,7 @@ namespace Mezon.Net.Sdk
 
         private async Task SeedClanCacheAsync(CancellationToken cancellationToken)
         {
-            var list = await Api.ListClanDescsAsync(new PaginationParams()).ConfigureAwait(false);
+            var list = await Api.ListClanDescsAsync(new ListClanDescRequest()).ConfigureAwait(false);
             foreach (var clanDesc in list.Clandesc)
             {
                 Clans.Set(clanDesc.ClanId, new Clan(this, clanDesc));
@@ -186,7 +267,7 @@ namespace Mezon.Net.Sdk
 
         private async Task InitializeMmnAsync(CancellationToken cancellationToken)
         {
-            if (string.IsNullOrWhiteSpace(Options.MmnApiUrl))
+            if (string.IsNullOrWhiteSpace(Options.MMNApiUrl))
             {
                 return;
             }
@@ -237,10 +318,10 @@ namespace Mezon.Net.Sdk
         }
 
         private void EnsureMmnClient()
-            => _mmnClient ??= new MmnClient(Options.MmnApiUrl, Options.RequestTimeoutMs);
+            => _mmnClient ??= new MmnClient(Options.MMNApiUrl, Options.ApiTimeoutInMilliseconds);
 
         private void EnsureZkClient()
-            => _zkClient ??= new ZkClient(Options.ZkApiUrl, Options.RequestTimeoutMs);
+            => _zkClient ??= new ZkClient(Options.ZkApiUrl, Options.ApiTimeoutInMilliseconds);
 
         public async ValueTask DisposeAsync()
         {

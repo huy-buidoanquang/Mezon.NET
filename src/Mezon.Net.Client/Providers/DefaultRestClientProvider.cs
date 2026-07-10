@@ -2,7 +2,7 @@ using System;
 using System.Net;
 using Mezon.Net.Abstractions;
 
-namespace Mezon.Net.Api
+namespace Mezon.Net.Client
 {
     public static class DefaultRestClientProvider
     {

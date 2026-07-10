@@ -8,7 +8,7 @@ namespace Mezon.Net.Core.Abstractions
     {
         event Func<ISession, Task>? SessionRefreshed;
 
-        Task LoginAsync(string clientId, string clientSecret, bool autoRefreshSession = true);
+        Task LoginAsync(long clientId, string clientSecret, bool autoRefreshSession = true);
 
         Task LoginAsync(ISession session, bool autoRefreshSession = true);
 

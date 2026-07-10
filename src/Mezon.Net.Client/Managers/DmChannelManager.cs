@@ -20,7 +20,7 @@ namespace Mezon.Net.Client.Managers
             _userToChannelId.Clear();
             _dmChannelDescs.Clear();
 
-            var channels = await api.ListChannelDescsAsync(
+            var channels = await client.ListChannelDescsAsync(
                 clanId: 0,
                 channelType: (int)ChannelType.Dm,
                 options: options).ConfigureAwait(false);

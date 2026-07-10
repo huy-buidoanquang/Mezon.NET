@@ -1,4 +1,4 @@
-namespace Mezon.Net.Api
+namespace Mezon.Net.Client
 {
     /// <summary>
     /// Maps channel types to stream modes (aligned with mezon-js convertChanneltypeToChannelMode).

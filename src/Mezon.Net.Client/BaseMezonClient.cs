@@ -6,7 +6,7 @@ using Mezon.Net.Core;
 using Mezon.Net.Core.Abstractions;
 using Mezon.Net.Logging;
 
-namespace Mezon.Net.Api
+namespace Mezon.Net.Client
 {
     public abstract class BaseMezonClient : IMezonClient
     {
@@ -26,7 +26,7 @@ namespace Mezon.Net.Api
         /// </summary>
         public event Func<string, string, double, Task> ApiSentRequestEvent { add { _apiSentRequestEvent.Add(value); } remove { _apiSentRequestEvent.Remove(value); } }
 
-        internal readonly Logger _logger;
+        private readonly Logger _logger;
         protected readonly SemaphoreSlim StateLock;
         private bool _isFirstLogin, _isDisposed;
 
@@ -78,6 +78,10 @@ namespace Mezon.Net.Api
 
                 await LoginInternalAsync(TokenType, _sessionManager.CurrentSession().AuthToken).ConfigureAwait(false);
                 return true;
+            }
+            catch (MezonException)
+            {
+                throw;
             }
             catch
             {

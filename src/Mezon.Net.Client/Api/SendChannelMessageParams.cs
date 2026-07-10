@@ -1,4 +1,4 @@
-namespace Mezon.Net.Api
+namespace Mezon.Net.Client
 {
     /// <summary>
     /// Low-allocation input for sending a channel message over socket API.

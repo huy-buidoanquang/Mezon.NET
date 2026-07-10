@@ -54,10 +54,10 @@ namespace Mezon.Net.Mmn.Utils
             return result.ToString();
         }
 
-        public static string AddressFromUserId(string userId)
+        public static string AddressFromUserId(long userId)
         {
             using var sha = SHA256.Create();
-            var hash = sha.ComputeHash(Encoding.UTF8.GetBytes(userId));
+            var hash = sha.ComputeHash(Encoding.UTF8.GetBytes(userId.ToString()));
             return Encode(hash);
         }
     }

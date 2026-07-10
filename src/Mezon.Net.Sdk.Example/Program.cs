@@ -1,26 +1,76 @@
 using Mezon.Net.Sdk;
+using Microsoft.Extensions.Logging;
 
-var botId = Environment.GetEnvironmentVariable("MEZON_BOT_ID") ?? string.Empty;
-var token = Environment.GetEnvironmentVariable("MEZON_BOT_TOKEN") ?? string.Empty;
-
-if (string.IsNullOrWhiteSpace(botId) || string.IsNullOrWhiteSpace(token))
+internal class Program
 {
-    Console.WriteLine("Set MEZON_BOT_ID and MEZON_BOT_TOKEN to run the SDK example.");
-    return;
+    private const long TargetClanId = 2050100607154393088L;
+    private const long TargetChannelId = 2050100608064557059L;
+
+    private static async Task Main(string[] args)
+    {
+        using ILoggerFactory factory = LoggerFactory.Create(builder => { builder.AddConsole(); builder.SetMinimumLevel(LogLevel.Trace); });
+        ILogger logger = factory.CreateLogger("Program");
+
+        var botId = 2061341035941859328;
+        var token = "ft4Vr4AmhyPSUMaD";
+        static void WireClientLog(MezonClient client, ILogger logger)
+        {
+            client.Log += message =>
+            {
+                var text = message.ToString(prependTimestamp: true, timestampKind: DateTimeKind.Utc);
+                switch (message.Level)
+                {
+                    case Mezon.Net.Logging.LogLevel.Trace:
+                        logger.LogDebug("{MezonLog}", text);
+                        break;
+                    case Mezon.Net.Logging.LogLevel.Debug:
+                        logger.LogDebug("{MezonLog}", text);
+                        break;
+                    case Mezon.Net.Logging.LogLevel.Warning:
+                        logger.LogWarning("{MezonLog}", text);
+                        break;
+                    case Mezon.Net.Logging.LogLevel.Error:
+                    case Mezon.Net.Logging.LogLevel.Critical:
+                        logger.LogError("{MezonLog}", text);
+                        break;
+                    default:
+                        logger.LogInformation("{MezonLog}", text);
+                        break;
+                }
+
+                return Task.CompletedTask;
+            };
+        }
+
+        var options = new MezonClientOptions(botId, token);
+        options.LogLevel = Mezon.Net.Logging.LogLevel.Trace;
+        await using var client = new MezonClient(options);
+        WireClientLog(client, logger);
+        client.ChannelMessageReceived += message =>
+        {
+            Console.WriteLine($"[{message.ChannelId}] {message.Username}: {message}");
+            return Task.CompletedTask;
+        };
+
+        if (!await client.LoginAsync())
+        {
+            Console.WriteLine("Login failed.");
+            return;
+        }
+
+        try
+        {
+            var channel = await client.GetChannelAsync(TargetChannelId);
+            var ack = await channel.SendAsync("{\"t\":\"12312\"}").ConfigureAwait(false);
+            Console.WriteLine($"Sent to clan {TargetClanId}, channel {TargetChannelId}: message_id={ack.MessageId}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Send failed: {ex.Message}");
+            logger.LogError(ex, "Failed to send message to channel {ChannelId}", TargetChannelId);
+        }
+
+        Console.WriteLine("Bot connected. Press Ctrl+C to exit.");
+        await Task.Delay(Timeout.Infinite);
+    }
 }
-
-await using var client = new MezonClient(new MezonClientOptions(botId, token));
-client.OnChannelMessage(message =>
-{
-    Console.WriteLine($"[{message.ChannelId}] {message.Username}: {message.Content}");
-    return Task.CompletedTask;
-});
-
-if (!await client.LoginAsync())
-{
-    Console.WriteLine("Login failed.");
-    return;
-}
-
-Console.WriteLine("Bot connected. Press Ctrl+C to exit.");
-await Task.Delay(Timeout.Infinite);

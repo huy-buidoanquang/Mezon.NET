@@ -1,4 +1,4 @@
-using Mezon.Net.Api;
+using Mezon.Net.Client;
 using Mezon.Net.Client;
 using Mezon.Net.Core;
 using Mezon.Net.Core.Protocol;
@@ -81,7 +81,7 @@ internal static class SocketApiProbe
         await RunStage(1, "Core reads", async () =>
         {
             await Probe(results, logger, options, cancellationToken, "GetAccountAsync", () => api.GetAccountAsync(opts));
-            await Probe(results, logger, options, cancellationToken, "ListClanDescsAsync", () => api.ListClanDescsAsync(new PaginationParams { Limit = 20 }, opts));
+            await Probe(results, logger, options, cancellationToken, "ListClanDescsAsync", () => api.ListClanDescsAsync(new ListClanDescRequest { Limit = 20 }, opts));
         });
 
         await RunStage(2, "Clan + channel metadata", async () =>
@@ -173,16 +173,12 @@ internal static class SocketApiProbe
                     SenderUsername = ctx.Username,
                 }
             }, opts));
-            await Probe(results, logger, options, cancellationToken, "Ping/Heartbeat", async () =>
-            {
-                await client.Ping().ConfigureAwait(false);
-                return client.Latency;
-            });
+            await Probe(results, logger, options, cancellationToken, "Latency (automatic heartbeat)", async () => client.Latency);
             await Probe(results, logger, options, cancellationToken, "HealthcheckAsync", () => api.HealthcheckAsync(opts));
             await Probe(results, logger, options, cancellationToken, "SendChannelMessageAsync", async () =>
             {
                 var content = System.Text.Json.JsonSerializer.Serialize(new { t = options.TestMessage });
-                var mode = Mezon.Net.Api.ChannelStreamModeHelper.FromChannelType(ctx.ChannelType);
+                var mode = Mezon.Net.Client.ChannelStreamModeHelper.FromChannelType(ctx.ChannelType);
                 var ack = await api.SendChannelMessageAsync(
                     new SendChannelMessageParams(ctx.ClanId, ctx.ChannelId, content, isPublic: ctx.IsPublic, mode: mode),
                     opts).ConfigureAwait(false);

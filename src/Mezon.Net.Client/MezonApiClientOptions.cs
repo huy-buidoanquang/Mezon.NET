@@ -3,7 +3,7 @@ using Mezon.Net.Core;
 using Mezon.Net.Transport;
 using static Mezon.Net.Core.Abstractions.IMezonNetworkTransporter;
 
-namespace Mezon.Net.Api
+namespace Mezon.Net.Client
 {
 
     /// <summary>
@@ -28,8 +28,5 @@ namespace Mezon.Net.Api
         /// Gets or sets the provider for creating Network Transporter. Defaults to <see cref="DefaultNetworkTransportProvider.Instance"/>.
         /// </summary>
         public MezonNetworkTransportProvider NetworkTransportProvider { get; set; } = DefaultNetworkTransportProvider.Instance;
-
-
-        public string ApiBasePath { get; set; } = string.Empty;
     }
 }

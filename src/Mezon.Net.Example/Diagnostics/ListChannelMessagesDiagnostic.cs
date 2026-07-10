@@ -134,8 +134,8 @@ internal static class ListChannelMessagesDiagnostic
         };
 
         var client = new MezonClient(clientOptions);
-        var auth = await client.AuthenticateEmailAsync(email, password).ConfigureAwait(false);
-        await client.LoginAsync(new Mezon.Net.Api.Session(auth)).ConfigureAwait(false);
+        var session = await client.AuthenticateEmailAsync(email, password).ConfigureAwait(false);
+        await client.LoginAsync(session).ConfigureAwait(false);
         await client.ConnectAsync().ConfigureAwait(false);
         logger.LogInformation("Connected state={State}", client.ConnectionState);
         await Task.Delay(500, cancellationToken).ConfigureAwait(false);

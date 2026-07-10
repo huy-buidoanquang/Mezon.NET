@@ -7,7 +7,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Mezon.Net.Mmn.Models;
 using Mezon.Net.Mmn.Utils;
-using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Security;
@@ -38,7 +37,7 @@ namespace Mezon.Net.Mmn
             return new EphemeralKeyPair { PublicKey = publicKey, PrivateKey = privateKey };
         }
 
-        public string GetAddressFromUserId(string userId) => Base58Encoder.AddressFromUserId(userId);
+        public string GetAddressFromUserId(long userId) => Base58Encoder.AddressFromUserId(userId);
 
         public string ScaleAmountToDecimals(string amount, int decimals = 18)
         {

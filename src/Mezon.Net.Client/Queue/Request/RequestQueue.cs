@@ -1,11 +1,10 @@
 using System;
 using System.IO;
-using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using Mezon.Net.Abstractions;
-using Mezon.Net.Api;
+using Mezon.Net.Client;
 using Mezon.Net.Core;
 using Mezon.Net.Utils;
 using Newtonsoft.Json;
@@ -110,33 +109,24 @@ namespace Mezon.Net.Queue
 
         private static HttpException BuildHttpException(ApiRequest request, HttpResponse response)
         {
-            MezonErrorResponse? error = null;
+            string? reason = null;
+
             if (response.Stream != null)
             {
                 try
                 {
                     using var reader = new StreamReader(response.Stream);
-                    using var jsonReader = new JsonTextReader(reader);
-                    error = Json.Serializer.Deserialize<MezonErrorResponse>(jsonReader);
+                    var json = reader.ReadToEnd();
+                    if (!string.IsNullOrEmpty(json))
+                    {
+                        var error = JsonConvert.DeserializeObject<MezonErrorResponse>(json, Json.JsonSerializerSettings);
+                        reason = error?.Message ?? json;
+                    }
                 }
                 catch { }
             }
 
-            MezonJsonError[]? jsonErrors = null;
-            if (error?.Errors.IsSpecified == true)
-            {
-                jsonErrors = error.Errors.Value.Select(x => new MezonJsonError(
-                    x.Name.GetValueOrDefault("root"),
-                    (x.Errors.GetValueOrDefault(Array.Empty<Error>()) ?? Array.Empty<Error>())
-                        .Select(y => new MezonError(y.Code!, y.Message!)).ToArray())).ToArray();
-            }
-
-            return new HttpException(
-                response.StatusCode,
-                request,
-                error?.Code ?? MezonErrorCode.GeneralError,
-                error?.Message,
-                jsonErrors);
+            return new HttpException(response.StatusCode, request, reason);
         }
 
         public void Dispose()

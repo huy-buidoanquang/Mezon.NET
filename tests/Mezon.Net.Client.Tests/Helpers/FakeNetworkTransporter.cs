@@ -1,5 +1,5 @@
 using System.Collections.Concurrent;
-using Mezon.Net.Api;
+using Mezon.Net.Client;
 using Mezon.Net.Client;
 using Mezon.Net.Core;
 using Mezon.Net.Logging;
@@ -16,6 +16,7 @@ internal sealed class FakeNetworkTransporter : IMezonNetworkTransporter
 
     public Func<Task>? ConnectHandler { get; set; }
     public bool AutoRespondToHeartbeat { get; set; } = true;
+    public bool InvokeClosedDuringDisconnect { get; set; }
 
     private int _heartbeatSendCount;
     private int _connectCount;
@@ -62,6 +63,12 @@ internal sealed class FakeNetworkTransporter : IMezonNetworkTransporter
 
         Interlocked.Increment(ref _disconnectCount);
         _isConnected = false;
+
+        if (InvokeClosedDuringDisconnect && Closed != null)
+        {
+            Interlocked.Increment(ref _closedInvokeCount);
+            await Closed.Invoke(null).ConfigureAwait(false);
+        }
     }
 
     public async ValueTask SendAsync(MezonMessageType type, int cid, ReadOnlyMemory<byte> data)
@@ -129,9 +136,9 @@ internal static class SocketTestDoubles
         return options;
     }
 
-    public static async Task<MezonSocketApiClient> CreateLoggedInSocketClientAsync(MezonSocketClientOptions options, FakeNetworkTransporter transport)
+    public static async Task<MezonSocketClient> CreateLoggedInSocketClientAsync(MezonSocketClientOptions options, FakeNetworkTransporter transport)
     {
-        var socketClient = new MezonSocketApiClient(options.RestClientProvider, _ => transport, options);
+        var socketClient = new MezonSocketClient(options.RestClientProvider, _ => transport, options);
         await SessionManager<MezonApiClientOptions>.Instance.LoginAsync(new TestSession("session-token", "127.0.0.1:9000")).ConfigureAwait(false);
 
         typeof(MezonApiClient).GetProperty(nameof(MezonApiClient.LoginState))!

@@ -45,8 +45,8 @@ internal static class HeartbeatDuringApiDiagnostic
             return Task.CompletedTask;
         };
 
-        var auth = await client.AuthenticateEmailAsync(email, password).ConfigureAwait(false);
-        await client.LoginAsync(new Mezon.Net.Api.Session(auth)).ConfigureAwait(false);
+        var session = await client.AuthenticateEmailAsync(email, password).ConfigureAwait(false);
+        await client.LoginAsync(session).ConfigureAwait(false);
         await client.ConnectAsync().ConfigureAwait(false);
 
         var api = client.ApiClient;
@@ -83,7 +83,7 @@ internal static class HeartbeatDuringApiDiagnostic
         logger.LogInformation("Phase C: ListRolesAsync while heartbeat loop runs (concurrent cIds)...");
         try
         {
-            _ = await api.ListRolesAsync(options.ClanId, limit: 20, options: opts).ConfigureAwait(false);
+            _ = await client.ListRolesAsync(options.ClanId, limit: 20, options: opts).ConfigureAwait(false);
             logger.LogInformation("Phase C: ListRolesAsync OK");
         }
         catch (Exception ex)

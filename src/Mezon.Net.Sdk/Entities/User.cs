@@ -1,6 +1,6 @@
 using System;
 using System.Threading.Tasks;
-using Mezon.Net.Api;
+using Mezon.Net.Client;
 using Mezon.Net.Client.Managers;
 using Mezon.Net.Client.Messaging;
 using Mezon.Net.Core;
@@ -40,7 +40,7 @@ namespace Mezon.Net.Sdk.Entities
                 var dm = await _client.DmChannels.CreateDmChannelAsync(_client.Api, _client.Engine, Id, options).ConfigureAwait(false);
                 if (dm == null)
                 {
-                    throw new InvalidOperationException($"Unable to create DM channel for user {Id}.");
+                throw new MezonEntityNotFoundException(nameof(User), Id, $"Unable to create DM channel for user {Id}.");
                 }
 
                 _dmChannelId = dm.ChannelId;

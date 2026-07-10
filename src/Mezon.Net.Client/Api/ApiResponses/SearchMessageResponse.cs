@@ -1,8 +1,7 @@
 using System.Collections.Generic;
-using Mezon.Net.Api.Api.ApiResponses;
 using Newtonsoft.Json;
 
-namespace Mezon.Net.Api
+namespace Mezon.Net.Client
 {
     public class SearchMessageResponse
     {

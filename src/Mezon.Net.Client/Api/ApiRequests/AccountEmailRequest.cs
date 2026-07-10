@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Newtonsoft.Json;
 
-namespace Mezon.Net.Api
+namespace Mezon.Net.Client
 {
     public class AccountEmailRequest
     {
@@ -10,6 +10,9 @@ namespace Mezon.Net.Api
 
         [JsonProperty("password")]
         public string? Password { get; set; }
+
+        [JsonProperty("prev_email")]
+        public string? PrevEmail { get; set; }
 
         [JsonProperty("vars")]
         public IDictionary<string, string>? Vars { get; set; }

@@ -1,11 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Mezon.Net.Api;
 using Mezon.Net.Core;
 using Mezon.Net.Internal.Api;
 using Mezon.Net.Internal.Realtime;
-using Mezon.Net.Queue;
+using MezonSession = Mezon.Net.Internal.Api.Session;
 
 namespace Mezon.Net.Abstractions
 {
@@ -41,12 +40,16 @@ namespace Mezon.Net.Abstractions
 
         void ConfigureApiBasePath(string apiBasePath);
 
-        Task<Api.LoginIDResponse> CreateQRLoginAsync(string basicAuthUsername, string basicAuthPassword, LoginIDRequest body, RequestOptions? options = null);
-        Task<AuthenticationResponse> AuthenticateEmailAsync(string basicAuthUsername, string basicAuthPassword, EmailAuthenticationRequest body, RequestOptions? options = null);
-        Task<AuthenticationResponse> RefreshSessionAsync(string basicAuthUsername, string basicAuthPassword, Api.SessionRefreshRequest body, RequestOptions? options = null);
-        Task<AuthenticationResponse> AuthenticateAppAsync(string basicAuthUsername, string basicAuthPassword, AppAuthenticationRequest body, RequestOptions? options = null);
-        Task<bool> AuthenticateAppLogoutAsync(AppAuthenticationLogoutRequest body, RequestOptions? options = null);
-        Task<ClanDescList> ListClanDescsAsync(PaginationParams args, RequestOptions? options = null);
+        Task<LoginIDResponse> CreateQRLoginAsync(string basicAuthUsername, string basicAuthPassword, LoginRequest body, RequestOptions? options = null);
+        Task<MezonSession> CheckLoginRequestAsync(string basicAuthUsername, string basicAuthPassword, ConfirmLoginRequest body, RequestOptions? options = null);
+        Task ConfirmLoginAsync(ConfirmLoginRequest body, RequestOptions? options = null);
+        Task<MezonSession> AuthenticateEmailAsync(string basicAuthUsername, string basicAuthPassword, Mezon.Net.Client.EmailAuthenticationRequest body, RequestOptions? options = null);
+        Task<MezonSession> RefreshSessionAsync(string basicAuthUsername, string basicAuthPassword, SessionRefreshRequest body, RequestOptions? options = null);
+        Task<MezonSession> AuthenticateMezonAsync(string basicAuthUsername, string basicAuthPassword, AccountMezon body, Mezon.Net.Client.AccountMezonParams args, RequestOptions? options = null);
+        Task<LinkAccountConfirmRequest> AuthenticateSMSOTPAsync(string basicAuthUsername, string basicAuthPassword, Mezon.Net.Client.AuthenticateSMSRequest body, RequestOptions? options = null);
+        Task UpdateAccountAsync(UpdateAccountRequest body);
+        Task<MezonSession> AuthenticateAppAsync(string basicAuthUsername, string basicAuthPassword, Mezon.Net.Client.AppAuthenticationRequest body, RequestOptions? options = null);
+        Task<ClanDescList> ListClanDescsAsync(ListClanDescRequest body, RequestOptions? options = null);
         Task DeleteAccountAsync(RequestOptions? options = null);
         Task<Account> GetAccountAsync(RequestOptions? options = null);
         Task<AddFriendsResponse> AddFriendsAsync(IEnumerable<long>? ids = null, IEnumerable<string>? usernames = null, RequestOptions? options = null);
@@ -68,7 +71,7 @@ namespace Mezon.Net.Abstractions
         Task<ChannelMessageList> ListChannelMessagesAsync(long clanId, long channelId, long? messageId = null, int? direction = null, int? limit = null, long? topicId = null, RequestOptions? options = null);
         Task<ChannelUserList> ListChannelUsersAsync(long clanId, long channelId, int channelType, int? limit = null, int? state = null, string? cursor = null, RequestOptions? options = null);
         Task DeleteRoleAsync(long roleId, RequestOptions? options = null);
-        Task<RoleListEventResponse> ListRolesAsync(long? clanId = null, int? limit = null, int? state = null, string? cursor = null, RequestOptions? options = null);
+        Task<RoleListEventResponse> ListRolesAsync(RoleListEventRequest request, RequestOptions? options = null);
         Task UpdateUserAsync(UpdateUsersRequest body, RequestOptions? options = null);
         Task DeleteEventAsync(long eventId, RequestOptions? options = null);
         Task<EventList> ListEventsAsync(long? clanId = null, RequestOptions? options = null);
@@ -109,7 +112,7 @@ namespace Mezon.Net.Abstractions
         Task TransferOwnershipAsync(TransferOwnershipRequest body, RequestOptions? options = null);
         Task<PermissionList> GetListPermissionAsync(RequestOptions? options = null);
         Task<PermissionList> ListRolePermissionsAsync(long roleId, RequestOptions? options = null);
-        Task<RoleUserList> ListRoleUsersAsync(long roleId, int? limit = null, string? cursor = null, RequestOptions? options = null);
+        Task<RoleUserList> ListRoleUsersAsync(ListRoleUsersRequest request, RequestOptions? options = null);
         Task<UserPermissionInChannelListResponse> ListUserPermissionInChannelAsync(long clanId, long channelId, RequestOptions? options = null);
         Task DeleteNotificationsAsync(IEnumerable<long>? ids = null, int? category = null, RequestOptions? options = null);
         Task<NotificationList> ListNotificationsAsync(long? clanId = null, long? notificationId = null, int? limit = null, int? category = null, int? direction = null, RequestOptions? options = null);
@@ -134,7 +137,7 @@ namespace Mezon.Net.Abstractions
         Task AddUserEventAsync(UserEventRequest body, RequestOptions? options = null);
         Task DeleteUserEventAsync(long clanId, long eventId, RequestOptions? options = null);
         Task HealthcheckAsync(RequestOptions? options = null);
-        Task<ChannelDescList> ListChannelDescsAsync(long clanId, int? limit = null, int? state = null, string? cursor = null, int? channelType = null, bool? isMobile = null, int? page = null, RequestOptions? options = null);
+        Task<ChannelDescList> ListChannelDescsAsync(ListChannelDescsRequest request, RequestOptions? options = null);
         Task<Internal.Api.ChannelDescription> GetChannelDetailAsync(long channelId, RequestOptions? options = null);
         Task<BannedUserList> ListBannedUsersAsync(long clanId, RequestOptions? options = null);
         Task UnbanClanUsersAsync(long clanId, IEnumerable<long> userIds, RequestOptions? options = null);
@@ -193,7 +196,7 @@ namespace Mezon.Net.Abstractions
         Task<QuickMenuAccessList> ListQuickMenuAccessAsync(long botId, long channelId, int? menuType = null, RequestOptions? options = null);
         Task<IsFollowerResponse> IsFollowerAsync(IsFollowerRequest body, RequestOptions? options = null);
         Task<ChannelMessageAck> SendChannelMessageAsync(ChannelMessageSend body, RequestOptions? options = null);
-        Task<ChannelMessageAck> SendChannelMessageAsync(in Mezon.Net.Api.SendChannelMessageParams message, RequestOptions? options = null);
+        Task<ChannelMessageAck> SendChannelMessageAsync(Mezon.Net.Client.SendChannelMessageParams message, RequestOptions? options = null);
         Task UpdateChannelMessageAsync(ChannelMessageUpdate body, RequestOptions? options = null);
         Task DeleteChannelMessageAsync(ChannelMessageRemove body, RequestOptions? options = null);
         Task RemoveParticipantMezonMeetAsync(MeetParticipantRequest body, RequestOptions? options = null);
@@ -224,26 +227,26 @@ namespace Mezon.Net.Abstractions
         Task<ListChannelTimelineResponse> ListChannelTimelineAsync(ListChannelTimelineRequest body, RequestOptions? options = null);
         Task<ListArchivedChannelDescsResponse> ListArchivedChannelDescsAsync(long clanId, RequestOptions? options = null);
         Task<ListUserOnlineResponse> ListUserOnlineAsync(long clanId, int? limit = null, int? page = null, RequestOptions? options = null);
-        Task<global::Mezon.Net.Internal.Api.Session> RegistrationEmailAsync(global::Mezon.Net.Internal.Api.RegistrationEmailRequest body, RequestOptions? options = null);
-        Task<UploadAttachment> UploadAttachmentFileAsync(global::Mezon.Net.Internal.Api.UploadAttachmentRequest body, RequestOptions? options = null);
-        Task<UploadAttachment> UploadOauthFileAsync(global::Mezon.Net.Internal.Api.UploadAttachmentRequest body, RequestOptions? options = null);
-        Task<Role> CreateRoleAsync(global::Mezon.Net.Internal.Api.CreateRoleRequest body, RequestOptions? options = null);
-        Task<EventManagement> CreateEventAsync(global::Mezon.Net.Internal.Api.CreateEventRequest body, RequestOptions? options = null);
+        Task<Session> RegistrationEmailAsync(RegistrationEmailRequest body, RequestOptions? options = null);
+        Task<UploadAttachment> UploadAttachmentFileAsync(UploadAttachmentRequest body, RequestOptions? options = null);
+        Task<UploadAttachment> UploadOauthFileAsync(UploadAttachmentRequest body, RequestOptions? options = null);
+        Task<Role> CreateRoleAsync(CreateRoleRequest body, RequestOptions? options = null);
+        Task<EventManagement> CreateEventAsync(CreateEventRequest body, RequestOptions? options = null);
         Task ArchiveChannelAsync(ArchiveChannelRequest body, RequestOptions? options = null);
-        Task<LinkInviteUser> CreateLinkInviteUserAsync(global::Mezon.Net.Internal.Api.LinkInviteUserRequest body, RequestOptions? options = null);
-        Task SetNotificationClanSettingAsync(global::Mezon.Net.Internal.Api.SetDefaultNotificationRequest body, RequestOptions? options = null);
+        Task<LinkInviteUser> CreateLinkInviteUserAsync(LinkInviteUserRequest body, RequestOptions? options = null);
+        Task SetNotificationClanSettingAsync(SetDefaultNotificationRequest body, RequestOptions? options = null);
         Task UpdateAccountAsync(Internal.Api.UpdateAccountRequest body, RequestOptions? options = null);
-        Task<global::Mezon.Net.Internal.Api.Session> UpdateUsernameAsync(UpdateUsernameRequest body, RequestOptions? options = null);
-        Task UpdateCategoryOrderAsync(global::Mezon.Net.Internal.Api.UpdateCategoryOrderRequest body, RequestOptions? options = null);
-        Task UpdateRoleAsync(global::Mezon.Net.Internal.Api.UpdateRoleRequest body, RequestOptions? options = null);
-        Task UpdateEventAsync(global::Mezon.Net.Internal.Api.UpdateEventRequest body, RequestOptions? options = null);
-        Task<global::Mezon.Net.Internal.Api.SearchMessageResponse> SearchMessageAsync(global::Mezon.Net.Internal.Api.SearchMessageRequest body, RequestOptions? options = null);
+        Task<Session> UpdateUsernameAsync(UpdateUsernameRequest body, RequestOptions? options = null);
+        Task UpdateCategoryOrderAsync(UpdateCategoryOrderRequest body, RequestOptions? options = null);
+        Task UpdateRoleAsync(UpdateRoleRequest body, RequestOptions? options = null);
+        Task UpdateEventAsync(UpdateEventRequest body, RequestOptions? options = null);
+        Task<SearchMessageResponse> SearchMessageAsync(SearchMessageRequest body, RequestOptions? options = null);
         Task HandleWebhookAsync(ClanWebhookHandlerRequest body, RequestOptions? options = null);
         Task<CheckDuplicateNameResponse> CheckDuplicateNameAsync(CheckDuplicateNameRequest body, RequestOptions? options = null);
-        Task<App> AddAppAsync(global::Mezon.Net.Internal.Api.AddAppRequest body, RequestOptions? options = null);
-        Task<UserActivity> CreateActivityAsync(global::Mezon.Net.Internal.Api.CreateActivityRequest body, RequestOptions? options = null);
+        Task<App> AddAppAsync(AddAppRequest body, RequestOptions? options = null);
+        Task<UserActivity> CreateActivityAsync(CreateActivityRequest body, RequestOptions? options = null);
         Task UpdateUserCustomStatusAsync(User body, RequestOptions? options = null);
-        Task<global::Mezon.Net.Internal.Api.GenerateMezonMeetResponse> CreateExternalMezonMeetAsync(RequestOptions? options = null);
+        Task<GenerateMezonMeetResponse> CreateExternalMezonMeetAsync(RequestOptions? options = null);
         Task<UpdateChannelTimelineResponse> UpdateChannelTimelineAsync(UpdateChannelTimelineRequest body, RequestOptions? options = null);
         Task<CreateChannelTimelineResponse> CreateChannelTimelineAsync(CreateChannelTimelineRequest body, RequestOptions? options = null);
         Task<ChannelTimelineDetailResponse> DetailChannelTimelineAsync(ChannelTimelineDetailRequest body, RequestOptions? options = null);
@@ -252,7 +255,7 @@ namespace Mezon.Net.Abstractions
         Task ClosePollAsync(ClosePollRequest body, RequestOptions? options = null);
         Task<GetPollResponse> GetPollAsync(GetPollRequest body, RequestOptions? options = null);
         Task ReactChannelMessageAsync(MessageReaction body, RequestOptions? options = null);
-        Task<MultipartUploadAttachment> MultipartUploadAttachmentFileStartAsync(global::Mezon.Net.Internal.Api.UploadAttachmentRequest body, RequestOptions? options = null);
+        Task<MultipartUploadAttachment> MultipartUploadAttachmentFileStartAsync(UploadAttachmentRequest body, RequestOptions? options = null);
         Task<UploadAttachment> MultipartUploadAttachmentFileFinishAsync(MultipartUploadAttachmentFinishRequest body, RequestOptions? options = null);
         Task SessionLogoutAsync(SessionLogoutRequest body, RequestOptions? options = null);
         Task<UploadAttachmentBatch> UploadBatchAttachmentFileAsync(UploadBatchAttachmentRequest body, RequestOptions? options = null);

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Newtonsoft.Json;
 
-namespace Mezon.Net.Api
+namespace Mezon.Net.Client
 {
     /// <summary>
     /// Represents an application associated with an API account.
@@ -15,7 +15,7 @@ namespace Mezon.Net.Api
         /// Gets or sets the application ID.
         /// </summary>
         [JsonProperty("appid")]
-        public string? AppId { get; set; }
+        public string AppId { get; set; } = string.Empty;
 
         /// <summary>
         /// Gets or sets the application name.

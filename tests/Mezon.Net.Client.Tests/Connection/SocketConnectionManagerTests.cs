@@ -1,7 +1,7 @@
 using System.Net.WebSockets;
 using Mezon.Net.Client.Tests.Helpers;
 using Mezon.Net.Core;
-using Mezon.Net.Core.Exceptions;
+using Mezon.Net.Core;
 using Mezon.Net.Logging;
 
 namespace Mezon.Net.Client.Tests.Connection;
@@ -69,7 +69,7 @@ public sealed class SocketConnectionManagerTests
         await host.Manager.ConnectAsync().ConfigureAwait(false);
         await host.Manager.WaitAsync().ConfigureAwait(false);
 
-        host.RaiseTransportDisconnected(new WebSocketClosedException(4006));
+        host.RaiseTransportDisconnected(new SocketClosedException(4006));
 
         await host.DisconnectedArgs.Task.WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
         Assert.False(host.ReconnectingArgs.Task.IsCompleted);

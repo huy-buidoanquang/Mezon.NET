@@ -3,7 +3,7 @@ using Mezon.Net.Abstractions;
 
 namespace Mezon.Net.Client
 {
-    public abstract partial class BaseSocketClient : Api.BaseMezonClient, IMezonClient, IApiClientProvider
+    public abstract partial class BaseSocketClient : BaseMezonClient, IMezonClient, IApiClientProvider
     {
         /// <summary>
         ///     Gets the estimated round-trip latency, in milliseconds, to the gateway server.
@@ -16,7 +16,7 @@ namespace Mezon.Net.Client
 
         protected new readonly MezonSocketClientOptions Options;
 
-        internal new MezonSocketApiClient ApiClient => (base.ApiClient as MezonSocketApiClient)!;
+        internal new MezonSocketClient ApiClient => (base.ApiClient as MezonSocketClient)!;
 
         /// <summary>
         ///     Initializes a new <see cref="BaseSocketClient"/> with the provided configuration.
@@ -30,8 +30,6 @@ namespace Mezon.Net.Client
         public abstract Task ConnectAsync();
 
         public abstract Task DisconnectAsync();
-
-        public Task Ping() => ApiClient.Heartbeat();
 
         public Task JoinChannelChat(long clanId, long channelId, int channelType, bool isPublic) => ApiClient.JoinChannelChat(clanId, channelId, channelType, isPublic);
 

@@ -7,178 +7,178 @@ namespace Mezon.Net.Client
 {
     public partial class BaseSocketClient
     {
-        public event Func<Task> ReadyEvent
+        public event Func<Task> ClientReadyEvent
         {
-            add { _readyEvent.Add(value); }
-            remove { _readyEvent.Remove(value); }
+            add { _clientReadyEvent.Add(value); }
+            remove { _clientReadyEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _readyEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _clientReadyEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Pong, Task> PongEvent
+        public event Func<Pong, Task> PongReceivedEvent
         {
-            add { _pongEvent.Add(value); }
-            remove { _pongEvent.Remove(value); }
+            add { _pongReceivedEvent.Add(value); }
+            remove { _pongReceivedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Pong, Task>> _pongEvent = new AsyncEvent<Func<Pong, Task>>();
+        internal readonly AsyncEvent<Func<Pong, Task>> _pongReceivedEvent = new AsyncEvent<Func<Pong, Task>>();
 
-        public event Func<Channel, Task> ChannelEvent
+        public event Func<Channel, Task> ChannelReceivedEvent
         {
-            add { _channelEvent.Add(value); }
-            remove { _channelEvent.Remove(value); }
+            add { _channelReceivedEvent.Add(value); }
+            remove { _channelReceivedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Channel, Task>> _channelEvent = new AsyncEvent<Func<Channel, Task>>();
+        internal readonly AsyncEvent<Func<Channel, Task>> _channelReceivedEvent = new AsyncEvent<Func<Channel, Task>>();
 
-        public event Func<ClanJoin, Task> ClanJoinEvent
+        public event Func<ClanJoin, Task> ClanJoinedEvent
         {
-            add { _clanJoinEvent.Add(value); }
-            remove { _clanJoinEvent.Remove(value); }
+            add { _clanJoinedEvent.Add(value); }
+            remove { _clanJoinedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<ClanJoin, Task>> _clanJoinEvent = new AsyncEvent<Func<ClanJoin, Task>>();
+        internal readonly AsyncEvent<Func<ClanJoin, Task>> _clanJoinedEvent = new AsyncEvent<Func<ClanJoin, Task>>();
 
-        public event Func<ChannelJoin, Task> ChannelJoinEvent
+        public event Func<ChannelJoin, Task> ChannelJoinedEvent
         {
-            add { _channelJoinEvent.Add(value); }
-            remove { _channelJoinEvent.Remove(value); }
+            add { _channelJoinedEvent.Add(value); }
+            remove { _channelJoinedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<ChannelJoin, Task>> _channelJoinEvent = new AsyncEvent<Func<ChannelJoin, Task>>();
+        internal readonly AsyncEvent<Func<ChannelJoin, Task>> _channelJoinedEvent = new AsyncEvent<Func<ChannelJoin, Task>>();
 
-        public event Func<ChannelLeave, Task> ChannelLeaveEvent
+        public event Func<ChannelLeave, Task> ChannelLeftEvent
         {
-            add { _channelLeaveEvent.Add(value); }
-            remove { _channelLeaveEvent.Remove(value); }
+            add { _channelLeftEvent.Add(value); }
+            remove { _channelLeftEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<ChannelLeave, Task>> _channelLeaveEvent = new AsyncEvent<Func<ChannelLeave, Task>>();
+        internal readonly AsyncEvent<Func<ChannelLeave, Task>> _channelLeftEvent = new AsyncEvent<Func<ChannelLeave, Task>>();
 
-        public event Func<Internal.Api.ChannelMessage, Task> ChannelMessageEvent
+        public event Func<Internal.Api.ChannelMessage, Task> ChannelMessageReceivedEvent
         {
-            add { _channelMessageEvent.Add(value); }
-            remove { _channelMessageEvent.Remove(value); }
+            add { _channelMessageReceivedEvent.Add(value); }
+            remove { _channelMessageReceivedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Internal.Api.ChannelMessage, Task>> _channelMessageEvent = new AsyncEvent<Func<Internal.Api.ChannelMessage, Task>>();
+        internal readonly AsyncEvent<Func<Internal.Api.ChannelMessage, Task>> _channelMessageReceivedEvent = new AsyncEvent<Func<Internal.Api.ChannelMessage, Task>>();
 
-        public event Func<ChannelMessageAck, Task> ChannelMessageAckEvent
+        public event Func<ChannelMessageAck, Task> ChannelMessageAckReceivedEvent
         {
-            add { _channelMessageAckEvent.Add(value); }
-            remove { _channelMessageAckEvent.Remove(value); }
+            add { _channelMessageAckReceivedEvent.Add(value); }
+            remove { _channelMessageAckReceivedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<ChannelMessageAck, Task>> _channelMessageAckEvent = new AsyncEvent<Func<ChannelMessageAck, Task>>();
+        internal readonly AsyncEvent<Func<ChannelMessageAck, Task>> _channelMessageAckReceivedEvent = new AsyncEvent<Func<ChannelMessageAck, Task>>();
 
-        public event Func<ChannelMessageSend, Task> ChannelMessageSendEvent
+        public event Func<ChannelMessageSend, Task> ChannelMessageSentEvent
         {
-            add { _channelMessageSendEvent.Add(value); }
-            remove { _channelMessageSendEvent.Remove(value); }
+            add { _channelMessageSentEvent.Add(value); }
+            remove { _channelMessageSentEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<ChannelMessageSend, Task>> _channelMessageSendEvent = new AsyncEvent<Func<ChannelMessageSend, Task>>();
+        internal readonly AsyncEvent<Func<ChannelMessageSend, Task>> _channelMessageSentEvent = new AsyncEvent<Func<ChannelMessageSend, Task>>();
 
-        public event Func<ChannelMessageUpdate, Task> ChannelMessageUpdateEvent
+        public event Func<ChannelMessageUpdate, Task> ChannelMessageUpdatedEvent
         {
-            add { _channelMessageUpdateEvent.Add(value); }
-            remove { _channelMessageUpdateEvent.Remove(value); }
+            add { _channelMessageUpdatedEvent.Add(value); }
+            remove { _channelMessageUpdatedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<ChannelMessageUpdate, Task>> _channelMessageUpdateEvent = new AsyncEvent<Func<ChannelMessageUpdate, Task>>();
+        internal readonly AsyncEvent<Func<ChannelMessageUpdate, Task>> _channelMessageUpdatedEvent = new AsyncEvent<Func<ChannelMessageUpdate, Task>>();
 
-        public event Func<ChannelMessageRemove, Task> ChannelMessageRemoveEvent
+        public event Func<ChannelMessageRemove, Task> ChannelMessageRemovedEvent
         {
-            add { _channelMessageRemoveEvent.Add(value); }
-            remove { _channelMessageRemoveEvent.Remove(value); }
+            add { _channelMessageRemovedEvent.Add(value); }
+            remove { _channelMessageRemovedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<ChannelMessageRemove, Task>> _channelMessageRemoveEvent = new AsyncEvent<Func<ChannelMessageRemove, Task>>();
+        internal readonly AsyncEvent<Func<ChannelMessageRemove, Task>> _channelMessageRemovedEvent = new AsyncEvent<Func<ChannelMessageRemove, Task>>();
 
-        public event Func<ChannelPresenceEvent, Task> ChannelPresenceEvent
+        public event Func<ChannelPresenceEvent, Task> ChannelPresenceChangedEvent
         {
-            add { _channelPresenceEvent.Add(value); }
-            remove { _channelPresenceEvent.Remove(value); }
+            add { _channelPresenceChangedEvent.Add(value); }
+            remove { _channelPresenceChangedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<ChannelPresenceEvent, Task>> _channelPresenceEvent = new AsyncEvent<Func<ChannelPresenceEvent, Task>>();
+        internal readonly AsyncEvent<Func<ChannelPresenceEvent, Task>> _channelPresenceChangedEvent = new AsyncEvent<Func<ChannelPresenceEvent, Task>>();
 
-        public event Func<Error, Task> ErrorEvent
+        public event Func<global::Mezon.Net.Internal.Realtime.Error, Task> ErrorReceivedEvent
         {
-            add { _errorEvent.Add(value); }
-            remove { _errorEvent.Remove(value); }
+            add { _errorReceivedEvent.Add(value); }
+            remove { _errorReceivedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Error, Task>> _errorEvent = new AsyncEvent<Func<Error, Task>>();
+        internal readonly AsyncEvent<Func<global::Mezon.Net.Internal.Realtime.Error, Task>> _errorReceivedEvent = new AsyncEvent<Func<global::Mezon.Net.Internal.Realtime.Error, Task>>();
 
-        public event Func<Notifications, Task> NotificationsEvent
+        public event Func<Notifications, Task> NotificationsReceivedEvent
         {
-            add { _notificationsEvent.Add(value); }
-            remove { _notificationsEvent.Remove(value); }
+            add { _notificationsReceivedEvent.Add(value); }
+            remove { _notificationsReceivedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Notifications, Task>> _notificationsEvent = new AsyncEvent<Func<Notifications, Task>>();
+        internal readonly AsyncEvent<Func<Notifications, Task>> _notificationsReceivedEvent = new AsyncEvent<Func<Notifications, Task>>();
 
-        public event Func<Internal.Api.Rpc, Task> RpcEvent
+        public event Func<Internal.Api.Rpc, Task> RpcReceivedEvent
         {
-            add { _rpcEvent.Add(value); }
-            remove { _rpcEvent.Remove(value); }
+            add { _rpcReceivedEvent.Add(value); }
+            remove { _rpcReceivedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Internal.Api.Rpc, Task>> _rpcEvent = new AsyncEvent<Func<Internal.Api.Rpc, Task>>();
+        internal readonly AsyncEvent<Func<Internal.Api.Rpc, Task>> _rpcReceivedEvent = new AsyncEvent<Func<Internal.Api.Rpc, Task>>();
 
-        public event Func<Status, Task> StatusEvent
+        public event Func<Status, Task> StatusReceivedEvent
         {
-            add { _statusEvent.Add(value); }
-            remove { _statusEvent.Remove(value); }
+            add { _statusReceivedEvent.Add(value); }
+            remove { _statusReceivedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Status, Task>> _statusEvent = new AsyncEvent<Func<Status, Task>>();
+        internal readonly AsyncEvent<Func<Status, Task>> _statusReceivedEvent = new AsyncEvent<Func<Status, Task>>();
 
-        public event Func<StatusFollow, Task> StatusFollowEvent
+        public event Func<StatusFollow, Task> StatusFollowedEvent
         {
-            add { _statusFollowEvent.Add(value); }
-            remove { _statusFollowEvent.Remove(value); }
+            add { _statusFollowedEvent.Add(value); }
+            remove { _statusFollowedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<StatusFollow, Task>> _statusFollowEvent = new AsyncEvent<Func<StatusFollow, Task>>();
+        internal readonly AsyncEvent<Func<StatusFollow, Task>> _statusFollowedEvent = new AsyncEvent<Func<StatusFollow, Task>>();
 
-        public event Func<StatusPresenceEvent, Task> StatusPresenceEvent
+        public event Func<StatusPresenceEvent, Task> StatusPresenceChangedEvent
         {
-            add { _statusPresenceEvent.Add(value); }
-            remove { _statusPresenceEvent.Remove(value); }
+            add { _statusPresenceChangedEvent.Add(value); }
+            remove { _statusPresenceChangedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<StatusPresenceEvent, Task>> _statusPresenceEvent = new AsyncEvent<Func<StatusPresenceEvent, Task>>();
-        public event Func<StatusUnfollow, Task> StatusUnfollowEvent
+        internal readonly AsyncEvent<Func<StatusPresenceEvent, Task>> _statusPresenceChangedEvent = new AsyncEvent<Func<StatusPresenceEvent, Task>>();
+        public event Func<StatusUnfollow, Task> StatusUnfollowedEvent
         {
-            add { _statusUnfollowEvent.Add(value); }
-            remove { _statusUnfollowEvent.Remove(value); }
+            add { _statusUnfollowedEvent.Add(value); }
+            remove { _statusUnfollowedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<StatusUnfollow, Task>> _statusUnfollowEvent = new AsyncEvent<Func<StatusUnfollow, Task>>();
+        internal readonly AsyncEvent<Func<StatusUnfollow, Task>> _statusUnfollowedEvent = new AsyncEvent<Func<StatusUnfollow, Task>>();
 
-        public event Func<StatusUpdate, Task> StatusUpdateEvent
+        public event Func<StatusUpdate, Task> StatusUpdatedEvent
         {
-            add { _statusUpdateEvent.Add(value); }
-            remove { _statusUpdateEvent.Remove(value); }
+            add { _statusUpdatedEvent.Add(value); }
+            remove { _statusUpdatedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<StatusUpdate, Task>> _statusUpdateEvent = new AsyncEvent<Func<StatusUpdate, Task>>();
+        internal readonly AsyncEvent<Func<StatusUpdate, Task>> _statusUpdatedEvent = new AsyncEvent<Func<StatusUpdate, Task>>();
 
-        public event Func<StreamData, Task> StreamDataEvent
+        public event Func<StreamData, Task> StreamDataReceivedEvent
         {
-            add { _streamDataEvent.Add(value); }
-            remove { _streamDataEvent.Remove(value); }
+            add { _streamDataReceivedEvent.Add(value); }
+            remove { _streamDataReceivedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<StreamData, Task>> _streamDataEvent = new AsyncEvent<Func<StreamData, Task>>();
+        internal readonly AsyncEvent<Func<StreamData, Task>> _streamDataReceivedEvent = new AsyncEvent<Func<StreamData, Task>>();
 
-        public event Func<StreamPresenceEvent, Task> StreamPresenceEvent
+        public event Func<StreamPresenceEvent, Task> StreamPresenceChangedEvent
         {
-            add { _streamPresenceEvent.Add(value); }
-            remove { _streamPresenceEvent.Remove(value); }
+            add { _streamPresenceChangedEvent.Add(value); }
+            remove { _streamPresenceChangedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<StreamPresenceEvent, Task>> _streamPresenceEvent = new AsyncEvent<Func<StreamPresenceEvent, Task>>();
-        public event Func<MessageTypingEvent, Task> MessageTypingEvent
+        internal readonly AsyncEvent<Func<StreamPresenceEvent, Task>> _streamPresenceChangedEvent = new AsyncEvent<Func<StreamPresenceEvent, Task>>();
+        public event Func<MessageTypingEvent, Task> MessageTypingReceivedEvent
         {
-            add { _messageTypingEvent.Add(value); }
-            remove { _messageTypingEvent.Remove(value); }
+            add { _messageTypingReceivedEvent.Add(value); }
+            remove { _messageTypingReceivedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<MessageTypingEvent, Task>> _messageTypingEvent = new AsyncEvent<Func<MessageTypingEvent, Task>>();
+        internal readonly AsyncEvent<Func<MessageTypingEvent, Task>> _messageTypingReceivedEvent = new AsyncEvent<Func<MessageTypingEvent, Task>>();
 
-        public event Func<LastSeenMessageEvent, Task> LastSeenMessageEvent
+        public event Func<LastSeenMessageEvent, Task> LastSeenMessageUpdatedEvent
         {
-            add { _lastSeenMessageEvent.Add(value); }
-            remove { _lastSeenMessageEvent.Remove(value); }
+            add { _lastSeenMessageUpdatedEvent.Add(value); }
+            remove { _lastSeenMessageUpdatedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<LastSeenMessageEvent, Task>> _lastSeenMessageEvent = new AsyncEvent<Func<LastSeenMessageEvent, Task>>();
+        internal readonly AsyncEvent<Func<LastSeenMessageEvent, Task>> _lastSeenMessageUpdatedEvent = new AsyncEvent<Func<LastSeenMessageEvent, Task>>();
 
-        public event Func<Internal.Api.MessageReaction, Task> MessageReactionEvent
+        public event Func<Internal.Api.MessageReaction, Task> MessageReactionReceivedEvent
         {
-            add { _messageReactionEvent.Add(value); }
-            remove { _messageReactionEvent.Remove(value); }
+            add { _messageReactionReceivedEvent.Add(value); }
+            remove { _messageReactionReceivedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Internal.Api.MessageReaction, Task>> _messageReactionEvent = new AsyncEvent<Func<Internal.Api.MessageReaction, Task>>();
+        internal readonly AsyncEvent<Func<Internal.Api.MessageReaction, Task>> _messageReactionReceivedEvent = new AsyncEvent<Func<Internal.Api.MessageReaction, Task>>();
 
         public event Func<VoiceJoinedEvent, Task> VoiceJoinedEvent
         {
@@ -229,19 +229,19 @@ namespace Mezon.Net.Client
         }
         internal readonly AsyncEvent<Func<ChannelUpdatedEvent, Task>> _channelUpdatedEvent = new AsyncEvent<Func<ChannelUpdatedEvent, Task>>();
 
-        public event Func<LastPinMessageEvent, Task> LastPinMessageEvent
+        public event Func<LastPinMessageEvent, Task> LastPinMessageUpdatedEvent
         {
-            add { _lastPinMessageEvent.Add(value); }
-            remove { _lastPinMessageEvent.Remove(value); }
+            add { _lastPinMessageUpdatedEvent.Add(value); }
+            remove { _lastPinMessageUpdatedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<LastPinMessageEvent, Task>> _lastPinMessageEvent = new AsyncEvent<Func<LastPinMessageEvent, Task>>();
+        internal readonly AsyncEvent<Func<LastPinMessageEvent, Task>> _lastPinMessageUpdatedEvent = new AsyncEvent<Func<LastPinMessageEvent, Task>>();
 
-        public event Func<CustomStatusEvent, Task> CustomStatusEvent
+        public event Func<CustomStatusEvent, Task> CustomStatusChangedEvent
         {
-            add { _customStatusEvent.Add(value); }
-            remove { _customStatusEvent.Remove(value); }
+            add { _customStatusChangedEvent.Add(value); }
+            remove { _customStatusChangedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<CustomStatusEvent, Task>> _customStatusEvent = new AsyncEvent<Func<CustomStatusEvent, Task>>();
+        internal readonly AsyncEvent<Func<CustomStatusEvent, Task>> _customStatusChangedEvent = new AsyncEvent<Func<CustomStatusEvent, Task>>();
 
         public event Func<UserChannelAdded, Task> UserChannelAddedEvent
         {
@@ -278,12 +278,12 @@ namespace Mezon.Net.Client
         }
         internal readonly AsyncEvent<Func<Task>> _clanProfileUpdatedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> CheckNameExistedEvent
+        public event Func<Task> NameExistenceCheckedEvent
         {
-            add { _checkNameExistedEvent.Add(value); }
-            remove { _checkNameExistedEvent.Remove(value); }
+            add { _nameExistenceCheckedEvent.Add(value); }
+            remove { _nameExistenceCheckedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _checkNameExistedEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _nameExistenceCheckedEvent = new AsyncEvent<Func<Task>>();
 
         public event Func<Task> UserProfileUpdatedEvent
         {
@@ -292,12 +292,12 @@ namespace Mezon.Net.Client
         }
         internal readonly AsyncEvent<Func<Task>> _userProfileUpdatedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> AddClanUserEvent
+        public event Func<Task> ClanUserAddedEvent
         {
-            add { _addClanUserEvent.Add(value); }
-            remove { _addClanUserEvent.Remove(value); }
+            add { _clanUserAddedEvent.Add(value); }
+            remove { _clanUserAddedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _addClanUserEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _clanUserAddedEvent = new AsyncEvent<Func<Task>>();
 
         public event Func<Task> ClanEventCreated
         {
@@ -306,12 +306,12 @@ namespace Mezon.Net.Client
         }
         internal readonly AsyncEvent<Func<Task>> _clanEventCreated = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> RoleAssignEvent
+        public event Func<Task> RoleAssignedEvent
         {
-            add { _roleAssignEvent.Add(value); }
-            remove { _roleAssignEvent.Remove(value); }
+            add { _roleAssignedEvent.Add(value); }
+            remove { _roleAssignedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _roleAssignEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _roleAssignedEvent = new AsyncEvent<Func<Task>>();
 
         public event Func<Task> ClanDeletedEvent
         {
@@ -320,47 +320,47 @@ namespace Mezon.Net.Client
         }
         internal readonly AsyncEvent<Func<Task>> _clanDeletedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> GiveCoffeeEvent
+        public event Func<Task> CoffeeGivenEvent
         {
-            add { _giveCoffeeEvent.Add(value); }
-            remove { _giveCoffeeEvent.Remove(value); }
+            add { _coffeeGivenEvent.Add(value); }
+            remove { _coffeeGivenEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _giveCoffeeEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _coffeeGivenEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> StickerCreateEvent
+        public event Func<Task> StickerCreatedEvent
         {
-            add { _stickerCreateEvent.Add(value); }
-            remove { _stickerCreateEvent.Remove(value); }
+            add { _stickerCreatedEvent.Add(value); }
+            remove { _stickerCreatedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _stickerCreateEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _stickerCreatedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> StickerUpdateEvent
+        public event Func<Task> StickerUpdatedEvent
         {
-            add { _stickerUpdateEvent.Add(value); }
-            remove { _stickerUpdateEvent.Remove(value); }
+            add { _stickerUpdatedEvent.Add(value); }
+            remove { _stickerUpdatedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _stickerUpdateEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _stickerUpdatedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> StickerDeleteEvent
+        public event Func<Task> StickerDeletedEvent
         {
-            add { _stickerDeleteEvent.Add(value); }
-            remove { _stickerDeleteEvent.Remove(value); }
+            add { _stickerDeletedEvent.Add(value); }
+            remove { _stickerDeletedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _stickerDeleteEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _stickerDeletedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> RoleEvent
+        public event Func<Task> RoleChangedEvent
         {
-            add { _roleEvent.Add(value); }
-            remove { _roleEvent.Remove(value); }
+            add { _roleChangedEvent.Add(value); }
+            remove { _roleChangedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _roleEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _roleChangedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> EventEmoji
+        public event Func<Task> EmojiReceivedEvent
         {
-            add { _eventEmoji.Add(value); }
-            remove { _eventEmoji.Remove(value); }
+            add { _emojiReceivedEvent.Add(value); }
+            remove { _emojiReceivedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _eventEmoji = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _emojiReceivedEvent = new AsyncEvent<Func<Task>>();
 
         public event Func<Task> StreamingJoinedEvent
         {
@@ -390,12 +390,12 @@ namespace Mezon.Net.Client
         }
         internal readonly AsyncEvent<Func<Task>> _streamingEndedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> PermissionSetEvent
+        public event Func<Task> PermissionsSetEvent
         {
-            add { _permissionSetEvent.Add(value); }
-            remove { _permissionSetEvent.Remove(value); }
+            add { _permissionsSetEvent.Add(value); }
+            remove { _permissionsSetEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _permissionSetEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _permissionsSetEvent = new AsyncEvent<Func<Task>>();
 
         public event Func<Task> PermissionChangedEvent
         {
@@ -418,26 +418,26 @@ namespace Mezon.Net.Client
         }
         internal readonly AsyncEvent<Func<Task>> _messageButtonClickedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> UnmuteEvent
+        public event Func<Task> UserUnmutedEvent
         {
-            add { _unmuteEvent.Add(value); }
-            remove { _unmuteEvent.Remove(value); }
+            add { _userUnmutedEvent.Add(value); }
+            remove { _userUnmutedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _unmuteEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _userUnmutedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> WebrtcSignalingFwdEvent
+        public event Func<Task> WebrtcSignalingForwardedEvent
         {
-            add { _webrtcSignalingFwdEvent.Add(value); }
-            remove { _webrtcSignalingFwdEvent.Remove(value); }
+            add { _webrtcSignalingForwardedEvent.Add(value); }
+            remove { _webrtcSignalingForwardedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _webrtcSignalingFwdEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _webrtcSignalingForwardedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> ListActivityEvent
+        public event Func<Task> ActivityListedEvent
         {
-            add { _listActivityEvent.Add(value); }
-            remove { _listActivityEvent.Remove(value); }
+            add { _activityListedEvent.Add(value); }
+            remove { _activityListedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _listActivityEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _activityListedEvent = new AsyncEvent<Func<Task>>();
 
         public event Func<Task> DropdownBoxSelectedEvent
         {
@@ -446,201 +446,201 @@ namespace Mezon.Net.Client
         }
         internal readonly AsyncEvent<Func<Task>> _dropdownBoxSelectedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> IncomingCallPushEvent
+        public event Func<Task> IncomingCallPushedEvent
         {
-            add { _incomingCallPushEvent.Add(value); }
-            remove { _incomingCallPushEvent.Remove(value); }
+            add { _incomingCallPushedEvent.Add(value); }
+            remove { _incomingCallPushedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _incomingCallPushEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _incomingCallPushedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> SdTopicEvent
+        public event Func<Task> SdTopicReceivedEvent
         {
-            add { _sdTopicEvent.Add(value); }
-            remove { _sdTopicEvent.Remove(value); }
+            add { _sdTopicReceivedEvent.Add(value); }
+            remove { _sdTopicReceivedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _sdTopicEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _sdTopicReceivedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> FollowEvent
+        public event Func<Task> FollowReceivedEvent
         {
-            add { _followEvent.Add(value); }
-            remove { _followEvent.Remove(value); }
+            add { _followReceivedEvent.Add(value); }
+            remove { _followReceivedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _followEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _followReceivedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> ChannelAppEvent
+        public event Func<Task> ChannelAppReceivedEvent
         {
-            add { _channelAppEvent.Add(value); }
-            remove { _channelAppEvent.Remove(value); }
+            add { _channelAppReceivedEvent.Add(value); }
+            remove { _channelAppReceivedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _channelAppEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _channelAppReceivedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> UserStatusEvent
+        public event Func<Task> UserStatusChangedEvent
         {
-            add { _userStatusEvent.Add(value); }
-            remove { _userStatusEvent.Remove(value); }
+            add { _userStatusChangedEvent.Add(value); }
+            remove { _userStatusChangedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _userStatusEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _userStatusChangedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> RemoveFriendEvent
+        public event Func<Task> FriendRemovedEvent
         {
-            add { _removeFriendEvent.Add(value); }
-            remove { _removeFriendEvent.Remove(value); }
+            add { _friendRemovedEvent.Add(value); }
+            remove { _friendRemovedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _removeFriendEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _friendRemovedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> WebhookEvent
+        public event Func<Task> WebhookReceivedEvent
         {
-            add { _webhookEvent.Add(value); }
-            remove { _webhookEvent.Remove(value); }
+            add { _webhookReceivedEvent.Add(value); }
+            remove { _webhookReceivedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _webhookEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _webhookReceivedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> NotiUserChannelEvent
+        public event Func<Task> NotiUserChannelReceivedEvent
         {
-            add { _notiUserChannelEvent.Add(value); }
-            remove { _notiUserChannelEvent.Remove(value); }
+            add { _notiUserChannelReceivedEvent.Add(value); }
+            remove { _notiUserChannelReceivedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _notiUserChannelEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _notiUserChannelReceivedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> JoinChannelAppDataEvent
+        public event Func<Task> ChannelAppDataJoinedEvent
         {
-            add { _joinChannelAppDataEvent.Add(value); }
-            remove { _joinChannelAppDataEvent.Remove(value); }
+            add { _channelAppDataJoinedEvent.Add(value); }
+            remove { _channelAppDataJoinedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _joinChannelAppDataEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _channelAppDataJoinedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> CanvasEvent
+        public event Func<Task> CanvasReceivedEvent
         {
-            add { _canvasEvent.Add(value); }
-            remove { _canvasEvent.Remove(value); }
+            add { _canvasReceivedEvent.Add(value); }
+            remove { _canvasReceivedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _canvasEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _canvasReceivedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> UnpinMessageEvent
+        public event Func<Task> MessageUnpinnedEvent
         {
-            add { _unpinMessageEvent.Add(value); }
-            remove { _unpinMessageEvent.Remove(value); }
+            add { _messageUnpinnedEvent.Add(value); }
+            remove { _messageUnpinnedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _unpinMessageEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _messageUnpinnedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> CategoryEvent
+        public event Func<Task> CategoryChangedEvent
         {
-            add { _categoryEvent.Add(value); }
-            remove { _categoryEvent.Remove(value); }
+            add { _categoryChangedEvent.Add(value); }
+            remove { _categoryChangedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _categoryEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _categoryChangedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> HandleParticipantMeetStateEvent
+        public event Func<Task> ParticipantMeetStateChangedEvent
         {
-            add { _handleParticipantMeetStateEvent.Add(value); }
-            remove { _handleParticipantMeetStateEvent.Remove(value); }
+            add { _participantMeetStateChangedEvent.Add(value); }
+            remove { _participantMeetStateChangedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _handleParticipantMeetStateEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _participantMeetStateChangedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> DeleteAccountEvent
+        public event Func<Task> AccountDeletedEvent
         {
-            add { _deleteAccountEvent.Add(value); }
-            remove { _deleteAccountEvent.Remove(value); }
+            add { _accountDeletedEvent.Add(value); }
+            remove { _accountDeletedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _deleteAccountEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _accountDeletedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> EphemeralMessageSendEvent
+        public event Func<Task> EphemeralMessageSentEvent
         {
-            add { _ephemeralMessageSendEvent.Add(value); }
-            remove { _ephemeralMessageSendEvent.Remove(value); }
+            add { _ephemeralMessageSentEvent.Add(value); }
+            remove { _ephemeralMessageSentEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _ephemeralMessageSendEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _ephemeralMessageSentEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> BlockFriendEvent
+        public event Func<Task> FriendBlockedEvent
         {
-            add { _blockFriendEvent.Add(value); }
-            remove { _blockFriendEvent.Remove(value); }
+            add { _friendBlockedEvent.Add(value); }
+            remove { _friendBlockedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _blockFriendEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _friendBlockedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> VoiceReactionSendEvent
+        public event Func<Task> VoiceReactionSentEvent
         {
-            add { _voiceReactionSendEvent.Add(value); }
-            remove { _voiceReactionSendEvent.Remove(value); }
+            add { _voiceReactionSentEvent.Add(value); }
+            remove { _voiceReactionSentEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _voiceReactionSendEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _voiceReactionSentEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> MarkAsReadEvent
+        public event Func<Task> MarkedAsReadEvent
         {
-            add { _markAsReadEvent.Add(value); }
-            remove { _markAsReadEvent.Remove(value); }
+            add { _markedAsReadEvent.Add(value); }
+            remove { _markedAsReadEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _markAsReadEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _markedAsReadEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> ListDataSocketEvent
+        public event Func<Task> DataSocketListedEvent
         {
-            add { _listDataSocketEvent.Add(value); }
-            remove { _listDataSocketEvent.Remove(value); }
+            add { _dataSocketListedEvent.Add(value); }
+            remove { _dataSocketListedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _listDataSocketEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _dataSocketListedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> QuickMenuEvent
+        public event Func<Task> QuickMenuReceivedEvent
         {
-            add { _quickMenuEvent.Add(value); }
-            remove { _quickMenuEvent.Remove(value); }
+            add { _quickMenuReceivedEvent.Add(value); }
+            remove { _quickMenuReceivedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _quickMenuEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _quickMenuReceivedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> UnBlockFriendEvent
+        public event Func<Task> FriendUnblockedEvent
         {
-            add { _unBlockFriendEvent.Add(value); }
-            remove { _unBlockFriendEvent.Remove(value); }
+            add { _friendUnblockedEvent.Add(value); }
+            remove { _friendUnblockedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _unBlockFriendEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _friendUnblockedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> MeetParticipantEvent
+        public event Func<Task> MeetParticipantChangedEvent
         {
-            add { _meetParticipantEvent.Add(value); }
-            remove { _meetParticipantEvent.Remove(value); }
+            add { _meetParticipantChangedEvent.Add(value); }
+            remove { _meetParticipantChangedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _meetParticipantEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _meetParticipantChangedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> TransferOwnershipEvent
+        public event Func<Task> OwnershipTransferredEvent
         {
-            add { _transferOwnershipEvent.Add(value); }
-            remove { _transferOwnershipEvent.Remove(value); }
+            add { _ownershipTransferredEvent.Add(value); }
+            remove { _ownershipTransferredEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _transferOwnershipEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _ownershipTransferredEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> AddFriendEvent
+        public event Func<Task> FriendAddedEvent
         {
-            add { _addFriendEvent.Add(value); }
-            remove { _addFriendEvent.Remove(value); }
+            add { _friendAddedEvent.Add(value); }
+            remove { _friendAddedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _addFriendEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _friendAddedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> BanUserEvent
+        public event Func<Task> UserBannedEvent
         {
-            add { _banUserEvent.Add(value); }
-            remove { _banUserEvent.Remove(value); }
+            add { _userBannedEvent.Add(value); }
+            remove { _userBannedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _banUserEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _userBannedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> ActiveArchivedThreadEvent
+        public event Func<Task> ArchivedThreadActivatedEvent
         {
-            add { _activeArchivedThreadEvent.Add(value); }
-            remove { _activeArchivedThreadEvent.Remove(value); }
+            add { _archivedThreadActivatedEvent.Add(value); }
+            remove { _archivedThreadActivatedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _activeArchivedThreadEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _archivedThreadActivatedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> AllowAnonymousEvent
+        public event Func<Task> AnonymousAllowedEvent
         {
-            add { _allowAnonymousEvent.Add(value); }
-            remove { _allowAnonymousEvent.Remove(value); }
+            add { _anonymousAllowedEvent.Add(value); }
+            remove { _anonymousAllowedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _allowAnonymousEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _anonymousAllowedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<ApiRequestEvent, Task> UpdateLocalcacheEvent
+        public event Func<ApiRequestEvent, Task> LocalCacheUpdatedEvent
         {
-            add { _updateLocalcacheEvent.Add(value); }
-            remove { _updateLocalcacheEvent.Remove(value); }
+            add { _localCacheUpdatedEvent.Add(value); }
+            remove { _localCacheUpdatedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<ApiRequestEvent, Task>> _updateLocalcacheEvent = new AsyncEvent<Func<ApiRequestEvent, Task>>();
+        internal readonly AsyncEvent<Func<ApiRequestEvent, Task>> _localCacheUpdatedEvent = new AsyncEvent<Func<ApiRequestEvent, Task>>();
 
         public event Func<ApiRequestEvent, Task> ApiRequestReceivedEvent
         {
@@ -649,33 +649,33 @@ namespace Mezon.Net.Client
         }
         internal readonly AsyncEvent<Func<ApiRequestEvent, Task>> _apiRequestReceivedEvent = new AsyncEvent<Func<ApiRequestEvent, Task>>();
 
-        public event Func<ListChannelUsersBannedEvent, Task> ListChannelUsersBannedEvent
+        public event Func<ListChannelUsersBannedEvent, Task> ChannelUsersBannedListedEvent
         {
-            add { _listChannelUsersBannedEvent.Add(value); }
-            remove { _listChannelUsersBannedEvent.Remove(value); }
+            add { _channelUsersBannedListedEvent.Add(value); }
+            remove { _channelUsersBannedListedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<ListChannelUsersBannedEvent, Task>> _listChannelUsersBannedEvent = new AsyncEvent<Func<ListChannelUsersBannedEvent, Task>>();
+        internal readonly AsyncEvent<Func<ListChannelUsersBannedEvent, Task>> _channelUsersBannedListedEvent = new AsyncEvent<Func<ListChannelUsersBannedEvent, Task>>();
 
-        public event Func<global::Mezon.Net.Internal.Api.Session, Task> RefreshSessionEvent
+        public event Func<global::Mezon.Net.Internal.Api.Session, Task> SessionRefreshedEvent
         {
-            add { _refreshSessionEvent.Add(value); }
-            remove { _refreshSessionEvent.Remove(value); }
+            add { _sessionRefreshedEvent.Add(value); }
+            remove { _sessionRefreshedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<global::Mezon.Net.Internal.Api.Session, Task>> _refreshSessionEvent = new AsyncEvent<Func<global::Mezon.Net.Internal.Api.Session, Task>>();
+        internal readonly AsyncEvent<Func<global::Mezon.Net.Internal.Api.Session, Task>> _sessionRefreshedEvent = new AsyncEvent<Func<global::Mezon.Net.Internal.Api.Session, Task>>();
 
-        public event Func<ChannelArchiveEvent, Task> ChannelArchiveEvent
+        public event Func<ChannelArchiveEvent, Task> ChannelArchivedEvent
         {
-            add { _channelArchiveEvent.Add(value); }
-            remove { _channelArchiveEvent.Remove(value); }
+            add { _channelArchivedEvent.Add(value); }
+            remove { _channelArchivedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<ChannelArchiveEvent, Task>> _channelArchiveEvent = new AsyncEvent<Func<ChannelArchiveEvent, Task>>();
+        internal readonly AsyncEvent<Func<ChannelArchiveEvent, Task>> _channelArchivedEvent = new AsyncEvent<Func<ChannelArchiveEvent, Task>>();
 
-        public event Func<TopicInMessageEvent, Task> TopicInMessageEvent
+        public event Func<TopicInMessageEvent, Task> TopicInMessageReceivedEvent
         {
-            add { _topicInMessageEvent.Add(value); }
-            remove { _topicInMessageEvent.Remove(value); }
+            add { _topicInMessageReceivedEvent.Add(value); }
+            remove { _topicInMessageReceivedEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<TopicInMessageEvent, Task>> _topicInMessageEvent = new AsyncEvent<Func<TopicInMessageEvent, Task>>();
+        internal readonly AsyncEvent<Func<TopicInMessageEvent, Task>> _topicInMessageReceivedEvent = new AsyncEvent<Func<TopicInMessageEvent, Task>>();
 
         public event Func<Task> ClanCreatedEvent
         {
@@ -684,11 +684,11 @@ namespace Mezon.Net.Client
         }
         internal readonly AsyncEvent<Func<Task>> _clanCreatedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> AiagentEnabledEvent
+        public event Func<Task> AIAgentEnabledEvent
         {
-            add { _aiagentEnabledEvent.Add(value); }
-            remove { _aiagentEnabledEvent.Remove(value); }
+            add { _aIAgentEnabledEvent.Add(value); }
+            remove { _aIAgentEnabledEvent.Remove(value); }
         }
-        internal readonly AsyncEvent<Func<Task>> _aiagentEnabledEvent = new AsyncEvent<Func<Task>>();
+        internal readonly AsyncEvent<Func<Task>> _aIAgentEnabledEvent = new AsyncEvent<Func<Task>>();
     }
 }

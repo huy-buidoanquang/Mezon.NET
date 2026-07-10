@@ -1,6 +1,6 @@
 using Newtonsoft.Json;
 
-namespace Mezon.Net.Api
+namespace Mezon.Net.Client
 {
     public class UpdateUserStatusRequest
     {

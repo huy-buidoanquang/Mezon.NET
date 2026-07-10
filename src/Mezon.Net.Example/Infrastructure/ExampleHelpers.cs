@@ -76,8 +76,8 @@ internal static class ExampleHelpers
             WireClientLog(client, logger);
         }
 
-        var auth = await client.AuthenticateEmailAsync(email, password).ConfigureAwait(false);
-        if (!await client.LoginAsync(new Mezon.Net.Api.Session(auth)).ConfigureAwait(false))
+        var session = await client.AuthenticateEmailAsync(email, password).ConfigureAwait(false);
+        if (!await client.LoginAsync(session).ConfigureAwait(false))
         {
             await client.DisposeAsync().ConfigureAwait(false);
             throw new InvalidOperationException("LoginAsync returned false.");

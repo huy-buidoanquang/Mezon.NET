@@ -1,6 +1,5 @@
 using System.Threading.Tasks;
 using Mezon.Net.Abstractions;
-using Mezon.Net.Api;
 using Mezon.Net.Core;
 using Mezon.Net.Core.Constants;
 using Mezon.Net.Internal.Api;
@@ -132,6 +131,19 @@ namespace Mezon.Net.Client.Messaging
             }
 
             return body;
+        }
+
+        public static Envelope ToEphemeralEnvelope(in SendChannelMessageParams message, long receiverId)
+        {
+            var envelope = new Envelope
+            {
+                EphemeralMessageSend = new EphemeralMessageSend
+                {
+                    Message = ToChannelMessageSend(message),
+                },
+            };
+            envelope.EphemeralMessageSend.ReceiverIds.Add(receiverId);
+            return envelope;
         }
 
         public static Task<ChannelMessageAck> SendAsync(IMezonApiClient api, in SendChannelMessageParams message, RequestOptions? options = null)

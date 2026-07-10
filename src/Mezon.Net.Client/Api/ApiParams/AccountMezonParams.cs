@@ -1,7 +1,7 @@
 using Mezon.Net.Core;
 using Newtonsoft.Json;
 
-namespace Mezon.Net.Api
+namespace Mezon.Net.Client
 {
     public class AccountMezonParams
     {

@@ -6,7 +6,7 @@ using Mezon.Net.Core;
 using Mezon.Net.Core.Abstractions;
 using Mezon.Net.Logging;
 
-namespace Mezon.Net.Api
+namespace Mezon.Net.Client
 {
     /// <summary>
     /// Thread-safe session manager that ensures only one session exists throughout the application's lifecycle.
@@ -102,88 +102,63 @@ namespace Mezon.Net.Api
 
         public static bool IsInitialized => _isInitialized && _instance != null;
 
-        /// <summary>
-        /// Resets the singleton instance. Primarily for testing purposes.
-        /// </summary>
-        internal static void Reset()
-        {
-            lock (_instanceLock)
-            {
-                if (_instance != null)
-                {
-                    _instance.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                    _instance = null;
-                }
-                _isInitialized = false;
-            }
-        }
-
         internal SessionManager(MezonApiClientOptions options, LogManager logManager)
         {
-            _options = options ?? throw new ArgumentNullException(nameof(options));
+            Check.NotNull(options, nameof(options));
+            Check.NotNull(logManager, nameof(logManager));
+            _options = options;
             _apiClient = new MezonApiClient(_options.RestClientProvider, _options.NetworkTransportProvider, _options);
             _apiClient.ConfigureGatewayBasePath(_options.GatewayBasePath);
-            _logger = logManager?.CreateLogger("SessionManager") ?? throw new ArgumentNullException(nameof(logManager));
+            _logger = logManager.CreateLogger("SessionManager");
             _autoRefreshSession = _options.AutoRefreshSession;
             _session = Session.NullSession();
         }
 
         public ISession CurrentSession() => _session;
 
-        public async Task LoginAsync(string clientId, string clientSecret, bool autoRefreshSession = true)
+        public async Task LoginAsync(long clientId, string clientSecret, bool autoRefreshSession = true)
         {
             ThrowIfDisposed();
-            _apiClient.ConfigureGatewayBasePath(_options.GatewayBasePath);
-            var success = await LoginInternalAsync(clientId, clientSecret, autoRefreshSession).ConfigureAwait(false);
-            if (!success)
-            {
-                throw new InvalidOperationException("Authentication failed.");
-            }
-        }
-
-        public async Task LoginAsync(ISession session, bool autoRefreshSession = true)
-        {
-            ThrowIfDisposed();
-            _apiClient.ConfigureGatewayBasePath(_options.GatewayBasePath);
-            var success = await LoginInternalAsync(session, autoRefreshSession).ConfigureAwait(false);
-            if (!success)
-            {
-                throw new InvalidOperationException("Authentication failed.");
-            }
-        }
-
-        private async Task<bool> LoginInternalAsync(string clientId, string clientSecret, bool autoRefreshSession)
-        {
-            Check.NotNullOrEmpty(clientId, nameof(clientId));
             Check.NotNullOrEmpty(clientSecret, nameof(clientSecret));
+            _apiClient.ConfigureGatewayBasePath(_options.GatewayBasePath);
+            await LoginInternalAsync(clientId, clientSecret, autoRefreshSession).ConfigureAwait(false);
+        }
 
+        private async Task LoginInternalAsync(long clientId, string clientSecret, bool autoRefreshSession)
+        {
             await _sessionLock.WaitAsync().ConfigureAwait(false);
             try
             {
                 _autoRefreshSession = autoRefreshSession;
-
                 var session = await _apiClient.AuthenticateAppAsync(
-                    basicAuthUsername: clientId,
+                    basicAuthUsername: clientSecret,
                     basicAuthPassword: string.Empty,
-                    body: new AppAuthenticationRequest(new AppAccountRequest { AppId = clientId, Token = clientSecret })
-                ).ConfigureAwait(false);
+                    body: new AppAuthenticationRequest(new AppAccountRequest
+                    {
+                        AppId = clientId.ToString(),
+                        Token = clientSecret
+                    })).ConfigureAwait(false);
 
-                if (session != null && !string.IsNullOrEmpty(session.Token))
+                if (!string.IsNullOrEmpty(session.Token))
                 {
                     _session = new Session(session);
-                    await _logger.InfoAsync($"Authentication successful. User: {_session.Username}, Expires: {DateTimeOffset.FromUnixTimeSeconds(_session.ExpiresAt)}").ConfigureAwait(false);
-                    return true;
+                    await _logger.InfoAsync($"Authentication successful. User: {_session.Username}.").ConfigureAwait(false);
+                    return;
                 }
 
-                await _logger.WarningAsync("Authentication failed. Invalid response from API.").ConfigureAwait(false);
                 _session = Session.NullSession();
-                return false;
+                throw new MezonAuthenticationException("Authentication failed.");
+            }
+            catch (MezonException)
+            {
+                _session = Session.NullSession();
+                throw;
             }
             catch (Exception ex)
             {
                 await _logger.ErrorAsync("Authentication failed with exception.", ex).ConfigureAwait(false);
                 _session = Session.NullSession();
-                return false;
+                throw new MezonAuthenticationException("Authentication failed.", ex);
             }
             finally
             {
@@ -191,7 +166,15 @@ namespace Mezon.Net.Api
             }
         }
 
-        private async Task<bool> LoginInternalAsync(ISession session, bool autoRefreshSession)
+
+        public async Task LoginAsync(ISession session, bool autoRefreshSession = true)
+        {
+            ThrowIfDisposed();
+            _apiClient.ConfigureGatewayBasePath(_options.GatewayBasePath);
+            await LoginInternalAsync(session, autoRefreshSession).ConfigureAwait(false);
+        }
+
+        private async Task LoginInternalAsync(ISession session, bool autoRefreshSession)
         {
             await _sessionLock.WaitAsync().ConfigureAwait(false);
             try
@@ -200,19 +183,23 @@ namespace Mezon.Net.Api
                 if (session != null && !string.IsNullOrEmpty(session.AuthToken))
                 {
                     _session = session;
-                    await _logger.InfoAsync($"Authentication successful. User: {_session.Username}, Expires: {DateTimeOffset.FromUnixTimeSeconds(_session.ExpiresAt)}").ConfigureAwait(false);
-                    return true;
+                    await _logger.InfoAsync($"Authentication successful. User: {_session.Username}.").ConfigureAwait(false);
+                    return;
                 }
 
-                await _logger.WarningAsync("Authentication failed. Invalid response from API.").ConfigureAwait(false);
                 _session = Session.NullSession();
-                return false;
+                throw new MezonAuthenticationException("Authentication failed.");
+            }
+            catch (MezonException)
+            {
+                _session = Session.NullSession();
+                throw;
             }
             catch (Exception ex)
             {
                 await _logger.ErrorAsync("Authentication failed with exception.", ex).ConfigureAwait(false);
                 _session = Session.NullSession();
-                return false;
+                throw new MezonAuthenticationException("Authentication failed.", ex);
             }
             finally
             {
@@ -224,16 +211,11 @@ namespace Mezon.Net.Api
         {
             ThrowIfDisposed();
             _apiClient.ConfigureGatewayBasePath(_options.GatewayBasePath);
-            var success = await LogoutInternalAsync().ConfigureAwait(false);
-            if (!success)
-            {
-                throw new InvalidOperationException("Logout failed.");
-            }
-
+            await LogoutInternalAsync().ConfigureAwait(false);
             await _logger.InfoAsync("Session logged out successfully.").ConfigureAwait(false);
         }
 
-        internal async Task<bool> LogoutInternalAsync()
+        internal async Task LogoutInternalAsync()
         {
             await _sessionLock.WaitAsync().ConfigureAwait(false);
             try
@@ -241,24 +223,26 @@ namespace Mezon.Net.Api
                 var currentSession = _session;
                 if (string.IsNullOrEmpty(currentSession.AuthToken))
                 {
-                    return true;
+                    return;
                 }
 
-                var response = await _apiClient.AuthenticateAppLogoutAsync(
-                    new AppAuthenticationLogoutRequest
-                    {
-                        Token = currentSession.AuthToken,
-                        RefreshToken = currentSession.RefreshToken
-                    }
-                ).ConfigureAwait(false);
-
-                if (!response)
+                var request = new global::Mezon.Net.Internal.Api.SessionLogoutRequest
                 {
-                    return false;
-                }
-
+                    Token = currentSession.AuthToken,
+                    RefreshToken = currentSession.RefreshToken,
+                    DeviceId = "",
+                    Platform = "",
+                };
+                await _apiClient.SessionLogoutAsync(request).ConfigureAwait(false);
                 _session = Session.NullSession();
-                return true;
+            }
+            catch (MezonException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                throw new MezonAuthenticationException("Logout failed.", ex);
             }
             finally
             {
@@ -316,19 +300,15 @@ namespace Mezon.Net.Api
         {
             try
             {
-                var request = new SessionRefreshRequest { Token = _session.RefreshToken };
+                var request = new global::Mezon.Net.Internal.Api.SessionRefreshRequest { Token = _session.RefreshToken };
                 var newSession = await _apiClient.RefreshSessionAsync("", "", request).ConfigureAwait(false);
 
-                if (newSession == null || string.IsNullOrEmpty(newSession.Token))
+                if (string.IsNullOrEmpty(newSession.Token))
                 {
                     _session = Session.NullSession();
-                    await _logger.WarningAsync("Session refresh failed. Received invalid response.").ConfigureAwait(false);
-                    return false;
+                    throw new SessionRefreshFailedException();
                 }
-
                 _session = new Session(newSession);
-                await _logger.InfoAsync($"Session refreshed. User: {_session.Username}, Expires: {DateTimeOffset.FromUnixTimeSeconds(_session.ExpiresAt)}").ConfigureAwait(false);
-
                 var handler = SessionRefreshed;
                 if (handler != null)
                 {
@@ -337,10 +317,19 @@ namespace Mezon.Net.Api
 
                 return true;
             }
+            catch (SessionRefreshFailedException)
+            {
+                throw;
+            }
+            catch (MezonException ex)
+            {
+                await _logger.ErrorAsync("Session refresh failed with exception.", ex).ConfigureAwait(false);
+                throw new SessionRefreshFailedException("Session refresh failed.", ex);
+            }
             catch (Exception ex)
             {
                 await _logger.ErrorAsync("Session refresh failed with exception.", ex).ConfigureAwait(false);
-                return false;
+                throw new SessionRefreshFailedException("Session refresh failed.", ex);
             }
         }
 

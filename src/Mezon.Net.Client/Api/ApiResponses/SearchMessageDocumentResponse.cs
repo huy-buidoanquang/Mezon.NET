@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace Mezon.Net.Api.Api.ApiResponses
+namespace Mezon.Net.Client
 {
     public class SearchMessageDocumentResponse
     {

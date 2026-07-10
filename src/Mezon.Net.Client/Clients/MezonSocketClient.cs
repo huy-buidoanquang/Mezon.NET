@@ -4,9 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
-using Grpc.Core;
 using Mezon.Net.Abstractions;
-using Mezon.Net.Api;
 using Mezon.Net.Core;
 using Mezon.Net.Core.Abstractions;
 using Mezon.Net.Core.Protocol;
@@ -15,39 +13,28 @@ using Mezon.Net.Internal.Realtime;
 using Mezon.Net.Logging;
 using Mezon.Net.Transport;
 using static Mezon.Net.Core.Abstractions.IMezonNetworkTransporter;
-using AddAppRequest = Mezon.Net.Internal.Api.AddAppRequest;
-using CreateActivityRequest = Mezon.Net.Internal.Api.CreateActivityRequest;
-using CreateEventRequest = Mezon.Net.Internal.Api.CreateEventRequest;
-using CreateRoleRequest = Mezon.Net.Internal.Api.CreateRoleRequest;
-using GenerateMezonMeetResponse = Mezon.Net.Internal.Api.GenerateMezonMeetResponse;
-using LinkInviteUserRequest = Mezon.Net.Internal.Api.LinkInviteUserRequest;
-using PbSession = Mezon.Net.Internal.Api.Session;
-using RegistrationEmailRequest = Mezon.Net.Internal.Api.RegistrationEmailRequest;
-using SearchMessageRequest = Mezon.Net.Internal.Api.SearchMessageRequest;
-using SearchMessageResponse = Mezon.Net.Internal.Api.SearchMessageResponse;
-using SetDefaultNotificationRequest = Mezon.Net.Internal.Api.SetDefaultNotificationRequest;
-using UpdateCategoryOrderRequest = Mezon.Net.Internal.Api.UpdateCategoryOrderRequest;
-using UpdateEventRequest = Mezon.Net.Internal.Api.UpdateEventRequest;
-using UpdateRoleRequest = Mezon.Net.Internal.Api.UpdateRoleRequest;
-using UploadAttachmentRequest = Mezon.Net.Internal.Api.UploadAttachmentRequest;
+using MezonSession = Mezon.Net.Internal.Api.Session;
 
 namespace Mezon.Net.Client
 {
-    internal class MezonSocketApiClient : MezonApiClient, IMezonSocketClient, IDisposable, IAsyncDisposable
+    internal class MezonSocketClient : MezonApiClient, IMezonSocketClient, IDisposable, IAsyncDisposable
     {
-        private Logger? _wireLogger;
+        private Logger? _logger;
 
         private readonly TransportType _transportType;
         private readonly SocketCorrelationHub _correlationHub = new();
         private long _lastPingSentMs;
-        public event Func<string, Task> SocketSentMessageEvent { add { _socketSentMessageEvent.Add(value); } remove { _socketSentMessageEvent.Remove(value); } }
-        private readonly AsyncEvent<Func<string, Task>> _socketSentMessageEvent = new AsyncEvent<Func<string, Task>>();
+        private long _lastPongReceivedMs;
+        internal long LastPingSentMs => _lastPingSentMs;
+        internal long LastPongReceivedMs => _lastPongReceivedMs;
+        public event Func<string, Task> SocketMessageSent { add { _socketMessageSent.Add(value); } remove { _socketMessageSent.Remove(value); } }
+        private readonly AsyncEvent<Func<string, Task>> _socketMessageSent = new AsyncEvent<Func<string, Task>>();
 
-        public event Func<MezonMessageType, int, int, ReadOnlyMemory<byte>?, Envelope?, Task> ReceivedMessageEvent { add { _receivedMessageEvent.Add(value); } remove { _receivedMessageEvent.Remove(value); } }
-        private readonly AsyncEvent<Func<MezonMessageType, int, int, ReadOnlyMemory<byte>?, Envelope?, Task>> _receivedMessageEvent = new AsyncEvent<Func<MezonMessageType, int, int, ReadOnlyMemory<byte>?, Envelope?, Task>>();
+        public event Func<MezonMessageType, int, int, ReadOnlyMemory<byte>?, Envelope?, Task> MessageReceived { add { _messageReceived.Add(value); } remove { _messageReceived.Remove(value); } }
+        private readonly AsyncEvent<Func<MezonMessageType, int, int, ReadOnlyMemory<byte>?, Envelope?, Task>> _messageReceived = new AsyncEvent<Func<MezonMessageType, int, int, ReadOnlyMemory<byte>?, Envelope?, Task>>();
 
-        public event Func<Exception, Task> DisconnectedEvent { add { _disconnectedEvent.Add(value); } remove { _disconnectedEvent.Remove(value); } }
-        private readonly AsyncEvent<Func<Exception, Task>> _disconnectedEvent = new AsyncEvent<Func<Exception, Task>>();
+        public event Func<Exception, Task> SocketDisconnected { add { _socketDisconnected.Add(value); } remove { _socketDisconnected.Remove(value); } }
+        private readonly AsyncEvent<Func<Exception, Task>> _socketDisconnected = new AsyncEvent<Func<Exception, Task>>();
 
         private CancellationTokenSource? _connectCancelToken;
 
@@ -56,7 +43,7 @@ namespace Mezon.Net.Client
 
         public ConnectionState ConnectionState { get; private set; }
 
-        public MezonSocketApiClient(RestClientProvider restClientProvider, MezonNetworkTransportProvider networkTransportProvider, MezonSocketClientOptions options)
+        public MezonSocketClient(RestClientProvider restClientProvider, MezonNetworkTransportProvider networkTransportProvider, MezonSocketClientOptions options)
             : base(restClientProvider, networkTransportProvider, options)
         {
             _transportType = options.TransportType.Resolve();
@@ -73,14 +60,14 @@ namespace Mezon.Net.Client
 
         internal void ConfigureSocketLogging(LogManager logManager)
         {
-            _wireLogger = logManager.CreateLogger("MezonSocketWire");
+            _logger = logManager.CreateLogger("MezonSocketApiClient");
         }
 
         private void TraceWire(string message)
         {
-            if (_wireLogger != null && _wireLogger.Level <= LogLevel.Trace)
+            if (_logger != null && _logger.Level == LogLevel.Trace)
             {
-                _ = _wireLogger.TraceAsync(message);
+                _ = _logger.TraceAsync(message);
             }
         }
 
@@ -101,7 +88,7 @@ namespace Mezon.Net.Client
         {
             if (LoginState != LoginState.LoggedIn)
             {
-                throw new InvalidOperationException("The client must be logged in before connecting.");
+                throw new MezonAuthenticationException("The client must be logged in before connecting.");
             }
 
             if (NetworkTransporter == null)
@@ -147,7 +134,7 @@ namespace Mezon.Net.Client
         {
             if (NetworkTransporter == null)
             {
-                throw new NotSupportedException("This client is not configured with WebSocket support.");
+                throw new NotSupportedException("This client is not configured with Socket support.");
             }
 
             if (ConnectionState == ConnectionState.Disconnected)
@@ -156,6 +143,7 @@ namespace Mezon.Net.Client
             }
 
             ConnectionState = ConnectionState.Disconnecting;
+            _correlationHub.FailAll(new OperationCanceledException(ex?.Message ?? "Socket disconnected."));
             await NetworkTransporter.DisconnectAsync().ConfigureAwait(false);
             try
             {
@@ -176,7 +164,7 @@ namespace Mezon.Net.Client
 
             var cid = _correlationHub.AllocateCid();
             await SendSocketPayloadAsync(type, cid, bytes.ToArray(), options).ConfigureAwait(false);
-            await _socketSentMessageEvent.InvokeAsync($"Sent: {type} {bytes.Length} bytes").ConfigureAwait(false);
+            await _socketMessageSent.InvokeAsync($"Sent: {type} {bytes.Length} bytes").ConfigureAwait(false);
         }
 
         public Task SendAsync(MezonMessageType type, Envelope envelope, RequestOptions? options = null)
@@ -189,19 +177,19 @@ namespace Mezon.Net.Client
 
             envelope.Cid = _correlationHub.AllocateCid();
             await SendSocketPayloadAsync(type, envelope.Cid, envelope.ToByteArray(), options).ConfigureAwait(false);
-            await _socketSentMessageEvent.InvokeAsync($"Sent: {type} {envelope}").ConfigureAwait(false);
+            await _socketMessageSent.InvokeAsync($"Sent: {type} {envelope}").ConfigureAwait(false);
         }
 
-        public async Task Heartbeat(RequestOptions? options = null)
+        internal async Task Heartbeat(RequestOptions? options = null)
         {
             _lastPingSentMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             options ??= RequestOptions.CreateOrClone(options);
             CheckState();
 
             var cid = _correlationHub.AllocateCid();
-            var timeout = options.SocketSendTimeout ?? SocketCorrelationHub.DefaultTimeoutMilliseconds;
+            var timeout = options.SocketSendTimeout ?? MezonOptions.SocketTimeoutInMilliseconds;
             var waitTask = _correlationHub.WaitAsync(cid, timeout, options.CancelToken);
-            TraceWire($"[WIRE-OUT] heartbeat cid={cid} timeout={timeout}ms");
+            TraceWire($"[SOCKET-OUT] heartbeat cid={cid} timeout={timeout}ms");
 
             try
             {
@@ -272,9 +260,9 @@ namespace Mezon.Net.Client
 
         private Task NetworkTransporter_ErrorOccurred(Exception exception)
         {
-            if (_wireLogger != null)
+            if (_logger != null)
             {
-                return _wireLogger.WarningAsync($"Transport error: {exception.Message}");
+                return _logger.WarningAsync($"Transport error: {exception.Message}");
             }
 
             return Task.CompletedTask;
@@ -288,18 +276,35 @@ namespace Mezon.Net.Client
                 return;
             }
 
-            await DisconnectInternalAsync(exception).ConfigureAwait(false);
+            // Transport is already closed when this event fires. Do not call
+            // DisconnectInternalAsync here — it would re-enter transport.DisconnectAsync
+            // and deadlock while the transport still holds its disconnect lock.
+            await CompleteTransportClosedAsync(exception).ConfigureAwait(false);
+        }
+
+        private async Task CompleteTransportClosedAsync(Exception? exception)
+        {
+            ConnectionState = ConnectionState.Disconnecting;
+            try
+            {
+                _connectCancelToken?.Cancel(false);
+            }
+            catch
+            {
+            }
+
+            ConnectionState = ConnectionState.Disconnected;
             await NotifyDisconnectedAsync(exception).ConfigureAwait(false);
         }
 
         private Task NotifyDisconnectedAsync(Exception? exception)
         {
-            if (!_disconnectedEvent.HasSubscribers)
+            if (!_socketDisconnected.HasSubscribers)
             {
                 return Task.CompletedTask;
             }
 
-            return _disconnectedEvent.InvokeAsync(exception ?? new Exception("WebSocket closed."));
+            return _socketDisconnected.InvokeAsync(exception ?? new Exception("Socket closed."));
         }
 
         private ValueTask NetworkTransporter_MessageReceived(MezonMessageType type, int cid, int code, ReadOnlyMemory<byte> data)
@@ -331,20 +336,19 @@ namespace Mezon.Net.Client
                 OnSocketMessageReceived(type, cid, code, data, envelope);
 
                 var envCase = envelope?.MessageCase.ToString() ?? "n/a";
-                TraceWire(
-                    $"[WIRE-IN] type={type} cid={cid} code={code} bytes={data.Length} pending={_correlationHub.PendingCount} env={envCase}");
+                TraceWire($"[SOCKET-IN] type={type} cid={cid} code={code} bytes={data.Length} pending={_correlationHub.PendingCount} env={envCase}");
 
                 // Heartbeat/pong completes pending ping requests in OnSocketMessageReceived; do not fan out to event handlers.
                 if (type != MezonMessageType.Heartbeat
-                    && _receivedMessageEvent.HasSubscribers
+                    && _messageReceived.HasSubscribers
                     && (cid == 0 || !WasPendingRequest(cid)))
                 {
-                    _ = _receivedMessageEvent.InvokeAsync(type, cid, code, type == MezonMessageType.Api ? data : null, envelope);
+                    _ = _messageReceived.InvokeAsync(type, cid, code, type == MezonMessageType.Api ? data : null, envelope);
                 }
             }
             catch (Exception ex)
             {
-                TraceWire($"[WIRE-IN] parse error type={type} cid={cid}: {ex.Message}");
+                TraceWire($"[SOCKET-IN] parse error type={type} cid={cid}: {ex.Message}");
             }
 
 #if NET6_0_OR_GREATER
@@ -414,9 +418,7 @@ namespace Mezon.Net.Client
                 }
             };
 
-            TraceWire(
-                $"[WIRE-OUT] api={apiName} index={apiIndex} body_bytes={request.CalculateSize()}");
-
+            TraceWire($"[SOCKET-OUT] api={apiName} index={apiIndex} body_bytes={request.CalculateSize()}");
             return SendApiEnvelopeAsync(envelope, responseParser, options);
         }
 
@@ -431,10 +433,10 @@ namespace Mezon.Net.Client
 
             var cid = _correlationHub.AllocateCid();
             envelope.Cid = cid;
-            var timeout = options.SocketSendTimeout ?? SocketCorrelationHub.DefaultTimeoutMilliseconds;
+            var timeout = options.SocketSendTimeout ?? MezonOptions.SocketTimeoutInMilliseconds;
             var waitTask = _correlationHub.WaitAsync(cid, timeout, options.CancelToken);
             var payload = envelope.ToByteArray();
-            TraceWire($"[WIRE-OUT] abridged cid={cid} bytes={payload.Length} timeout={timeout}ms");
+            TraceWire($"[SOCKET-OUT] abridged cid={cid} bytes={payload.Length} timeout={timeout}ms");
 
             try
             {
@@ -443,7 +445,7 @@ namespace Mezon.Net.Client
 
                 if (socketResponse.Code != 0)
                 {
-                    throw new RPCException(new Grpc.Core.Status((StatusCode)socketResponse.Code, $"Socket API failed with code {socketResponse.Code}"));
+                    throw MezonApiException.FromSocketResponse(socketResponse.Code, envelope.ApiRequestEvent?.ApiName, socketResponse.Payload);
                 }
 
                 return responseParser.ParseFrom(socketResponse.Payload.Span);
@@ -462,7 +464,7 @@ namespace Mezon.Net.Client
 
             var cid = _correlationHub.AllocateCid();
             envelope.Cid = cid;
-            var timeout = options.SocketSendTimeout ?? SocketCorrelationHub.DefaultTimeoutMilliseconds;
+            var timeout = options.SocketSendTimeout ?? MezonOptions.SocketTimeoutInMilliseconds;
             var waitTask = _correlationHub.WaitAsync(cid, timeout, options.CancelToken);
             var payload = envelope.ToByteArray();
             try
@@ -472,7 +474,7 @@ namespace Mezon.Net.Client
 
                 if (socketResponse.Code != 0)
                 {
-                    throw new RPCException(new Grpc.Core.Status((StatusCode)socketResponse.Code, $"Socket envelope failed with code {socketResponse.Code}"));
+                    throw MezonApiException.FromSocketResponse(socketResponse.Code, envelope.ApiRequestEvent?.ApiName, socketResponse.Payload);
                 }
 
                 if (socketResponse.Payload.Length > 0)
@@ -514,8 +516,9 @@ namespace Mezon.Net.Client
                     LatencyMilliseconds = (int)Math.Max(0, now - _lastPingSentMs);
                 }
 
+                _lastPongReceivedMs = now;
                 var matched = _correlationHub.TryComplete(cid, code, ReadOnlyMemory<byte>.Empty);
-                TraceWire($"[WIRE-COMPLETE] heartbeat cid={cid} matched={matched}");
+                TraceWire($"[SOCKET-COMPLETE] heartbeat cid={cid} matched={matched}");
 
                 return;
             }
@@ -523,8 +526,7 @@ namespace Mezon.Net.Client
             if (type == MezonMessageType.Api)
             {
                 var matched = _correlationHub.TryComplete(cid, code, data);
-                TraceWire(
-                    $"[WIRE-COMPLETE] api cid={cid} code={code} bytes={data.Length} matched={matched}");
+                TraceWire($"[SOCKET-COMPLETE] api cid={cid} code={code} bytes={data.Length} matched={matched}");
 
                 return;
             }
@@ -532,55 +534,25 @@ namespace Mezon.Net.Client
             if (envelope != null && envelope.Cid > 0)
             {
                 var matched = _correlationHub.TryComplete(envelope.Cid, code, envelope.ToByteArray());
-                TraceWire(
-                    $"[WIRE-COMPLETE] abridged cid={envelope.Cid} env={envelope.MessageCase} matched={matched}");
+                TraceWire($"[SOCKET-COMPLETE] abridged cid={envelope.Cid} env={envelope.MessageCase} matched={matched}");
             }
         }
 
-        public override Task<ClanDescList> ListClanDescsAsync(PaginationParams args, RequestOptions? options = null)
+        public override Task<ClanDescList> ListClanDescsAsync(ListClanDescRequest body, RequestOptions? options = null)
         {
-            var request = new ListClanDescRequest
-            {
-                Limit = args.Limit.GetValueOrDefault(50),
-                State = args.State.GetValueOrDefault(0),
-                Cursor = args.Cursor.GetValueOrDefault(string.Empty),
-            };
-            return SendApiAsync("ListClanDescs", request, ClanDescList.Parser, options);
+            Check.NotNull(body, nameof(body));
+            return SendApiAsync("ListClanDescs", body, ClanDescList.Parser, options);
         }
 
-        public override async Task<AuthenticationResponse> RefreshSessionAsync(
+        public override Task<MezonSession> RefreshSessionAsync(
             string basicAuthUsername,
             string basicAuthPassword,
-            Mezon.Net.Api.SessionRefreshRequest body,
+            global::Mezon.Net.Internal.Api.SessionRefreshRequest body,
             RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            options = RequestOptions.CreateOrClone(options);
-            var request = new Internal.Api.SessionRefreshRequest
-            {
-                IsRemember = body.IsRemember ?? false,
-                Token = body.Token,
-            };
-            if (body.Vars != null)
-            {
-                foreach (var pair in body.Vars)
-                {
-                    request.Vars[pair.Key] = pair.Value;
-                }
-            }
-
-            var session = await SendApiAsync("SessionRefresh", request, global::Mezon.Net.Internal.Api.Session.Parser, options).ConfigureAwait(false);
-            return new AuthenticationResponse
-            {
-                ApiUrl = session.ApiUrl,
-                WsUrl = session.WsUrl,
-                TcpUrl = session.TcpUrl,
-                Created = session.Created,
-                IsRemember = session.IsRemember,
-                RefreshToken = session.RefreshToken,
-                Token = session.Token,
-                UserId = session.UserId,
-            };
+            options ??= RequestOptions.CreateOrClone(options);
+            return SendApiAsync("SessionRefresh", body, MezonSession.Parser, options);
         }
 
         public override async Task DeleteAccountAsync(RequestOptions? options = null)
@@ -855,25 +827,8 @@ namespace Mezon.Net.Client
             await SendApiAsync("DeleteRole", request, Empty.Parser, options);
         }
 
-        public override Task<RoleListEventResponse> ListRolesAsync(long? clanId = null, int? limit = null, int? state = null, string? cursor = null, RequestOptions? options = null)
+        public override Task<RoleListEventResponse> ListRolesAsync(RoleListEventRequest request, RequestOptions? options = null)
         {
-            var request = new RoleListEventRequest();
-            if (clanId.HasValue)
-            {
-                request.ClanId = clanId.Value;
-            }
-            if (limit.HasValue)
-            {
-                request.Limit = limit.Value;
-            }
-            if (state.HasValue)
-            {
-                request.State = state.Value;
-            }
-            if (!string.IsNullOrEmpty(cursor))
-            {
-                request.Cursor = cursor;
-            }
             return SendApiAsync("ListRoles", request, RoleListEventResponse.Parser, options);
         }
 
@@ -1146,18 +1101,8 @@ namespace Mezon.Net.Client
             return SendApiAsync("ListRolePermissions", request, PermissionList.Parser, options);
         }
 
-        public override Task<RoleUserList> ListRoleUsersAsync(long roleId, int? limit = null, string? cursor = null, RequestOptions? options = null)
+        public override Task<RoleUserList> ListRoleUsersAsync(ListRoleUsersRequest request, RequestOptions? options = null)
         {
-            var request = new ListRoleUsersRequest();
-            request.RoleId = roleId;
-            if (limit.HasValue)
-            {
-                request.Limit = limit.Value;
-            }
-            if (!string.IsNullOrEmpty(cursor))
-            {
-                request.Cursor = cursor;
-            }
             return SendApiAsync("ListRoleUsers", request, RoleUserList.Parser, options);
         }
 
@@ -1380,34 +1325,8 @@ namespace Mezon.Net.Client
             await SendApiAsync("Healthcheck", new Empty(), Empty.Parser, options);
         }
 
-        public override Task<ChannelDescList> ListChannelDescsAsync(long clanId, int? limit = null, int? state = null, string? cursor = null, int? channelType = null, bool? isMobile = null, int? page = null, RequestOptions? options = null)
+        public override Task<ChannelDescList> ListChannelDescsAsync(ListChannelDescsRequest request, RequestOptions? options = null)
         {
-            var request = new ListChannelDescsRequest();
-            request.ClanId = clanId;
-            if (limit.HasValue)
-            {
-                request.Limit = limit.Value;
-            }
-            if (state.HasValue)
-            {
-                request.State = state.Value;
-            }
-            if (!string.IsNullOrEmpty(cursor))
-            {
-                request.Cursor = cursor;
-            }
-            if (channelType.HasValue)
-            {
-                request.ChannelType = channelType.Value;
-            }
-            if (isMobile.HasValue)
-            {
-                request.IsMobile = isMobile.Value;
-            }
-            if (page.HasValue)
-            {
-                request.Page = page.Value;
-            }
             return SendApiAsync("ListChannelDescs", request, ChannelDescList.Parser, options);
         }
 
@@ -1798,7 +1717,7 @@ namespace Mezon.Net.Client
             return SendApiAsync("SendChannelMessage", body, ChannelMessageAck.Parser, options);
         }
 
-        public override Task<ChannelMessageAck> SendChannelMessageAsync(in Mezon.Net.Api.SendChannelMessageParams message, RequestOptions? options = null)
+        public override Task<ChannelMessageAck> SendChannelMessageAsync(SendChannelMessageParams message, RequestOptions? options = null)
         {
             var body = new ChannelMessageSend
             {
@@ -2009,31 +1928,31 @@ namespace Mezon.Net.Client
             return SendApiAsync("ListUserOnline", request, ListUserOnlineResponse.Parser, options);
         }
 
-        public override Task<PbSession> RegistrationEmailAsync(RegistrationEmailRequest body, RequestOptions? options = null)
+        public override Task<MezonSession> RegistrationEmailAsync(global::Mezon.Net.Internal.Api.RegistrationEmailRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("RegistrationEmail", body, PbSession.Parser, options);
+            return SendApiAsync("RegistrationEmail", body, MezonSession.Parser, options);
         }
 
-        public override Task<UploadAttachment> UploadAttachmentFileAsync(UploadAttachmentRequest body, RequestOptions? options = null)
+        public override Task<UploadAttachment> UploadAttachmentFileAsync(global::Mezon.Net.Internal.Api.UploadAttachmentRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
             return SendApiAsync("UploadAttachmentFile", body, UploadAttachment.Parser, options);
         }
 
-        public override Task<UploadAttachment> UploadOauthFileAsync(UploadAttachmentRequest body, RequestOptions? options = null)
+        public override Task<UploadAttachment> UploadOauthFileAsync(global::Mezon.Net.Internal.Api.UploadAttachmentRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
             return SendApiAsync("UploadOauthFile", body, UploadAttachment.Parser, options);
         }
 
-        public override Task<Role> CreateRoleAsync(CreateRoleRequest body, RequestOptions? options = null)
+        public override Task<Role> CreateRoleAsync(global::Mezon.Net.Internal.Api.CreateRoleRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
             return SendApiAsync("CreateRole", body, Role.Parser, options);
         }
 
-        public override Task<EventManagement> CreateEventAsync(CreateEventRequest body, RequestOptions? options = null)
+        public override Task<EventManagement> CreateEventAsync(global::Mezon.Net.Internal.Api.CreateEventRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
             return SendApiAsync("CreateEvent", body, EventManagement.Parser, options);
@@ -2045,13 +1964,13 @@ namespace Mezon.Net.Client
             await SendApiAsync("ArchiveChannel", body, Empty.Parser, options);
         }
 
-        public override Task<LinkInviteUser> CreateLinkInviteUserAsync(LinkInviteUserRequest body, RequestOptions? options = null)
+        public override Task<LinkInviteUser> CreateLinkInviteUserAsync(global::Mezon.Net.Internal.Api.LinkInviteUserRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
             return SendApiAsync("CreateLinkInviteUser", body, LinkInviteUser.Parser, options);
         }
 
-        public override async Task SetNotificationClanSettingAsync(SetDefaultNotificationRequest body, RequestOptions? options = null)
+        public override async Task SetNotificationClanSettingAsync(global::Mezon.Net.Internal.Api.SetDefaultNotificationRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
             await SendApiAsync("SetNotificationClanSetting", body, Empty.Parser, options);
@@ -2063,34 +1982,34 @@ namespace Mezon.Net.Client
             await SendApiAsync("UpdateAccount", body, Empty.Parser, options);
         }
 
-        public override Task<PbSession> UpdateUsernameAsync(UpdateUsernameRequest body, RequestOptions? options = null)
+        public override Task<MezonSession> UpdateUsernameAsync(UpdateUsernameRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("UpdateUsername", body, PbSession.Parser, options);
+            return SendApiAsync("UpdateUsername", body, MezonSession.Parser, options);
         }
 
-        public override async Task UpdateCategoryOrderAsync(UpdateCategoryOrderRequest body, RequestOptions? options = null)
+        public override async Task UpdateCategoryOrderAsync(global::Mezon.Net.Internal.Api.UpdateCategoryOrderRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
             await SendApiAsync("UpdateCategoryOrder", body, Empty.Parser, options);
         }
 
-        public override async Task UpdateRoleAsync(UpdateRoleRequest body, RequestOptions? options = null)
+        public override async Task UpdateRoleAsync(global::Mezon.Net.Internal.Api.UpdateRoleRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
             await SendApiAsync("UpdateRole", body, Empty.Parser, options);
         }
 
-        public override async Task UpdateEventAsync(UpdateEventRequest body, RequestOptions? options = null)
+        public override async Task UpdateEventAsync(global::Mezon.Net.Internal.Api.UpdateEventRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
             await SendApiAsync("UpdateEvent", body, Empty.Parser, options);
         }
 
-        public override Task<SearchMessageResponse> SearchMessageAsync(SearchMessageRequest body, RequestOptions? options = null)
+        public override Task<global::Mezon.Net.Internal.Api.SearchMessageResponse> SearchMessageAsync(global::Mezon.Net.Internal.Api.SearchMessageRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("SearchMessage", body, SearchMessageResponse.Parser, options);
+            return SendApiAsync("SearchMessage", body, global::Mezon.Net.Internal.Api.SearchMessageResponse.Parser, options);
         }
 
         public override async Task HandleWebhookAsync(ClanWebhookHandlerRequest body, RequestOptions? options = null)
@@ -2105,13 +2024,13 @@ namespace Mezon.Net.Client
             return SendApiAsync("CheckDuplicateName", body, CheckDuplicateNameResponse.Parser, options);
         }
 
-        public override Task<App> AddAppAsync(AddAppRequest body, RequestOptions? options = null)
+        public override Task<App> AddAppAsync(global::Mezon.Net.Internal.Api.AddAppRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
             return SendApiAsync("AddApp", body, App.Parser, options);
         }
 
-        public override Task<UserActivity> CreateActivityAsync(CreateActivityRequest body, RequestOptions? options = null)
+        public override Task<UserActivity> CreateActivityAsync(global::Mezon.Net.Internal.Api.CreateActivityRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
             return SendApiAsync("CreateActiviy", body, UserActivity.Parser, options);
@@ -2124,7 +2043,7 @@ namespace Mezon.Net.Client
         }
 
         public override Task<global::Mezon.Net.Internal.Api.GenerateMezonMeetResponse> CreateExternalMezonMeetAsync(RequestOptions? options = null)
-            => SendApiAsync("CreateExternalMezonMeet", new Empty(), GenerateMezonMeetResponse.Parser, options);
+            => SendApiAsync("CreateExternalMezonMeet", new Empty(), global::Mezon.Net.Internal.Api.GenerateMezonMeetResponse.Parser, options);
 
         public override Task<UpdateChannelTimelineResponse> UpdateChannelTimelineAsync(UpdateChannelTimelineRequest body, RequestOptions? options = null)
         {
@@ -2174,7 +2093,7 @@ namespace Mezon.Net.Client
             await SendApiAsync("ReactChannelMessage", body, Empty.Parser, options);
         }
 
-        public override Task<MultipartUploadAttachment> MultipartUploadAttachmentFileStartAsync(UploadAttachmentRequest body, RequestOptions? options = null)
+        public override Task<MultipartUploadAttachment> MultipartUploadAttachmentFileStartAsync(global::Mezon.Net.Internal.Api.UploadAttachmentRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
             return SendApiAsync("MultipartUploadAttachmentFileStart", body, MultipartUploadAttachment.Parser, options);
