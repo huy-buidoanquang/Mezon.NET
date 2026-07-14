@@ -14,17 +14,17 @@ namespace Mezon.Net.Client.Tests.Generated
 
             Assert.Contains("ListClanDescsAsync", facade);
             Assert.Contains("SendChannelMessageAsync", facade);
-            Assert.Contains("Task<ChannelMessageAckData> SendChannelMessageAsync", iface);
+            Assert.Contains("Task<Mezon.Net.Models.ChannelMessageAckResponse> SendChannelMessageAsync", iface);
         }
 
         [Fact]
-        public void Generated_models_include_channel_message_data_view()
+        public void Generated_models_include_channel_message_response_view()
         {
             var root = FindRepoRoot();
-            var data = File.ReadAllText(Path.Combine(root, "src", "Mezon.Net.Client", "Models", "Responses", "ChannelMessageData.g.cs"));
+            var data = File.ReadAllText(Path.Combine(root, "src", "Mezon.Net.Client", "Models", "Responses", "ChannelMessageResponse.g.cs"));
 
             Assert.Contains("namespace Mezon.Net.Models", data);
-            Assert.Contains("public readonly struct ChannelMessageData", data);
+            Assert.Contains("public readonly struct ChannelMessageResponse", data);
             Assert.Contains("public long MessageId =>", data);
         }
 

@@ -5,11 +5,11 @@ namespace Mezon.Net.Models
 {
     public readonly struct ListChannelUsersBannedEventEventData
     {
-        private readonly ListChannelUsersBannedEventData _data;
-        internal ListChannelUsersBannedEventEventData(ListChannelUsersBannedEventData data) => _data = data;
-        internal ListChannelUsersBannedEventData Data => _data;
+        private readonly ListChannelUsersBannedEventResponse _data;
+        internal ListChannelUsersBannedEventEventData(ListChannelUsersBannedEventResponse data) => _data = data;
+        internal ListChannelUsersBannedEventResponse Data => _data;
 
-        public static implicit operator ListChannelUsersBannedEventData(ListChannelUsersBannedEventEventData e) => e._data;
-        public static implicit operator ListChannelUsersBannedEventEventData(ListChannelUsersBannedEventData d) => new ListChannelUsersBannedEventEventData(d);
+        public static implicit operator ListChannelUsersBannedEventResponse(ListChannelUsersBannedEventEventData e) => e._data;
+        public static implicit operator ListChannelUsersBannedEventEventData(ListChannelUsersBannedEventResponse d) => new ListChannelUsersBannedEventEventData(d);
     }
 }

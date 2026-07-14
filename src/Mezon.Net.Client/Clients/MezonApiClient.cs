@@ -10,11 +10,9 @@ using Mezon.Net.Abstractions;
 using Mezon.Net.Core;
 using Mezon.Net.Internal.Api;
 using Mezon.Net.Internal.Realtime;
-using Mezon.Net.Models;
 using Mezon.Net.Queue;
 using Mezon.Net.Utils;
 using Newtonsoft.Json;
-using static Mezon.Net.Core.Abstractions.IMezonNetworkTransporter;
 using MezonSession = Mezon.Net.Internal.Api.Session;
 using Stream = System.IO.Stream;
 
@@ -31,7 +29,7 @@ namespace Mezon.Net.Client
         private CancellationTokenSource _loginCancelToken = new CancellationTokenSource();
 
         private readonly RestClientProvider _restClientProvider;
-        private readonly MezonNetworkTransportProvider _networkTransportProvider;
+        //private readonly Logger _logger;
 
         internal RequestQueue RequestQueue { get; }
 
@@ -57,12 +55,10 @@ namespace Mezon.Net.Client
 
         public MezonApiClient(
             RestClientProvider restClientProvider,
-            MezonNetworkTransportProvider networkTransportProvider,
             MezonOptions configuration,
             JsonSerializer? serializer = null)
         {
             _restClientProvider = restClientProvider;
-            _networkTransportProvider = networkTransportProvider;
             _serializer = serializer ?? Json.Serializer;
             MezonOptions = configuration;
             RequestQueue = new RequestQueue();
@@ -367,7 +363,7 @@ namespace Mezon.Net.Client
             return MezonSession.Parser.ParseFrom(await SendJsonAsync("POST", "/v2/account/authenticate/email", body, options: options));
         }
 
-        public async Task<MezonSession> AuthenticateMezonAsync(string basicAuthUsername, string basicAuthPassword, global::Mezon.Net.Internal.Api.AccountMezon body, AccountMezonParams args, RequestOptions? options = null)
+        public async Task<MezonSession> AuthenticateMezonAsync(string basicAuthUsername, string basicAuthPassword, global::Mezon.Net.Internal.Api.AccountMezon body, Mezon.Net.Client.AccountMezonParams args, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
             options ??= RequestOptions.CreateOrClone(options);
@@ -1154,7 +1150,7 @@ namespace Mezon.Net.Client
             throw new NotSupportedException("Socket API is not available on REST-only client.");
         }
 
-        public virtual Task<ChannelMessageAck> SendChannelMessageAsync(SendChannelMessageParams message, RequestOptions? options = null)
+        public virtual Task<ChannelMessageAck> SendChannelMessageAsync(Mezon.Net.Models.SendChannelMessageParams message, RequestOptions? options = null)
         {
             throw new NotSupportedException("Socket API is not available on REST-only client.");
         }

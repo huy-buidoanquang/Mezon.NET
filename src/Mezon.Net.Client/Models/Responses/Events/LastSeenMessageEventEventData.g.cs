@@ -5,11 +5,11 @@ namespace Mezon.Net.Models
 {
     public readonly struct LastSeenMessageEventEventData
     {
-        private readonly LastSeenMessageEventData _data;
-        internal LastSeenMessageEventEventData(LastSeenMessageEventData data) => _data = data;
-        internal LastSeenMessageEventData Data => _data;
+        private readonly LastSeenMessageEventResponse _data;
+        internal LastSeenMessageEventEventData(LastSeenMessageEventResponse data) => _data = data;
+        internal LastSeenMessageEventResponse Data => _data;
 
-        public static implicit operator LastSeenMessageEventData(LastSeenMessageEventEventData e) => e._data;
-        public static implicit operator LastSeenMessageEventEventData(LastSeenMessageEventData d) => new LastSeenMessageEventEventData(d);
+        public static implicit operator LastSeenMessageEventResponse(LastSeenMessageEventEventData e) => e._data;
+        public static implicit operator LastSeenMessageEventEventData(LastSeenMessageEventResponse d) => new LastSeenMessageEventEventData(d);
     }
 }

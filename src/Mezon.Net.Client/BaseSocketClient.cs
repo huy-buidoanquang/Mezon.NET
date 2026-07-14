@@ -33,8 +33,11 @@ namespace Mezon.Net.Client
 
         public abstract Task DisconnectAsync();
 
-        protected Task<Envelope> SendRealtimeEnvelopeAsync(Envelope envelope, RequestOptions? options = null)
-            => ApiClient.SendEnvelopeAsync(envelope, options);
+        protected Task SendRtAsync(Envelope envelope, RequestOptions? options = null)
+            => ApiClient.SendRtInternalAsync(envelope, options);
+
+        protected Task<Envelope> SendRtAwaitAckAsync(Envelope envelope, RequestOptions? options = null)
+            => ApiClient.SendRtInternalAwaitResponseAsync(envelope, options);
 
         IMezonClient IApiClientProvider.MezonApiClient => this;
     }

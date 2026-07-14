@@ -29,8 +29,8 @@ Public API types live in `Mezon.Net.Models` (generated under `Mezon.Net.Client/M
 | Direction | Type pattern | Example |
 |-----------|--------------|---------|
 | Request | `*Params` readonly struct | `ListClanDescParams`, `SendChannelMessageParams` |
-| Response | `*Data` view struct (wraps proto, zero extra alloc) | `ChannelMessageData`, `ClanDescListData` |
-| Events | `*EventData` (implicit → `*Data`) | `ChannelMessageEventData` |
+| Response | `*Response` view struct (wraps proto, zero extra alloc) | `ChannelMessageResponse`, `ClanDescListResponse`, `AddFavoriteChannelResponse` |
+| Events | `*EventData` (implicit → `*Response`) | `ChannelMessageEventData` |
 
 Facades are generated on base classes (not on `MezonClient` directly):
 
@@ -56,7 +56,7 @@ The Client family all lives under `Mezon.Net.*`:
 | Namespace | Contains |
 |-----------|----------|
 | `Mezon.Net.Client` | `MezonClient` (engine), socket clients, events |
-| `Mezon.Net.Models` | Public `*Params` / `*Data` / `*EventData` (generated) |
+| `Mezon.Net.Models` | Public `*Params` / `*Response` / `*EventData` (generated) |
 | `Mezon.Net.Abstractions` | `IMezonClientApi`, `IMezonClientRealtime`, `ISession`, provider interfaces |
 | `Mezon.Net.DependencyInjection` | DI extensions for the engine |
 | `Mezon.Net.Client.Messaging` / `.Managers` | `MessageSendHelper`, `DmChannelManager` |

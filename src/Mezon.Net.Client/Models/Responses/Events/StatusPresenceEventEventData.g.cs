@@ -5,11 +5,11 @@ namespace Mezon.Net.Models
 {
     public readonly struct StatusPresenceEventEventData
     {
-        private readonly StatusPresenceEventData _data;
-        internal StatusPresenceEventEventData(StatusPresenceEventData data) => _data = data;
-        internal StatusPresenceEventData Data => _data;
+        private readonly StatusPresenceEventResponse _data;
+        internal StatusPresenceEventEventData(StatusPresenceEventResponse data) => _data = data;
+        internal StatusPresenceEventResponse Data => _data;
 
-        public static implicit operator StatusPresenceEventData(StatusPresenceEventEventData e) => e._data;
-        public static implicit operator StatusPresenceEventEventData(StatusPresenceEventData d) => new StatusPresenceEventEventData(d);
+        public static implicit operator StatusPresenceEventResponse(StatusPresenceEventEventData e) => e._data;
+        public static implicit operator StatusPresenceEventEventData(StatusPresenceEventResponse d) => new StatusPresenceEventEventData(d);
     }
 }

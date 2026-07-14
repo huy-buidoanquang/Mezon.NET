@@ -5,11 +5,11 @@ namespace Mezon.Net.Models
 {
     public readonly struct ChannelJoinEventData
     {
-        private readonly ChannelJoinData _data;
-        internal ChannelJoinEventData(ChannelJoinData data) => _data = data;
-        internal ChannelJoinData Data => _data;
+        private readonly ChannelJoinResponse _data;
+        internal ChannelJoinEventData(ChannelJoinResponse data) => _data = data;
+        internal ChannelJoinResponse Data => _data;
 
-        public static implicit operator ChannelJoinData(ChannelJoinEventData e) => e._data;
-        public static implicit operator ChannelJoinEventData(ChannelJoinData d) => new ChannelJoinEventData(d);
+        public static implicit operator ChannelJoinResponse(ChannelJoinEventData e) => e._data;
+        public static implicit operator ChannelJoinEventData(ChannelJoinResponse d) => new ChannelJoinEventData(d);
     }
 }

@@ -81,7 +81,7 @@ namespace Mezon.Net.Transport.Internal
                 return true;
             }
 
-            type = MezonMessageType.Abridged;
+            type = MezonMessageType.Realtime;
             payload = message;
             return true;
         }

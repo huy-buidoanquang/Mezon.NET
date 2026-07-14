@@ -27,12 +27,12 @@ namespace Mezon.Net.Sdk.Entities
 
         internal void UpdateFrom(ClanDesc desc) => _desc = desc;
 
-        public Task<ChannelDescListData> LoadChannelsAsync(int? channelType = null, RequestOptions? options = null)
+        public Task<ChannelDescListResponse> LoadChannelsAsync(int? channelType = null, RequestOptions? options = null)
             => _client.Engine.ListChannelDescsAsync(
                 new ListChannelDescsParams(clanId: Id, channelType: channelType),
                 options);
 
-        public Task<RoleListEventResponseData> ListRolesAsync(int? limit = null, int? state = null, string? cursor = null, RequestOptions? options = null)
+        public Task<Mezon.Net.Models.RoleListEventResponse> ListRolesAsync(int? limit = null, int? state = null, string? cursor = null, RequestOptions? options = null)
             => _client.Engine.ListRolesAsync(
                 new RoleListEventParams(clanId: Id, limit: limit, state: state, cursor: cursor),
                 options);

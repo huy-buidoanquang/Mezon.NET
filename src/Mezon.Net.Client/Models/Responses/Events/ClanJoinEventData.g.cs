@@ -5,11 +5,11 @@ namespace Mezon.Net.Models
 {
     public readonly struct ClanJoinEventData
     {
-        private readonly ClanJoinData _data;
-        internal ClanJoinEventData(ClanJoinData data) => _data = data;
-        internal ClanJoinData Data => _data;
+        private readonly ClanJoinResponse _data;
+        internal ClanJoinEventData(ClanJoinResponse data) => _data = data;
+        internal ClanJoinResponse Data => _data;
 
-        public static implicit operator ClanJoinData(ClanJoinEventData e) => e._data;
-        public static implicit operator ClanJoinEventData(ClanJoinData d) => new ClanJoinEventData(d);
+        public static implicit operator ClanJoinResponse(ClanJoinEventData e) => e._data;
+        public static implicit operator ClanJoinEventData(ClanJoinResponse d) => new ClanJoinEventData(d);
     }
 }

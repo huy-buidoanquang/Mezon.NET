@@ -95,7 +95,7 @@ public class MezonTcpTransporterReceiveTests
         var transporter = new MezonNetworkTcpTransporter();
         transporter.MessageReceived = (type, _, _, data) =>
         {
-            if (type == MezonMessageType.Abridged)
+            if (type == MezonMessageType.Realtime)
             {
                 received.TrySetResult(data.ToArray());
             }

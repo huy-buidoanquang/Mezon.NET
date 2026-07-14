@@ -3,8 +3,6 @@ using Mezon.Net.Client.Messaging;
 using Mezon.Net.Core;
 using Mezon.Net.Core.Constants;
 using Mezon.Net.Core.Entities;
-using Mezon.Net.Internal.Api;
-using Mezon.Net.Internal.Realtime;
 using Mezon.Net.Models;
 using Mezon.Net.Sdk.Caching;
 
@@ -35,10 +33,9 @@ namespace Mezon.Net.Sdk.Entities
 
         public bool IsPublic => !IsPrivate;
 
-        public Task JoinAsync()
-            => _client.Engine.JoinChannelChatRtAsync(new ChannelJoinParams(ClanId, Id, Type, IsPublic));
+        public Task JoinAsync() => _client.Engine.JoinChannelChatRtAsync(new ChannelJoinParams(ClanId, Id, Type, IsPublic));
 
-        public Task<ChannelMessageAck> SendAsync(
+        public Task<ChannelMessageAckResponse> SendAsync(
             string content,
             long? topicId = null,
             int code = 0,
@@ -49,10 +46,10 @@ namespace Mezon.Net.Sdk.Entities
             var mode = ChannelModeConverter.ToStreamMode(Type);
             var parameters = new SendChannelMessageParams(ClanId, Id, content, topicId, IsPublic, mode, code, mentionEveryone, anonymousMessage);
             return _client.SendQueue.EnqueueAsync(Id, () =>
-                MessageSendHelper.SendAsync(_client.ApiClient, parameters, options));
+                MessageSendHelper.SendAsync(_client.Engine, parameters, options));
         }
 
-        public Task<ChannelMessageAck> SendEphemeralAsync(
+        public Task<ChannelMessageAckResponse> SendEphemeralAsync(
             string content,
             long receiverId,
             RequestOptions? options = null)
@@ -62,8 +59,7 @@ namespace Mezon.Net.Sdk.Entities
             var body = new SendEphemeralMessageParams(new[] { receiverId }, parameters);
             return _client.SendQueue.EnqueueAsync(Id, async () =>
             {
-                var ack = await _client.Engine.SendEphemeralMessageRtAsync(body, options).ConfigureAwait(false);
-                return ack.Proto;
+                return await _client.Engine.SendEphemeralMessageRtAsync(body, options).ConfigureAwait(false);
             });
         }
     }

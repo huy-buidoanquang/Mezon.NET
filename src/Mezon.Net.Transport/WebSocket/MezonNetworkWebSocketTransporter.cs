@@ -245,7 +245,7 @@ namespace Mezon.Net.Transport
             switch (type)
             {
                 case MezonMessageType.Api:
-                case MezonMessageType.Abridged:
+                case MezonMessageType.Realtime:
                     return MezonWebSocketFrameCodec.TryQueueRawFrame(_sendChannel.Writer, data)
                         ? default
                         : new ValueTask(Task.FromException(new InvalidOperationException("Cannot queue message for sending.")));

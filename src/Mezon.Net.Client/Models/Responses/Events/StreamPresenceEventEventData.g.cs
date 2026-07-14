@@ -5,11 +5,11 @@ namespace Mezon.Net.Models
 {
     public readonly struct StreamPresenceEventEventData
     {
-        private readonly StreamPresenceEventData _data;
-        internal StreamPresenceEventEventData(StreamPresenceEventData data) => _data = data;
-        internal StreamPresenceEventData Data => _data;
+        private readonly StreamPresenceEventResponse _data;
+        internal StreamPresenceEventEventData(StreamPresenceEventResponse data) => _data = data;
+        internal StreamPresenceEventResponse Data => _data;
 
-        public static implicit operator StreamPresenceEventData(StreamPresenceEventEventData e) => e._data;
-        public static implicit operator StreamPresenceEventEventData(StreamPresenceEventData d) => new StreamPresenceEventEventData(d);
+        public static implicit operator StreamPresenceEventResponse(StreamPresenceEventEventData e) => e._data;
+        public static implicit operator StreamPresenceEventEventData(StreamPresenceEventResponse d) => new StreamPresenceEventEventData(d);
     }
 }

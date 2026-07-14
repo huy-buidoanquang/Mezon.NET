@@ -103,14 +103,14 @@ internal static class SocketVerification
 
         client.ClanJoinedEvent += clanJoin =>
         {
-            ClanJoinData data = clanJoin;
+            ClanJoinResponse data = clanJoin;
             logger.LogInformation("Event: ClanJoin clan_id={ClanId}", data.ClanId);
             return Task.CompletedTask;
         };
 
         client.ChannelJoinedEvent += channelJoin =>
         {
-            ChannelJoinData data = channelJoin;
+            ChannelJoinResponse data = channelJoin;
             logger.LogInformation(
                 "Event: ChannelJoin clan_id={ClanId} channel_id={ChannelId}",
                 data.ClanId,
@@ -120,7 +120,7 @@ internal static class SocketVerification
 
         client.ChannelMessageReceivedEvent += message =>
         {
-            ChannelMessageData data = message;
+            Mezon.Net.Models.ChannelMessageResponse data = message;
             logger.LogInformation(
                 "Event: ChannelMessage channel_id={ChannelId} message_id={MessageId}",
                 data.ChannelId,
@@ -130,14 +130,14 @@ internal static class SocketVerification
 
         client.ChannelMessageSentEvent += message =>
         {
-            ChannelMessageSendData data = message;
+            ChannelMessageSendResponse data = message;
             logger.LogInformation("Event: ChannelMessageSend channel_id={ChannelId}", data.ChannelId);
             return Task.CompletedTask;
         };
 
         client.MessageTypingReceivedEvent += typing =>
         {
-            MessageTypingEventData data = typing;
+            MessageTypingEventResponse data = typing;
             logger.LogInformation(
                 "Event: MessageTyping channel_id={ChannelId} sender={Sender}",
                 data.ChannelId,

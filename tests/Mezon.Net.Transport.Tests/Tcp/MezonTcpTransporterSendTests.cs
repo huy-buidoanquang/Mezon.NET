@@ -52,7 +52,7 @@ public class MezonTcpTransporterSendTests
 
         var transporter = new MezonNetworkTcpTransporter();
         await transporter.ConnectAsync("127.0.0.1", server.Port, "test-token", useSsl: false).ConfigureAwait(false);
-        await transporter.SendAsync(MezonMessageType.Abridged, 0, new ReadOnlyMemory<byte>(new byte[] { 0xDE, 0xAD, 0xBE, 0xEF })).ConfigureAwait(false);
+        await transporter.SendAsync(MezonMessageType.Realtime, 0, new ReadOnlyMemory<byte>(new byte[] { 0xDE, 0xAD, 0xBE, 0xEF })).ConfigureAwait(false);
 
         var frame = await frameReceived.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         Assert.Equal(0x01, frame[0]);

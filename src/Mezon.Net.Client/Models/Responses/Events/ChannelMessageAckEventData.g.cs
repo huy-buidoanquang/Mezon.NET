@@ -5,11 +5,11 @@ namespace Mezon.Net.Models
 {
     public readonly struct ChannelMessageAckEventData
     {
-        private readonly ChannelMessageAckData _data;
-        internal ChannelMessageAckEventData(ChannelMessageAckData data) => _data = data;
-        internal ChannelMessageAckData Data => _data;
+        private readonly ChannelMessageAckResponse _data;
+        internal ChannelMessageAckEventData(ChannelMessageAckResponse data) => _data = data;
+        internal ChannelMessageAckResponse Data => _data;
 
-        public static implicit operator ChannelMessageAckData(ChannelMessageAckEventData e) => e._data;
-        public static implicit operator ChannelMessageAckEventData(ChannelMessageAckData d) => new ChannelMessageAckEventData(d);
+        public static implicit operator ChannelMessageAckResponse(ChannelMessageAckEventData e) => e._data;
+        public static implicit operator ChannelMessageAckEventData(ChannelMessageAckResponse d) => new ChannelMessageAckEventData(d);
     }
 }

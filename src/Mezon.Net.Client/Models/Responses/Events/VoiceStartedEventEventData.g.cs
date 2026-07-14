@@ -5,11 +5,11 @@ namespace Mezon.Net.Models
 {
     public readonly struct VoiceStartedEventEventData
     {
-        private readonly VoiceStartedEventData _data;
-        internal VoiceStartedEventEventData(VoiceStartedEventData data) => _data = data;
-        internal VoiceStartedEventData Data => _data;
+        private readonly VoiceStartedEventResponse _data;
+        internal VoiceStartedEventEventData(VoiceStartedEventResponse data) => _data = data;
+        internal VoiceStartedEventResponse Data => _data;
 
-        public static implicit operator VoiceStartedEventData(VoiceStartedEventEventData e) => e._data;
-        public static implicit operator VoiceStartedEventEventData(VoiceStartedEventData d) => new VoiceStartedEventEventData(d);
+        public static implicit operator VoiceStartedEventResponse(VoiceStartedEventEventData e) => e._data;
+        public static implicit operator VoiceStartedEventEventData(VoiceStartedEventResponse d) => new VoiceStartedEventEventData(d);
     }
 }

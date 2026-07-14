@@ -223,8 +223,8 @@ namespace Mezon.Net.Transport
                                 continue;
                             }
 
-                            var payload = type == MezonMessageType.Abridged
-                                ? MezonTransportFrameCodec.TrimPadding(frame)
+                            var payload = type == MezonMessageType.Realtime
+                                ? MezonTransportFrameCodec.TrimRealtimePadding(frame)
                                 : frame;
                             await MessageReceived.Invoke(type, cid, code, payload).ConfigureAwait(false);
                         }
@@ -294,8 +294,8 @@ namespace Mezon.Net.Transport
                         ? default
                         : new ValueTask(Task.FromException(new InvalidOperationException("Cannot queue ping.")));
                 case MezonMessageType.Api:
-                case MezonMessageType.Abridged:
-                    return MezonTransportFrameCodec.TryQueueAbridgedFrame(_sendChannel.Writer, data)
+                case MezonMessageType.Realtime:
+                    return MezonTransportFrameCodec.TryQueueRealtimeFrame(_sendChannel.Writer, data)
                         ? default
                         : new ValueTask(Task.FromException(new InvalidOperationException("Cannot queue message for sending.")));
                 default:

@@ -1,10 +1,8 @@
-using System;
 using System.Threading.Tasks;
 using Mezon.Net.Client.Messaging;
 using Mezon.Net.Core;
 using Mezon.Net.Core.Constants;
 using Mezon.Net.Core.Entities;
-using Mezon.Net.Internal.Realtime;
 using Mezon.Net.Models;
 
 namespace Mezon.Net.Sdk.Entities
@@ -32,7 +30,7 @@ namespace Mezon.Net.Sdk.Entities
 
         internal void SetDmChannelId(long channelId) => _dmChannelId = channelId;
 
-        public async Task<ChannelMessageAck> SendDMAsync(string content, int code = 0, RequestOptions? options = null)
+        public async Task<ChannelMessageAckResponse> SendDMAsync(string content, int code = 0, RequestOptions? options = null)
         {
             if (_dmChannelId == 0)
             {
@@ -47,7 +45,7 @@ namespace Mezon.Net.Sdk.Entities
 
             var mode = (int)ChannelStreamMode.Dm;
             var parameters = new SendChannelMessageParams(0, _dmChannelId, content, isPublic: false, mode: mode, code: code);
-            return await MessageSendHelper.SendAsync(_client.ApiClient, parameters, options).ConfigureAwait(false);
+            return await MessageSendHelper.SendAsync(_client.Engine, parameters, options).ConfigureAwait(false);
         }
     }
 }
