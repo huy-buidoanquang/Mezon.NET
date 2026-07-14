@@ -1,6 +1,5 @@
 using System;
 using System.Threading.Tasks;
-using Mezon.Net.Core;
 
 namespace Mezon.Net.Abstractions
 {

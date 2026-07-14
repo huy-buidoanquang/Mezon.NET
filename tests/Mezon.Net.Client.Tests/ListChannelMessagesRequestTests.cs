@@ -1,5 +1,5 @@
 using Google.Protobuf;
-using Mezon.Net.Core.Protocol;
+using Mezon.Net.Core;
 using Mezon.Net.Internal.Api;
 
 namespace Mezon.Net.Client.Tests;

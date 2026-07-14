@@ -9,7 +9,6 @@ using Mezon.Net.Abstractions;
 using Mezon.Net.Client.Messaging;
 using Mezon.Net.Core;
 using Mezon.Net.Core.Abstractions;
-using Mezon.Net.Core.Protocol;
 using Mezon.Net.Internal.Api;
 using Mezon.Net.Internal.Realtime;
 using Mezon.Net.Logging;

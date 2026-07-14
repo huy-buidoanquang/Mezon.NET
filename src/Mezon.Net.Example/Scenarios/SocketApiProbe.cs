@@ -1,6 +1,5 @@
 using Mezon.Net.Client;
 using Mezon.Net.Core;
-using Mezon.Net.Core.Protocol;
 using Mezon.Net.Models;
 using Microsoft.Extensions.Logging;
 
