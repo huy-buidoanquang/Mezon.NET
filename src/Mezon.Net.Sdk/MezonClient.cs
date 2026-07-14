@@ -1,14 +1,12 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Mezon.Net.Abstractions;
 using Mezon.Net.Client.Managers;
 using Mezon.Net.Core;
-using Mezon.Net.Client;
-using Mezon.Net.Models;
 using Mezon.Net.Logging;
 using Mezon.Net.Mmn;
 using Mezon.Net.Mmn.Models;
+using Mezon.Net.Models;
 using Mezon.Net.Sdk.Agent;
 using Mezon.Net.Sdk.Caching;
 using Mezon.Net.Sdk.Entities;
@@ -138,7 +136,7 @@ namespace Mezon.Net.Sdk
         {
             await _dmChannels.InitializeAsync(_engine).ConfigureAwait(false);
             await SeedClanCacheAsync(cancellationToken).ConfigureAwait(false);
-            await RejoinCachedChannelsAsync().ConfigureAwait(false);
+            //await RejoinCachedChannelsAsync().ConfigureAwait(false);
             BindCacheListeners();
             await InitializeMmnAsync(cancellationToken).ConfigureAwait(false);
         }

@@ -4,7 +4,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Mezon.Net.Abstractions;
 using Mezon.Net.Core;
-using Mezon.Net.Core.Abstractions;
 using Mezon.Net.Logging;
 
 namespace Mezon.Net.Client
@@ -280,17 +279,6 @@ namespace Mezon.Net.Client
         {
             _connection.ReconnectBaseDelayMs = delayMs;
             _connection.MaxReconnectDelayMs = delayMs;
-        }
-
-        /// <summary>Internal escape hatch; prefer typed <see cref="IMezonClientRealtime"/> methods.</summary>
-        internal Task<Mezon.Net.Internal.Realtime.Envelope> SendRealtimeInternalAsync(Mezon.Net.Internal.Realtime.Envelope envelope, RequestOptions? options = null)
-        {
-            if (ApiClient is MezonSocketClient socketClient)
-            {
-                return socketClient.SendEnvelopeAsync(envelope, options);
-            }
-
-            throw new MezonConnectionException("Realtime socket requires MezonSocketApiClient.");
         }
     }
 }

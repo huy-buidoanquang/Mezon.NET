@@ -5,11 +5,11 @@ namespace Mezon.Net.Models
 {
     public readonly struct MessageTypingEventEventData
     {
-        private readonly MessageTypingEventData _data;
-        internal MessageTypingEventEventData(MessageTypingEventData data) => _data = data;
-        internal MessageTypingEventData Data => _data;
+        private readonly MessageTypingEventResponse _data;
+        internal MessageTypingEventEventData(MessageTypingEventResponse data) => _data = data;
+        internal MessageTypingEventResponse Data => _data;
 
-        public static implicit operator MessageTypingEventData(MessageTypingEventEventData e) => e._data;
-        public static implicit operator MessageTypingEventEventData(MessageTypingEventData d) => new MessageTypingEventEventData(d);
+        public static implicit operator MessageTypingEventResponse(MessageTypingEventEventData e) => e._data;
+        public static implicit operator MessageTypingEventEventData(MessageTypingEventResponse d) => new MessageTypingEventEventData(d);
     }
 }

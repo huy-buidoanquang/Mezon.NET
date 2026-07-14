@@ -14,11 +14,11 @@ public sealed class EventDispatchTests
     public async Task ProcessMessageAsync_dispatches_new_realtime_oneof_events()
     {
         var client = new MezonClient();
-        ApiRequestEventData? apiRequest = null;
-        ListChannelUsersBannedEventData? banned = null;
+        ApiRequestEventEventData? apiRequest = null;
+        ListChannelUsersBannedEventEventData? banned = null;
         Session? session = null;
-        ChannelArchiveEventData? archive = null;
-        TopicInMessageEventData? topic = null;
+        ChannelArchiveEventEventData? archive = null;
+        TopicInMessageEventEventData? topic = null;
 
         client.ApiRequestReceivedEvent += payload => { apiRequest = payload; return Task.CompletedTask; };
         client.ChannelUsersBannedListedEvent += payload => { banned = payload; return Task.CompletedTask; };
@@ -38,16 +38,16 @@ public sealed class EventDispatchTests
         var process = typeof(MezonClient).GetMethod("ProcessMessageAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
         foreach (var envelope in envelopes)
         {
-            var task = (Task)process.Invoke(client, new object?[] { MezonMessageType.Abridged, envelope.Cid, 0, (ReadOnlyMemory<byte>?)null, envelope })!;
+            var task = (Task)process.Invoke(client, new object?[] { MezonMessageType.Realtime, envelope.Cid, 0, (ReadOnlyMemory<byte>?)null, envelope })!;
             await task;
         }
 
-        Assert.Equal("Healthcheck", apiRequest?.ApiName);
+        Assert.Equal("Healthcheck", ((ApiRequestEventResponse)apiRequest!.Value).ApiName);
         Assert.True(banned.HasValue);
-        Assert.Equal(42L, banned.Value.BannedUserIds[0]);
+        Assert.Equal(42L, ((ListChannelUsersBannedEventResponse)banned.Value).BannedUserIds[0]);
         Assert.Equal(CreateJwt(), session?.AuthToken);
-        Assert.Equal(7, archive?.ChannelId);
-        Assert.Equal(99, topic?.MessageId);
+        Assert.Equal(7, ((ChannelArchiveEventResponse)archive!.Value).ChannelId);
+        Assert.Equal(99, ((TopicInMessageEventResponse)topic!.Value).MessageId);
     }
 
     private static string CreateJwt()

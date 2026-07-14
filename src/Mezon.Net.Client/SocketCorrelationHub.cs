@@ -79,7 +79,7 @@ namespace Mezon.Net.Client
 
         public int PendingCount => _pending.Count;
 
-        public ValueTask<SocketResponse> WaitAsync(int cid, int timeoutMilliseconds, CancellationToken cancellationToken)
+        public ValueTask<SocketResponse> WaitAsync(int cid, int timeoutMilliseconds = DefaultTimeoutMilliseconds, CancellationToken cancellationToken = default)
         {
             var pending = new PendingSocketRequest();
             if (!_pending.TryAdd(cid, pending))

@@ -13,13 +13,13 @@ namespace Mezon.Net.Abstractions
         Task FollowerRtAsync(RequestOptions? options = null);
         Task JoinChannelChatRtAsync(Mezon.Net.Models.ChannelJoinParams body, RequestOptions? options = null);
         Task LeaveChannelChatRtAsync(Mezon.Net.Models.ChannelLeaveParams body, RequestOptions? options = null);
-        Task<ChannelMessageAckData> RemoveChatMessageRtAsync(Mezon.Net.Models.DeleteMessageParams message, RequestOptions? options = null);
+        Task<Mezon.Net.Models.ChannelMessageAckResponse> RemoveChatMessageRtAsync(Mezon.Net.Models.DeleteMessageParams message, RequestOptions? options = null);
         Task UnfollowUsersRtAsync(Mezon.Net.Models.StatusUnfollowParams body, RequestOptions? options = null);
-        Task<ChannelMessageAckData> UpdateChatMessageRtAsync(Mezon.Net.Models.UpdateMessageParams message, RequestOptions? options = null);
+        Task<Mezon.Net.Models.ChannelMessageAckResponse> UpdateChatMessageRtAsync(Mezon.Net.Models.UpdateMessageParams message, RequestOptions? options = null);
         Task UpdateStatusRtAsync(Mezon.Net.Models.StatusUpdateParams body, RequestOptions? options = null);
         Task SendQuickMenuEventRtAsync(Mezon.Net.Models.QuickMenuDataEventParams body, RequestOptions? options = null);
-        Task<ChannelMessageAckData> SendEphemeralMessageRtAsync(Mezon.Net.Models.SendEphemeralMessageParams body, RequestOptions? options = null);
-        Task<ChannelMessageAckData> SendChatMessageRtAsync(Mezon.Net.Models.SendChannelMessageParams message, RequestOptions? options = null);
+        Task<Mezon.Net.Models.ChannelMessageAckResponse> SendEphemeralMessageRtAsync(Mezon.Net.Models.SendEphemeralMessageParams body, RequestOptions? options = null);
+        Task<Mezon.Net.Models.ChannelMessageAckResponse> SendChatMessageRtAsync(Mezon.Net.Models.SendChannelMessageParams message, RequestOptions? options = null);
         Task SendMessageReactionRtAsync(Mezon.Net.Models.ReactMessageParams message, RequestOptions? options = null);
         Task SendMessageTypingRtAsync(Mezon.Net.Models.MessageTypingEventParams body, RequestOptions? options = null);
         Task SendLastSeenMessageRtAsync(Mezon.Net.Models.LastSeenMessageEventParams body, RequestOptions? options = null);

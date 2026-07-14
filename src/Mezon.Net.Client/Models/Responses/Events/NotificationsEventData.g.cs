@@ -5,11 +5,11 @@ namespace Mezon.Net.Models
 {
     public readonly struct NotificationsEventData
     {
-        private readonly NotificationsData _data;
-        internal NotificationsEventData(NotificationsData data) => _data = data;
-        internal NotificationsData Data => _data;
+        private readonly NotificationsResponse _data;
+        internal NotificationsEventData(NotificationsResponse data) => _data = data;
+        internal NotificationsResponse Data => _data;
 
-        public static implicit operator NotificationsData(NotificationsEventData e) => e._data;
-        public static implicit operator NotificationsEventData(NotificationsData d) => new NotificationsEventData(d);
+        public static implicit operator NotificationsResponse(NotificationsEventData e) => e._data;
+        public static implicit operator NotificationsEventData(NotificationsResponse d) => new NotificationsEventData(d);
     }
 }

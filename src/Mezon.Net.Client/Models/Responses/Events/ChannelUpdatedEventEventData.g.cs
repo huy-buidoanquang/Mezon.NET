@@ -5,11 +5,11 @@ namespace Mezon.Net.Models
 {
     public readonly struct ChannelUpdatedEventEventData
     {
-        private readonly ChannelUpdatedEventData _data;
-        internal ChannelUpdatedEventEventData(ChannelUpdatedEventData data) => _data = data;
-        internal ChannelUpdatedEventData Data => _data;
+        private readonly ChannelUpdatedEventResponse _data;
+        internal ChannelUpdatedEventEventData(ChannelUpdatedEventResponse data) => _data = data;
+        internal ChannelUpdatedEventResponse Data => _data;
 
-        public static implicit operator ChannelUpdatedEventData(ChannelUpdatedEventEventData e) => e._data;
-        public static implicit operator ChannelUpdatedEventEventData(ChannelUpdatedEventData d) => new ChannelUpdatedEventEventData(d);
+        public static implicit operator ChannelUpdatedEventResponse(ChannelUpdatedEventEventData e) => e._data;
+        public static implicit operator ChannelUpdatedEventEventData(ChannelUpdatedEventResponse d) => new ChannelUpdatedEventEventData(d);
     }
 }

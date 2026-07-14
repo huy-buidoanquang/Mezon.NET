@@ -5,11 +5,11 @@ namespace Mezon.Net.Models
 {
     public readonly struct ChannelMessageRemoveEventData
     {
-        private readonly ChannelMessageRemoveData _data;
-        internal ChannelMessageRemoveEventData(ChannelMessageRemoveData data) => _data = data;
-        internal ChannelMessageRemoveData Data => _data;
+        private readonly ChannelMessageRemoveResponse _data;
+        internal ChannelMessageRemoveEventData(ChannelMessageRemoveResponse data) => _data = data;
+        internal ChannelMessageRemoveResponse Data => _data;
 
-        public static implicit operator ChannelMessageRemoveData(ChannelMessageRemoveEventData e) => e._data;
-        public static implicit operator ChannelMessageRemoveEventData(ChannelMessageRemoveData d) => new ChannelMessageRemoveEventData(d);
+        public static implicit operator ChannelMessageRemoveResponse(ChannelMessageRemoveEventData e) => e._data;
+        public static implicit operator ChannelMessageRemoveEventData(ChannelMessageRemoveResponse d) => new ChannelMessageRemoveEventData(d);
     }
 }

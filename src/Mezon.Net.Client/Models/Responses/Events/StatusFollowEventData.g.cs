@@ -5,11 +5,11 @@ namespace Mezon.Net.Models
 {
     public readonly struct StatusFollowEventData
     {
-        private readonly StatusFollowData _data;
-        internal StatusFollowEventData(StatusFollowData data) => _data = data;
-        internal StatusFollowData Data => _data;
+        private readonly StatusFollowResponse _data;
+        internal StatusFollowEventData(StatusFollowResponse data) => _data = data;
+        internal StatusFollowResponse Data => _data;
 
-        public static implicit operator StatusFollowData(StatusFollowEventData e) => e._data;
-        public static implicit operator StatusFollowEventData(StatusFollowData d) => new StatusFollowEventData(d);
+        public static implicit operator StatusFollowResponse(StatusFollowEventData e) => e._data;
+        public static implicit operator StatusFollowEventData(StatusFollowResponse d) => new StatusFollowEventData(d);
     }
 }

@@ -107,7 +107,7 @@ namespace Mezon.Net.Client
             Check.NotNull(options, nameof(options));
             Check.NotNull(logManager, nameof(logManager));
             _options = options;
-            _apiClient = new MezonApiClient(_options.RestClientProvider, _options.NetworkTransportProvider, _options);
+            _apiClient = new MezonApiClient(_options.RestClientProvider, _options);
             _apiClient.ConfigureGatewayBasePath(_options.GatewayBasePath);
             _logger = logManager.CreateLogger("SessionManager");
             _autoRefreshSession = _options.AutoRefreshSession;

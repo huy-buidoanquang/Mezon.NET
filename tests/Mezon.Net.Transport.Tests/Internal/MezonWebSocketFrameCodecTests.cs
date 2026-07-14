@@ -20,7 +20,7 @@ public class MezonWebSocketFrameCodecTests
             out var cid,
             out var code,
             out var frame));
-        Assert.Equal(MezonMessageType.Abridged, type);
+        Assert.Equal(MezonMessageType.Realtime, type);
         Assert.Equal(0, cid);
         Assert.Equal(0, code);
         Assert.Equal(payload, frame.ToArray());

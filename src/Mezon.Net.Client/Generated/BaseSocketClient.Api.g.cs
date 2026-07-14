@@ -19,10 +19,10 @@ namespace Mezon.Net.Client
             return new Session(result);
         }
 
-        public async Task<ClanDescListData> ListClanDescsAsync(Mezon.Net.Models.ListClanDescParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ClanDescListResponse> ListClanDescsAsync(Mezon.Net.Models.ListClanDescParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.ListClanDescsAsync(ListClanDescParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new ClanDescListData(result);
+            return new Mezon.Net.Models.ClanDescListResponse(result);
         }
 
         public async Task DeleteAccountAsync(RequestOptions? options = null)
@@ -30,16 +30,16 @@ namespace Mezon.Net.Client
             await ApiClient.DeleteAccountAsync(options).ConfigureAwait(false);
         }
 
-        public async Task<AccountData> GetAccountAsync(RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.AccountResponse> GetAccountAsync(RequestOptions? options = null)
         {
             var result = await ApiClient.GetAccountAsync(options).ConfigureAwait(false);
-            return new AccountData(result);
+            return new Mezon.Net.Models.AccountResponse(result);
         }
 
-        public async Task<AddFriendsResponseData> AddFriendsAsync(IEnumerable<long>? ids, IEnumerable<string>? usernames, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.AddFriendsResponse> AddFriendsAsync(IEnumerable<long>? ids, IEnumerable<string>? usernames, RequestOptions? options = null)
         {
             var result = await ApiClient.AddFriendsAsync(ids, usernames, options).ConfigureAwait(false);
-            return new AddFriendsResponseData(result);
+            return new Mezon.Net.Models.AddFriendsResponse(result);
         }
 
         public async Task BlockFriendsAsync(IEnumerable<long>? ids, IEnumerable<string>? usernames, RequestOptions? options = null)
@@ -57,16 +57,16 @@ namespace Mezon.Net.Client
             await ApiClient.DeleteFriendsAsync(ids, usernames, options).ConfigureAwait(false);
         }
 
-        public async Task<FriendListData> ListFriendsAsync(int? state, int? limit, string? cursor, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.FriendListResponse> ListFriendsAsync(int? state, int? limit, string? cursor, RequestOptions? options = null)
         {
             var result = await ApiClient.ListFriendsAsync(state, limit, cursor, options).ConfigureAwait(false);
-            return new FriendListData(result);
+            return new Mezon.Net.Models.FriendListResponse(result);
         }
 
-        public async Task<ClanDescData> CreateClanDescAsync(string clanName, string? logo, string? banner, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ClanDescResponse> CreateClanDescAsync(string clanName, string? logo, string? banner, RequestOptions? options = null)
         {
             var result = await ApiClient.CreateClanDescAsync(clanName, logo, banner, options).ConfigureAwait(false);
-            return new ClanDescData(result);
+            return new Mezon.Net.Models.ClanDescResponse(result);
         }
 
         public async Task DeleteClanDescAsync(long clanId, RequestOptions? options = null)
@@ -79,10 +79,10 @@ namespace Mezon.Net.Client
             await ApiClient.UpdateClanDescAsync(UpdateClanDescParamsMapper.ToProto(body), options).ConfigureAwait(false);
         }
 
-        public async Task<ClanUserListData> ListClanUsersAsync(long clanId, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ClanUserListResponse> ListClanUsersAsync(long clanId, RequestOptions? options = null)
         {
             var result = await ApiClient.ListClanUsersAsync(clanId, options).ConfigureAwait(false);
-            return new ClanUserListData(result);
+            return new Mezon.Net.Models.ClanUserListResponse(result);
         }
 
         public async Task RemoveClanUsersAsync(long clanId, IEnumerable<long> userIds, RequestOptions? options = null)
@@ -95,10 +95,10 @@ namespace Mezon.Net.Client
             await ApiClient.BanClanUsersAsync(clanId, channelId, userIds, banTime, reason, options).ConfigureAwait(false);
         }
 
-        public async Task<ChannelDescriptionData> CreateChannelDescAsync(Mezon.Net.Models.CreateChannelDescParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ChannelDescriptionResponse> CreateChannelDescAsync(Mezon.Net.Models.CreateChannelDescParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.CreateChannelDescAsync(CreateChannelDescParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new ChannelDescriptionData(result);
+            return new Mezon.Net.Models.ChannelDescriptionResponse(result);
         }
 
         public async Task DeleteChannelDescAsync(long channelId, RequestOptions? options = null)
@@ -121,16 +121,16 @@ namespace Mezon.Net.Client
             await ApiClient.RemoveChannelUsersAsync(channelId, userIds, options).ConfigureAwait(false);
         }
 
-        public async Task<ChannelMessageListData> ListChannelMessagesAsync(long clanId, long channelId, long? messageId, int? direction, int? limit, long? topicId, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ChannelMessageListResponse> ListChannelMessagesAsync(long clanId, long channelId, long? messageId, int? direction, int? limit, long? topicId, RequestOptions? options = null)
         {
             var result = await ApiClient.ListChannelMessagesAsync(clanId, channelId, messageId, direction, limit, topicId, options).ConfigureAwait(false);
-            return new ChannelMessageListData(result);
+            return new Mezon.Net.Models.ChannelMessageListResponse(result);
         }
 
-        public async Task<ChannelUserListData> ListChannelUsersAsync(long clanId, long channelId, int channelType, int? limit, int? state, string? cursor, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ChannelUserListResponse> ListChannelUsersAsync(long clanId, long channelId, int channelType, int? limit, int? state, string? cursor, RequestOptions? options = null)
         {
             var result = await ApiClient.ListChannelUsersAsync(clanId, channelId, channelType, limit, state, cursor, options).ConfigureAwait(false);
-            return new ChannelUserListData(result);
+            return new Mezon.Net.Models.ChannelUserListResponse(result);
         }
 
         public async Task DeleteRoleAsync(long roleId, RequestOptions? options = null)
@@ -138,10 +138,10 @@ namespace Mezon.Net.Client
             await ApiClient.DeleteRoleAsync(roleId, options).ConfigureAwait(false);
         }
 
-        public async Task<RoleListEventResponseData> ListRolesAsync(Mezon.Net.Models.RoleListEventParams request, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.RoleListEventResponse> ListRolesAsync(Mezon.Net.Models.RoleListEventParams request, RequestOptions? options = null)
         {
             var result = await ApiClient.ListRolesAsync(RoleListEventParamsMapper.ToProto(request), options).ConfigureAwait(false);
-            return new RoleListEventResponseData(result);
+            return new Mezon.Net.Models.RoleListEventResponse(result);
         }
 
         public async Task UpdateUserAsync(Mezon.Net.Models.UpdateUsersParams body, RequestOptions? options = null)
@@ -154,22 +154,22 @@ namespace Mezon.Net.Client
             await ApiClient.DeleteEventAsync(eventId, options).ConfigureAwait(false);
         }
 
-        public async Task<EventListData> ListEventsAsync(long? clanId, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.EventListResponse> ListEventsAsync(long? clanId, RequestOptions? options = null)
         {
             var result = await ApiClient.ListEventsAsync(clanId, options).ConfigureAwait(false);
-            return new EventListData(result);
+            return new Mezon.Net.Models.EventListResponse(result);
         }
 
-        public async Task<ChannelMessageData> CreatePinMessageAsync(Mezon.Net.Models.PinMessageParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ChannelMessageResponse> CreatePinMessageAsync(Mezon.Net.Models.PinMessageParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.CreatePinMessageAsync(PinMessageParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new ChannelMessageData(result);
+            return new Mezon.Net.Models.ChannelMessageResponse(result);
         }
 
-        public async Task<PinMessagesListData> GetPinMessagesListAsync(long channelId, long clanId, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.PinMessagesListResponse> GetPinMessagesListAsync(long channelId, long clanId, RequestOptions? options = null)
         {
             var result = await ApiClient.GetPinMessagesListAsync(channelId, clanId, options).ConfigureAwait(false);
-            return new PinMessagesListData(result);
+            return new Mezon.Net.Models.PinMessagesListResponse(result);
         }
 
         public async Task DeletePinMessageAsync(long messageId, long channelId, long clanId, RequestOptions? options = null)
@@ -212,28 +212,28 @@ namespace Mezon.Net.Client
             await ApiClient.DeleteClanStickerByIdAsync(stickerId, clanId, options).ConfigureAwait(false);
         }
 
-        public async Task<EmojiListedResponseData> GetListEmojisByUserIdAsync(RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.EmojiListedResponse> GetListEmojisByUserIdAsync(RequestOptions? options = null)
         {
             var result = await ApiClient.GetListEmojisByUserIdAsync(options).ConfigureAwait(false);
-            return new EmojiListedResponseData(result);
+            return new Mezon.Net.Models.EmojiListedResponse(result);
         }
 
-        public async Task<StickerListedResponseData> GetListStickersByUserIdAsync(RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.StickerListedResponse> GetListStickersByUserIdAsync(RequestOptions? options = null)
         {
             var result = await ApiClient.GetListStickersByUserIdAsync(options).ConfigureAwait(false);
-            return new StickerListedResponseData(result);
+            return new Mezon.Net.Models.StickerListedResponse(result);
         }
 
-        public async Task<WebhookGenerateResponseData> GenerateWebhookAsync(Mezon.Net.Models.WebhookCreateParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.WebhookGenerateResponse> GenerateWebhookAsync(Mezon.Net.Models.WebhookCreateParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.GenerateWebhookAsync(WebhookCreateParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new WebhookGenerateResponseData(result);
+            return new Mezon.Net.Models.WebhookGenerateResponse(result);
         }
 
-        public async Task<WebhookListResponseData> ListWebhookByChannelIdAsync(long channelId, long clanId, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.WebhookListResponse> ListWebhookByChannelIdAsync(long channelId, long clanId, RequestOptions? options = null)
         {
             var result = await ApiClient.ListWebhookByChannelIdAsync(channelId, clanId, options).ConfigureAwait(false);
-            return new WebhookListResponseData(result);
+            return new Mezon.Net.Models.WebhookListResponse(result);
         }
 
         public async Task UpdateWebhookByIdAsync(Mezon.Net.Models.WebhookUpdateRequestByIdParams body, RequestOptions? options = null)
@@ -256,10 +256,10 @@ namespace Mezon.Net.Client
             await ApiClient.UpdateSystemMessageAsync(SystemMessageParamsMapper.ToProto(body), options).ConfigureAwait(false);
         }
 
-        public async Task<SystemMessageData> GetSystemMessageByClanIdAsync(long clanId, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.SystemMessageResponse> GetSystemMessageByClanIdAsync(long clanId, RequestOptions? options = null)
         {
             var result = await ApiClient.GetSystemMessageByClanIdAsync(clanId, options).ConfigureAwait(false);
-            return new SystemMessageData(result);
+            return new Mezon.Net.Models.SystemMessageResponse(result);
         }
 
         public async Task DeleteSystemMessageAsync(long clanId, RequestOptions? options = null)
@@ -277,10 +277,10 @@ namespace Mezon.Net.Client
             await ApiClient.UpdateClanOrderAsync(UpdateClanOrderParamsMapper.ToProto(body), options).ConfigureAwait(false);
         }
 
-        public async Task<ChanEncryptionMethodData> GetChanEncryptionMethodAsync(long channelId, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ChanEncryptionMethodResponse> GetChanEncryptionMethodAsync(long channelId, RequestOptions? options = null)
         {
             var result = await ApiClient.GetChanEncryptionMethodAsync(channelId, options).ConfigureAwait(false);
-            return new ChanEncryptionMethodData(result);
+            return new Mezon.Net.Models.ChanEncryptionMethodResponse(result);
         }
 
         public async Task SetChanEncryptionMethodAsync(Mezon.Net.Models.ChanEncryptionMethodParams body, RequestOptions? options = null)
@@ -288,10 +288,10 @@ namespace Mezon.Net.Client
             await ApiClient.SetChanEncryptionMethodAsync(ChanEncryptionMethodParamsMapper.ToProto(body), options).ConfigureAwait(false);
         }
 
-        public async Task<GetPubKeysResponseData> GetPublicKeysAsync(IEnumerable<long> userIds, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.GetPubKeysResponse> GetPublicKeysAsync(IEnumerable<long> userIds, RequestOptions? options = null)
         {
             var result = await ApiClient.GetPublicKeysAsync(userIds, options).ConfigureAwait(false);
-            return new GetPubKeysResponseData(result);
+            return new Mezon.Net.Models.GetPubKeysResponse(result);
         }
 
         public async Task PushPublicKeyAsync(Mezon.Net.Models.PushPubKeyParams body, RequestOptions? options = null)
@@ -299,28 +299,28 @@ namespace Mezon.Net.Client
             await ApiClient.PushPublicKeyAsync(PushPubKeyParamsMapper.ToProto(body), options).ConfigureAwait(false);
         }
 
-        public async Task<GetKeyServerRespData> GetKeyServerAsync(RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.GetKeyServerRespResponse> GetKeyServerAsync(RequestOptions? options = null)
         {
             var result = await ApiClient.GetKeyServerAsync(options).ConfigureAwait(false);
-            return new GetKeyServerRespData(result);
+            return new Mezon.Net.Models.GetKeyServerRespResponse(result);
         }
 
-        public async Task<ListOnboardingResponseData> ListOnboardingAsync(long clanId, int? guideType, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ListOnboardingResponse> ListOnboardingAsync(long clanId, int? guideType, RequestOptions? options = null)
         {
             var result = await ApiClient.ListOnboardingAsync(clanId, guideType, options).ConfigureAwait(false);
-            return new ListOnboardingResponseData(result);
+            return new Mezon.Net.Models.ListOnboardingResponse(result);
         }
 
-        public async Task<OnboardingItemData> GetOnboardingDetailAsync(long id, long clanId, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.OnboardingItemResponse> GetOnboardingDetailAsync(long id, long clanId, RequestOptions? options = null)
         {
             var result = await ApiClient.GetOnboardingDetailAsync(id, clanId, options).ConfigureAwait(false);
-            return new OnboardingItemData(result);
+            return new Mezon.Net.Models.OnboardingItemResponse(result);
         }
 
-        public async Task<ListOnboardingResponseData> CreateOnboardingAsync(Mezon.Net.Models.CreateOnboardingParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ListOnboardingResponse> CreateOnboardingAsync(Mezon.Net.Models.CreateOnboardingParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.CreateOnboardingAsync(CreateOnboardingParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new ListOnboardingResponseData(result);
+            return new Mezon.Net.Models.ListOnboardingResponse(result);
         }
 
         public async Task UpdateOnboardingAsync(Mezon.Net.Models.UpdateOnboardingParams body, RequestOptions? options = null)
@@ -333,16 +333,16 @@ namespace Mezon.Net.Client
             await ApiClient.DeleteOnboardingAsync(id, clanId, options).ConfigureAwait(false);
         }
 
-        public async Task<ListUserActivityData> ListActivityAsync(RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ListUserActivityResponse> ListActivityAsync(RequestOptions? options = null)
         {
             var result = await ApiClient.ListActivityAsync(options).ConfigureAwait(false);
-            return new ListUserActivityData(result);
+            return new Mezon.Net.Models.ListUserActivityResponse(result);
         }
 
-        public async Task<GenerateMeetTokenResponseData> GenerateMeetTokenAsync(Mezon.Net.Models.GenerateMeetTokenParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.GenerateMeetTokenResponse> GenerateMeetTokenAsync(Mezon.Net.Models.GenerateMeetTokenParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.GenerateMeetTokenAsync(GenerateMeetTokenParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new GenerateMeetTokenResponseData(result);
+            return new Mezon.Net.Models.GenerateMeetTokenResponse(result);
         }
 
         public async Task TransferOwnershipAsync(Mezon.Net.Models.TransferOwnershipParams body, RequestOptions? options = null)
@@ -350,28 +350,28 @@ namespace Mezon.Net.Client
             await ApiClient.TransferOwnershipAsync(TransferOwnershipParamsMapper.ToProto(body), options).ConfigureAwait(false);
         }
 
-        public async Task<PermissionListData> GetListPermissionAsync(RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.PermissionListResponse> GetListPermissionAsync(RequestOptions? options = null)
         {
             var result = await ApiClient.GetListPermissionAsync(options).ConfigureAwait(false);
-            return new PermissionListData(result);
+            return new Mezon.Net.Models.PermissionListResponse(result);
         }
 
-        public async Task<PermissionListData> ListRolePermissionsAsync(long roleId, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.PermissionListResponse> ListRolePermissionsAsync(long roleId, RequestOptions? options = null)
         {
             var result = await ApiClient.ListRolePermissionsAsync(roleId, options).ConfigureAwait(false);
-            return new PermissionListData(result);
+            return new Mezon.Net.Models.PermissionListResponse(result);
         }
 
-        public async Task<RoleUserListData> ListRoleUsersAsync(Mezon.Net.Models.ListRoleUsersParams request, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.RoleUserListResponse> ListRoleUsersAsync(Mezon.Net.Models.ListRoleUsersParams request, RequestOptions? options = null)
         {
             var result = await ApiClient.ListRoleUsersAsync(ListRoleUsersParamsMapper.ToProto(request), options).ConfigureAwait(false);
-            return new RoleUserListData(result);
+            return new Mezon.Net.Models.RoleUserListResponse(result);
         }
 
-        public async Task<UserPermissionInChannelListResponseData> ListUserPermissionInChannelAsync(long clanId, long channelId, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.UserPermissionInChannelListResponse> ListUserPermissionInChannelAsync(long clanId, long channelId, RequestOptions? options = null)
         {
             var result = await ApiClient.ListUserPermissionInChannelAsync(clanId, channelId, options).ConfigureAwait(false);
-            return new UserPermissionInChannelListResponseData(result);
+            return new Mezon.Net.Models.UserPermissionInChannelListResponse(result);
         }
 
         public async Task DeleteNotificationsAsync(IEnumerable<long>? ids, int? category, RequestOptions? options = null)
@@ -379,16 +379,16 @@ namespace Mezon.Net.Client
             await ApiClient.DeleteNotificationsAsync(ids, category, options).ConfigureAwait(false);
         }
 
-        public async Task<NotificationListData> ListNotificationsAsync(long? clanId, long? notificationId, int? limit, int? category, int? direction, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.NotificationListResponse> ListNotificationsAsync(long? clanId, long? notificationId, int? limit, int? category, int? direction, RequestOptions? options = null)
         {
             var result = await ApiClient.ListNotificationsAsync(clanId, notificationId, limit, category, direction, options).ConfigureAwait(false);
-            return new NotificationListData(result);
+            return new Mezon.Net.Models.NotificationListResponse(result);
         }
 
-        public async Task<CategoryDescData> CreateCategoryDescAsync(Mezon.Net.Models.CreateCategoryDescParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.CategoryDescResponse> CreateCategoryDescAsync(Mezon.Net.Models.CreateCategoryDescParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.CreateCategoryDescAsync(CreateCategoryDescParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new CategoryDescData(result);
+            return new Mezon.Net.Models.CategoryDescResponse(result);
         }
 
         public async Task DeleteCategoryDescAsync(long categoryId, long clanId, RequestOptions? options = null)
@@ -401,16 +401,16 @@ namespace Mezon.Net.Client
             await ApiClient.UpdateCategoryAsync(UpdateCategoryDescParamsMapper.ToProto(body), options).ConfigureAwait(false);
         }
 
-        public async Task<CategoryDescListData> ListCategoryDescsAsync(long clanId, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.CategoryDescListResponse> ListCategoryDescsAsync(long clanId, RequestOptions? options = null)
         {
             var result = await ApiClient.ListCategoryDescsAsync(clanId, options).ConfigureAwait(false);
-            return new CategoryDescListData(result);
+            return new Mezon.Net.Models.CategoryDescListResponse(result);
         }
 
-        public async Task<InviteUserResData> InviteUserAsync(long inviteId, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.InviteUserResResponse> InviteUserAsync(long inviteId, RequestOptions? options = null)
         {
             var result = await ApiClient.InviteUserAsync(inviteId, options).ConfigureAwait(false);
-            return new InviteUserResData(result);
+            return new Mezon.Net.Models.InviteUserResResponse(result);
         }
 
         public async Task SetNotificationChannelSettingAsync(Mezon.Net.Models.SetNotificationParams body, RequestOptions? options = null)
@@ -428,22 +428,22 @@ namespace Mezon.Net.Client
             await ApiClient.SetMuteNotificationChannelAsync(SetMuteParamsMapper.ToProto(body), options).ConfigureAwait(false);
         }
 
-        public async Task<NotificationChannelCategorySettingListData> GetChannelCategoryNotificationSettingsAsync(long clanId, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.NotificationChannelCategorySettingListResponse> GetChannelCategoryNotificationSettingsAsync(long clanId, RequestOptions? options = null)
         {
             var result = await ApiClient.GetChannelCategoryNotificationSettingsAsync(clanId, options).ConfigureAwait(false);
-            return new NotificationChannelCategorySettingListData(result);
+            return new Mezon.Net.Models.NotificationChannelCategorySettingListResponse(result);
         }
 
-        public async Task<NotificationSettingData> GetClanNotificationSettingAsync(long clanId, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.NotificationSettingResponse> GetClanNotificationSettingAsync(long clanId, RequestOptions? options = null)
         {
             var result = await ApiClient.GetClanNotificationSettingAsync(clanId, options).ConfigureAwait(false);
-            return new NotificationSettingData(result);
+            return new Mezon.Net.Models.NotificationSettingResponse(result);
         }
 
-        public async Task<UserStatusData> GetUserStatusAsync(RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.UserStatusResponse> GetUserStatusAsync(RequestOptions? options = null)
         {
             var result = await ApiClient.GetUserStatusAsync(options).ConfigureAwait(false);
-            return new UserStatusData(result);
+            return new Mezon.Net.Models.UserStatusResponse(result);
         }
 
         public async Task UpdateUserStatusAsync(Mezon.Net.Models.UserStatusUpdateParams body, RequestOptions? options = null)
@@ -451,22 +451,22 @@ namespace Mezon.Net.Client
             await ApiClient.UpdateUserStatusAsync(UserStatusUpdateParamsMapper.ToProto(body), options).ConfigureAwait(false);
         }
 
-        public async Task<AppListData> ListAppsAsync(string? filter, bool? tombstones, string? cursor, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.AppListResponse> ListAppsAsync(string? filter, bool? tombstones, string? cursor, RequestOptions? options = null)
         {
             var result = await ApiClient.ListAppsAsync(filter, tombstones, cursor, options).ConfigureAwait(false);
-            return new AppListData(result);
+            return new Mezon.Net.Models.AppListResponse(result);
         }
 
-        public async Task<AppData> GetAppAsync(long id, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.AppResponse> GetAppAsync(long id, RequestOptions? options = null)
         {
             var result = await ApiClient.GetAppAsync(id, options).ConfigureAwait(false);
-            return new AppData(result);
+            return new Mezon.Net.Models.AppResponse(result);
         }
 
-        public async Task<AppData> UpdateAppAsync(Mezon.Net.Models.UpdateAppParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.AppResponse> UpdateAppAsync(Mezon.Net.Models.UpdateAppParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.UpdateAppAsync(UpdateAppParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new AppData(result);
+            return new Mezon.Net.Models.AppResponse(result);
         }
 
         public async Task DeleteAppAsync(long id, bool? recordDeletion, RequestOptions? options = null)
@@ -479,10 +479,10 @@ namespace Mezon.Net.Client
             await ApiClient.AddAppToClanAsync(appId, clanId, options).ConfigureAwait(false);
         }
 
-        public async Task<ListAuditLogData> ListAuditLogAsync(long? clanId, string? actionLog, long? userId, string? dateLog, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ListAuditLogResponse> ListAuditLogAsync(long? clanId, string? actionLog, long? userId, string? dateLog, RequestOptions? options = null)
         {
             var result = await ApiClient.ListAuditLogAsync(clanId, actionLog, userId, dateLog, options).ConfigureAwait(false);
-            return new ListAuditLogData(result);
+            return new Mezon.Net.Models.ListAuditLogResponse(result);
         }
 
         public async Task AddUserEventAsync(Mezon.Net.Models.UserEventParams body, RequestOptions? options = null)
@@ -500,22 +500,22 @@ namespace Mezon.Net.Client
             await ApiClient.HealthcheckAsync(options).ConfigureAwait(false);
         }
 
-        public async Task<ChannelDescListData> ListChannelDescsAsync(Mezon.Net.Models.ListChannelDescsParams request, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ChannelDescListResponse> ListChannelDescsAsync(Mezon.Net.Models.ListChannelDescsParams request, RequestOptions? options = null)
         {
             var result = await ApiClient.ListChannelDescsAsync(ListChannelDescsParamsMapper.ToProto(request), options).ConfigureAwait(false);
-            return new ChannelDescListData(result);
+            return new Mezon.Net.Models.ChannelDescListResponse(result);
         }
 
-        public async Task<ChannelDescriptionData> GetChannelDetailAsync(long channelId, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ChannelDescriptionResponse> GetChannelDetailAsync(long channelId, RequestOptions? options = null)
         {
             var result = await ApiClient.GetChannelDetailAsync(channelId, options).ConfigureAwait(false);
-            return new ChannelDescriptionData(result);
+            return new Mezon.Net.Models.ChannelDescriptionResponse(result);
         }
 
-        public async Task<BannedUserListData> ListBannedUsersAsync(long clanId, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.BannedUserListResponse> ListBannedUsersAsync(long clanId, RequestOptions? options = null)
         {
             var result = await ApiClient.ListBannedUsersAsync(clanId, options).ConfigureAwait(false);
-            return new BannedUserListData(result);
+            return new Mezon.Net.Models.BannedUserListResponse(result);
         }
 
         public async Task UnbanClanUsersAsync(long clanId, IEnumerable<long> userIds, RequestOptions? options = null)
@@ -523,22 +523,22 @@ namespace Mezon.Net.Client
             await ApiClient.UnbanClanUsersAsync(clanId, userIds, options).ConfigureAwait(false);
         }
 
-        public async Task<RegistFcmDeviceTokenResponseData> RegistFCMDeviceTokenAsync(Mezon.Net.Models.RegistFcmDeviceTokenParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.RegistFcmDeviceTokenResponse> RegistFCMDeviceTokenAsync(Mezon.Net.Models.RegistFcmDeviceTokenParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.RegistFCMDeviceTokenAsync(RegistFcmDeviceTokenParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new RegistFcmDeviceTokenResponseData(result);
+            return new Mezon.Net.Models.RegistFcmDeviceTokenResponse(result);
         }
 
-        public async Task<AllUserClansData> ListUserClansByUserIdAsync(RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.AllUserClansResponse> ListUserClansByUserIdAsync(RequestOptions? options = null)
         {
             var result = await ApiClient.ListUserClansByUserIdAsync(options).ConfigureAwait(false);
-            return new AllUserClansData(result);
+            return new Mezon.Net.Models.AllUserClansResponse(result);
         }
 
-        public async Task<ListChannelAppsResponseData> ListChannelAppsAsync(long? clanId, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ListChannelAppsResponse> ListChannelAppsAsync(long? clanId, RequestOptions? options = null)
         {
             var result = await ApiClient.ListChannelAppsAsync(clanId, options).ConfigureAwait(false);
-            return new ListChannelAppsResponseData(result);
+            return new Mezon.Net.Models.ListChannelAppsResponse(result);
         }
 
         public async Task CloseDMByChannelIdAsync(long channelId, RequestOptions? options = null)
@@ -551,10 +551,10 @@ namespace Mezon.Net.Client
             await ApiClient.OpenDMByChannelIdAsync(channelId, options).ConfigureAwait(false);
         }
 
-        public async Task<ClanProfileData> GetUserProfileOnClanAsync(long clanId, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ClanProfileResponse> GetUserProfileOnClanAsync(long clanId, RequestOptions? options = null)
         {
             var result = await ApiClient.GetUserProfileOnClanAsync(clanId, options).ConfigureAwait(false);
-            return new ClanProfileData(result);
+            return new Mezon.Net.Models.ClanProfileResponse(result);
         }
 
         public async Task UpdateUserProfileByClanAsync(Mezon.Net.Models.UpdateClanProfileParams body, RequestOptions? options = null)
@@ -567,22 +567,22 @@ namespace Mezon.Net.Client
             await ApiClient.LeaveThreadAsync(channelId, options).ConfigureAwait(false);
         }
 
-        public async Task<ChannelDescListNoPoolData> ListThreadDescsAsync(long channelId, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ChannelDescListNoPoolResponse> ListThreadDescsAsync(long channelId, RequestOptions? options = null)
         {
             var result = await ApiClient.ListThreadDescsAsync(channelId, options).ConfigureAwait(false);
-            return new ChannelDescListNoPoolData(result);
+            return new Mezon.Net.Models.ChannelDescListNoPoolResponse(result);
         }
 
-        public async Task<ChannelDescListData> SearchThreadAsync(Mezon.Net.Models.SearchThreadParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ChannelDescListResponse> SearchThreadAsync(Mezon.Net.Models.SearchThreadParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.SearchThreadAsync(SearchThreadParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new ChannelDescListData(result);
+            return new Mezon.Net.Models.ChannelDescListResponse(result);
         }
 
-        public async Task<LinkAccountConfirmRequestData> LinkSMSAsync(Mezon.Net.Models.AccountMezonBodyParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.LinkAccountConfirmRequestResponse> LinkSMSAsync(Mezon.Net.Models.AccountMezonBodyParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.LinkSMSAsync(AccountMezonBodyParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new LinkAccountConfirmRequestData(result);
+            return new Mezon.Net.Models.LinkAccountConfirmRequestResponse(result);
         }
 
         public async Task ConfirmLinkMezonOTPAsync(Mezon.Net.Models.LinkAccountConfirmParams body, RequestOptions? options = null)
@@ -590,10 +590,10 @@ namespace Mezon.Net.Client
             await ApiClient.ConfirmLinkMezonOTPAsync(LinkAccountConfirmParamsMapper.ToProto(body), options).ConfigureAwait(false);
         }
 
-        public async Task<LinkAccountConfirmRequestData> LinkEmailAsync(Mezon.Net.Models.AccountEmailParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.LinkAccountConfirmRequestResponse> LinkEmailAsync(Mezon.Net.Models.AccountEmailParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.LinkEmailAsync(AccountEmailParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new LinkAccountConfirmRequestData(result);
+            return new Mezon.Net.Models.LinkAccountConfirmRequestResponse(result);
         }
 
         public async Task UnlinkMezonAsync(Mezon.Net.Models.AccountMezonBodyParams body, RequestOptions? options = null)
@@ -606,10 +606,10 @@ namespace Mezon.Net.Client
             await ApiClient.UnlinkEmailAsync(AccountEmailParamsMapper.ToProto(body), options).ConfigureAwait(false);
         }
 
-        public async Task<IsBannedResponseData> IsBannedAsync(long channelId, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.IsBannedResponse> IsBannedAsync(long channelId, RequestOptions? options = null)
         {
             var result = await ApiClient.IsBannedAsync(channelId, options).ConfigureAwait(false);
-            return new IsBannedResponseData(result);
+            return new Mezon.Net.Models.IsBannedResponse(result);
         }
 
         public async Task AddRolesChannelDescAsync(Mezon.Net.Models.AddRoleChannelDescParams body, RequestOptions? options = null)
@@ -627,52 +627,52 @@ namespace Mezon.Net.Client
             await ApiClient.SetRoleChannelPermissionAsync(UpdateRoleChannelParamsMapper.ToProto(body), options).ConfigureAwait(false);
         }
 
-        public async Task<RoleListData> GetRoleOfUserInTheClanAsync(long clanId, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.RoleListResponse> GetRoleOfUserInTheClanAsync(long clanId, RequestOptions? options = null)
         {
             var result = await ApiClient.GetRoleOfUserInTheClanAsync(clanId, options).ConfigureAwait(false);
-            return new RoleListData(result);
+            return new Mezon.Net.Models.RoleListResponse(result);
         }
 
-        public async Task<PermissionRoleChannelListEventResponseData> GetPermissionByRoleIdChannelIdAsync(Mezon.Net.Models.PermissionRoleChannelListEventParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.PermissionRoleChannelListEventResponse> GetPermissionByRoleIdChannelIdAsync(Mezon.Net.Models.PermissionRoleChannelListEventParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.GetPermissionByRoleIdChannelIdAsync(PermissionRoleChannelListEventParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new PermissionRoleChannelListEventResponseData(result);
+            return new Mezon.Net.Models.PermissionRoleChannelListEventResponse(result);
         }
 
-        public async Task<ChannelAttachmentListData> ListChannelAttachmentAsync(long channelId, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ChannelAttachmentListResponse> ListChannelAttachmentAsync(long channelId, RequestOptions? options = null)
         {
             var result = await ApiClient.ListChannelAttachmentAsync(channelId, options).ConfigureAwait(false);
-            return new ChannelAttachmentListData(result);
+            return new Mezon.Net.Models.ChannelAttachmentListResponse(result);
         }
 
-        public async Task<VoiceChannelUserListData> ListChannelVoiceUsersAsync(long clanId, long channelId, int channelType, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.VoiceChannelUserListResponse> ListChannelVoiceUsersAsync(long clanId, long channelId, int channelType, RequestOptions? options = null)
         {
             var result = await ApiClient.ListChannelVoiceUsersAsync(clanId, channelId, channelType, options).ConfigureAwait(false);
-            return new VoiceChannelUserListData(result);
+            return new Mezon.Net.Models.VoiceChannelUserListResponse(result);
         }
 
-        public async Task<StreamingChannelUserListData> ListStreamingChannelUsersAsync(long clanId, long channelId, int channelType, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.StreamingChannelUserListResponse> ListStreamingChannelUsersAsync(long clanId, long channelId, int channelType, RequestOptions? options = null)
         {
             var result = await ApiClient.ListStreamingChannelUsersAsync(clanId, channelId, channelType, options).ConfigureAwait(false);
-            return new StreamingChannelUserListData(result);
+            return new Mezon.Net.Models.StreamingChannelUserListResponse(result);
         }
 
-        public async Task<ChannelDescListNoPoolData> ListChannelByUserIdAsync(RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ChannelDescListNoPoolResponse> ListChannelByUserIdAsync(RequestOptions? options = null)
         {
             var result = await ApiClient.ListChannelByUserIdAsync(options).ConfigureAwait(false);
-            return new ChannelDescListNoPoolData(result);
+            return new Mezon.Net.Models.ChannelDescListNoPoolResponse(result);
         }
 
-        public async Task<NotificationUserChannelData> GetNotificationChannelAsync(Mezon.Net.Models.NotificationChannelParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.NotificationUserChannelResponse> GetNotificationChannelAsync(Mezon.Net.Models.NotificationChannelParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.GetNotificationChannelAsync(NotificationChannelParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new NotificationUserChannelData(result);
+            return new Mezon.Net.Models.NotificationUserChannelResponse(result);
         }
 
-        public async Task<NotificationUserChannelData> GetNotificationCategoryAsync(Mezon.Net.Models.DefaultNotificationCategoryParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.NotificationUserChannelResponse> GetNotificationCategoryAsync(Mezon.Net.Models.DefaultNotificationCategoryParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.GetNotificationCategoryAsync(DefaultNotificationCategoryParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new NotificationUserChannelData(result);
+            return new Mezon.Net.Models.NotificationUserChannelResponse(result);
         }
 
         public async Task SetNotificationCategorySettingAsync(Mezon.Net.Models.SetNotificationParams body, RequestOptions? options = null)
@@ -690,16 +690,16 @@ namespace Mezon.Net.Client
             await ApiClient.DeleteNotificationChannelAsync(NotificationChannelParamsMapper.ToProto(body), options).ConfigureAwait(false);
         }
 
-        public async Task<ChannelMessageData> CreateMessage2InboxAsync(Mezon.Net.Models.Message2InboxParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ChannelMessageResponse> CreateMessage2InboxAsync(Mezon.Net.Models.Message2InboxParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.CreateMessage2InboxAsync(Message2InboxParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new ChannelMessageData(result);
+            return new Mezon.Net.Models.ChannelMessageResponse(result);
         }
 
-        public async Task<ChannelSettingListResponseData> ListChannelSettingAsync(long clanId, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ChannelSettingListResponse> ListChannelSettingAsync(long clanId, RequestOptions? options = null)
         {
             var result = await ApiClient.ListChannelSettingAsync(clanId, options).ConfigureAwait(false);
-            return new ChannelSettingListResponseData(result);
+            return new Mezon.Net.Models.ChannelSettingListResponse(result);
         }
 
         public async Task UpdateChannelPrivateAsync(Mezon.Net.Models.ChangeChannelPrivateParams body, RequestOptions? options = null)
@@ -712,34 +712,34 @@ namespace Mezon.Net.Client
             await ApiClient.ChangeChannelCategoryAsync(ChangeChannelCategoryParamsMapper.ToProto(body), options).ConfigureAwait(false);
         }
 
-        public async Task<EmojiRecentListData> EmojiRecentListAsync(RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.EmojiRecentListResponse> EmojiRecentListAsync(RequestOptions? options = null)
         {
             var result = await ApiClient.EmojiRecentListAsync(options).ConfigureAwait(false);
-            return new EmojiRecentListData(result);
+            return new Mezon.Net.Models.EmojiRecentListResponse(result);
         }
 
-        public async Task<AllUsersAddChannelResponseData> ListChannelUsersUCAsync(Mezon.Net.Models.AllUsersAddChannelParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.AllUsersAddChannelResponse> ListChannelUsersUCAsync(Mezon.Net.Models.AllUsersAddChannelParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.ListChannelUsersUCAsync(AllUsersAddChannelParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new AllUsersAddChannelResponseData(result);
+            return new Mezon.Net.Models.AllUsersAddChannelResponse(result);
         }
 
-        public async Task<EditChannelCanvasResponseData> EditChannelCanvasesAsync(Mezon.Net.Models.EditChannelCanvasParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.EditChannelCanvasResponse> EditChannelCanvasesAsync(Mezon.Net.Models.EditChannelCanvasParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.EditChannelCanvasesAsync(EditChannelCanvasParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new EditChannelCanvasResponseData(result);
+            return new Mezon.Net.Models.EditChannelCanvasResponse(result);
         }
 
-        public async Task<ChannelCanvasListResponseData> GetChannelCanvasListAsync(long channelId, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ChannelCanvasListResponse> GetChannelCanvasListAsync(long channelId, RequestOptions? options = null)
         {
             var result = await ApiClient.GetChannelCanvasListAsync(channelId, options).ConfigureAwait(false);
-            return new ChannelCanvasListResponseData(result);
+            return new Mezon.Net.Models.ChannelCanvasListResponse(result);
         }
 
-        public async Task<ChannelCanvasDetailResponseData> GetChannelCanvasDetailAsync(long id, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ChannelCanvasDetailResponse> GetChannelCanvasDetailAsync(long id, RequestOptions? options = null)
         {
             var result = await ApiClient.GetChannelCanvasDetailAsync(id, options).ConfigureAwait(false);
-            return new ChannelCanvasDetailResponseData(result);
+            return new Mezon.Net.Models.ChannelCanvasDetailResponse(result);
         }
 
         public async Task DeleteChannelCanvasAsync(long canvasId, RequestOptions? options = null)
@@ -747,16 +747,16 @@ namespace Mezon.Net.Client
             await ApiClient.DeleteChannelCanvasAsync(canvasId, options).ConfigureAwait(false);
         }
 
-        public async Task<ListFavoriteChannelResponseData> GetListFavoriteChannelAsync(long clanId, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ListFavoriteChannelResponse> GetListFavoriteChannelAsync(long clanId, RequestOptions? options = null)
         {
             var result = await ApiClient.GetListFavoriteChannelAsync(clanId, options).ConfigureAwait(false);
-            return new ListFavoriteChannelResponseData(result);
+            return new Mezon.Net.Models.ListFavoriteChannelResponse(result);
         }
 
-        public async Task<AddFavoriteChannelResponseData> AddChannelFavoriteAsync(Mezon.Net.Models.AddFavoriteChannelParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.AddFavoriteChannelResponse> AddChannelFavoriteAsync(Mezon.Net.Models.AddFavoriteChannelParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.AddChannelFavoriteAsync(AddFavoriteChannelParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new AddFavoriteChannelResponseData(result);
+            return new Mezon.Net.Models.AddFavoriteChannelResponse(result);
         }
 
         public async Task RemoveChannelFavoriteAsync(long channelId, RequestOptions? options = null)
@@ -764,16 +764,16 @@ namespace Mezon.Net.Client
             await ApiClient.RemoveChannelFavoriteAsync(channelId, options).ConfigureAwait(false);
         }
 
-        public async Task<GenerateClanWebhookResponseData> GenerateClanWebhookAsync(Mezon.Net.Models.GenerateClanWebhookParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.GenerateClanWebhookResponse> GenerateClanWebhookAsync(Mezon.Net.Models.GenerateClanWebhookParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.GenerateClanWebhookAsync(GenerateClanWebhookParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new GenerateClanWebhookResponseData(result);
+            return new Mezon.Net.Models.GenerateClanWebhookResponse(result);
         }
 
-        public async Task<ListClanWebhookResponseData> ListClanWebhookAsync(long clanId, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ListClanWebhookResponse> ListClanWebhookAsync(long clanId, RequestOptions? options = null)
         {
             var result = await ApiClient.ListClanWebhookAsync(clanId, options).ConfigureAwait(false);
-            return new ListClanWebhookResponseData(result);
+            return new Mezon.Net.Models.ListClanWebhookResponse(result);
         }
 
         public async Task UpdateClanWebhookByIdAsync(Mezon.Net.Models.UpdateClanWebhookParams body, RequestOptions? options = null)
@@ -786,10 +786,10 @@ namespace Mezon.Net.Client
             await ApiClient.DeleteClanWebhookByIdAsync(id, options).ConfigureAwait(false);
         }
 
-        public async Task<ListOnboardingStepResponseData> ListOnboardingStepAsync(long clanId, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ListOnboardingStepResponse> ListOnboardingStepAsync(long clanId, RequestOptions? options = null)
         {
             var result = await ApiClient.ListOnboardingStepAsync(clanId, options).ConfigureAwait(false);
-            return new ListOnboardingStepResponseData(result);
+            return new Mezon.Net.Models.ListOnboardingStepResponse(result);
         }
 
         public async Task UpdateOnboardingStepAsync(Mezon.Net.Models.UpdateOnboardingStepParams body, RequestOptions? options = null)
@@ -812,22 +812,22 @@ namespace Mezon.Net.Client
             await ApiClient.UpdateQuickMenuAccessAsync(QuickMenuAccessParamsMapper.ToProto(body), options).ConfigureAwait(false);
         }
 
-        public async Task<QuickMenuAccessListData> ListQuickMenuAccessAsync(long botId, long channelId, int? menuType, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.QuickMenuAccessListResponse> ListQuickMenuAccessAsync(long botId, long channelId, int? menuType, RequestOptions? options = null)
         {
             var result = await ApiClient.ListQuickMenuAccessAsync(botId, channelId, menuType, options).ConfigureAwait(false);
-            return new QuickMenuAccessListData(result);
+            return new Mezon.Net.Models.QuickMenuAccessListResponse(result);
         }
 
-        public async Task<IsFollowerResponseData> IsFollowerAsync(Mezon.Net.Models.IsFollowerParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.IsFollowerResponse> IsFollowerAsync(Mezon.Net.Models.IsFollowerParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.IsFollowerAsync(IsFollowerParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new IsFollowerResponseData(result);
+            return new Mezon.Net.Models.IsFollowerResponse(result);
         }
 
-        public async Task<ChannelMessageAckData> SendChannelMessageAsync(Mezon.Net.Models.SendChannelMessageParams message, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ChannelMessageAckResponse> SendChannelMessageAsync(Mezon.Net.Models.SendChannelMessageParams message, RequestOptions? options = null)
         {
             var result = await ApiClient.SendChannelMessageAsync(message, options).ConfigureAwait(false);
-            return new ChannelMessageAckData(result);
+            return new Mezon.Net.Models.ChannelMessageAckResponse(result);
         }
 
         public async Task UpdateChannelMessageAsync(Mezon.Net.Models.ChannelMessageUpdateParams body, RequestOptions? options = null)
@@ -850,22 +850,22 @@ namespace Mezon.Net.Client
             await ApiClient.MuteParticipantMezonMeetAsync(MeetParticipantParamsMapper.ToProto(body), options).ConfigureAwait(false);
         }
 
-        public async Task<CreateRoomChannelAppsData> CreateRoomChannelAppsAsync(Mezon.Net.Models.CreateRoomChannelAppsParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.CreateRoomChannelAppsResponse> CreateRoomChannelAppsAsync(Mezon.Net.Models.CreateRoomChannelAppsParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.CreateRoomChannelAppsAsync(CreateRoomChannelAppsParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new CreateRoomChannelAppsData(result);
+            return new Mezon.Net.Models.CreateRoomChannelAppsResponse(result);
         }
 
-        public async Task<GenerateHashChannelAppsResponseData> GenerateHashChannelAppsAsync(Mezon.Net.Models.GenerateHashChannelAppsParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.GenerateHashChannelAppsResponse> GenerateHashChannelAppsAsync(Mezon.Net.Models.GenerateHashChannelAppsParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.GenerateHashChannelAppsAsync(GenerateHashChannelAppsParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new GenerateHashChannelAppsResponseData(result);
+            return new Mezon.Net.Models.GenerateHashChannelAppsResponse(result);
         }
 
-        public async Task<MezonOauthClientData> GetMezonOauthClientAsync(Mezon.Net.Models.GetMezonOauthClientParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.MezonOauthClientResponse> GetMezonOauthClientAsync(Mezon.Net.Models.GetMezonOauthClientParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.GetMezonOauthClientAsync(GetMezonOauthClientParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new MezonOauthClientData(result);
+            return new Mezon.Net.Models.MezonOauthClientResponse(result);
         }
 
         public async Task DeleteMezonOauthClientAsync(Mezon.Net.Models.MezonOauthClientParams body, RequestOptions? options = null)
@@ -873,28 +873,28 @@ namespace Mezon.Net.Client
             await ApiClient.DeleteMezonOauthClientAsync(MezonOauthClientParamsMapper.ToProto(body), options).ConfigureAwait(false);
         }
 
-        public async Task<MezonOauthClientData> UpdateMezonOauthClientAsync(Mezon.Net.Models.MezonOauthClientParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.MezonOauthClientResponse> UpdateMezonOauthClientAsync(Mezon.Net.Models.MezonOauthClientParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.UpdateMezonOauthClientAsync(MezonOauthClientParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new MezonOauthClientData(result);
+            return new Mezon.Net.Models.MezonOauthClientResponse(result);
         }
 
-        public async Task<SdTopicListData> ListSdTopicAsync(Mezon.Net.Models.ListSdTopicParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.SdTopicListResponse> ListSdTopicAsync(Mezon.Net.Models.ListSdTopicParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.ListSdTopicAsync(ListSdTopicParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new SdTopicListData(result);
+            return new Mezon.Net.Models.SdTopicListResponse(result);
         }
 
-        public async Task<SdTopicData> GetTopicDetailAsync(Mezon.Net.Models.SdTopicDetailParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.SdTopicResponse> GetTopicDetailAsync(Mezon.Net.Models.SdTopicDetailParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.GetTopicDetailAsync(SdTopicDetailParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new SdTopicData(result);
+            return new Mezon.Net.Models.SdTopicResponse(result);
         }
 
-        public async Task<SdTopicData> CreateSdTopicAsync(Mezon.Net.Models.SdTopicParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.SdTopicResponse> CreateSdTopicAsync(Mezon.Net.Models.SdTopicParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.CreateSdTopicAsync(SdTopicParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new SdTopicData(result);
+            return new Mezon.Net.Models.SdTopicResponse(result);
         }
 
         public async Task DeleteSdTopicAsync(Mezon.Net.Models.DeleteSdTopicParams body, RequestOptions? options = null)
@@ -932,16 +932,16 @@ namespace Mezon.Net.Client
             await ApiClient.ReportMessageAbuseAsync(ReportMessageAbuseReqestParamsMapper.ToProto(body), options).ConfigureAwait(false);
         }
 
-        public async Task<StreamHttpCallbackResponseData> StreamingServerCallbackAsync(Mezon.Net.Models.StreamHttpCallbackParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.StreamHttpCallbackResponse> StreamingServerCallbackAsync(Mezon.Net.Models.StreamHttpCallbackParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.StreamingServerCallbackAsync(StreamHttpCallbackParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new StreamHttpCallbackResponseData(result);
+            return new Mezon.Net.Models.StreamHttpCallbackResponse(result);
         }
 
-        public async Task<ForSaleItemListData> ListForSaleItemsAsync(Mezon.Net.Models.ListForSaleItemsParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ForSaleItemListResponse> ListForSaleItemsAsync(Mezon.Net.Models.ListForSaleItemsParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.ListForSaleItemsAsync(ListForSaleItemsParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new ForSaleItemListData(result);
+            return new Mezon.Net.Models.ForSaleItemListResponse(result);
         }
 
         public async Task HandleClanWebhookAsync(Mezon.Net.Models.ClanWebhookHandlerParams body, RequestOptions? options = null)
@@ -949,52 +949,52 @@ namespace Mezon.Net.Client
             await ApiClient.HandleClanWebhookAsync(ClanWebhookHandlerParamsMapper.ToProto(body), options).ConfigureAwait(false);
         }
 
-        public async Task<MutedChannelListData> ListMutedChannelAsync(long clanId, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.MutedChannelListResponse> ListMutedChannelAsync(long clanId, RequestOptions? options = null)
         {
             var result = await ApiClient.ListMutedChannelAsync(clanId, options).ConfigureAwait(false);
-            return new MutedChannelListData(result);
+            return new Mezon.Net.Models.MutedChannelListResponse(result);
         }
 
-        public async Task<ListClanBadgeCountResponseData> ListClanBadgeCountAsync(RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ListClanBadgeCountResponse> ListClanBadgeCountAsync(RequestOptions? options = null)
         {
             var result = await ApiClient.ListClanBadgeCountAsync(options).ConfigureAwait(false);
-            return new ListClanBadgeCountResponseData(result);
+            return new Mezon.Net.Models.ListClanBadgeCountResponse(result);
         }
 
-        public async Task<ListChannelBadgeCountResponseData> ListChannelBadgeCountAsync(long clanId, int? limit, int? page, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ListChannelBadgeCountResponse> ListChannelBadgeCountAsync(long clanId, int? limit, int? page, RequestOptions? options = null)
         {
             var result = await ApiClient.ListChannelBadgeCountAsync(clanId, limit, page, options).ConfigureAwait(false);
-            return new ListChannelBadgeCountResponseData(result);
+            return new Mezon.Net.Models.ListChannelBadgeCountResponse(result);
         }
 
-        public async Task<LogedDeviceListData> ListLogedDeviceAsync(RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.LogedDeviceListResponse> ListLogedDeviceAsync(RequestOptions? options = null)
         {
             var result = await ApiClient.ListLogedDeviceAsync(options).ConfigureAwait(false);
-            return new LogedDeviceListData(result);
+            return new Mezon.Net.Models.LogedDeviceListResponse(result);
         }
 
-        public async Task<ClanUserStatusListData> ListClanUsersStatusAsync(long clanId, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ClanUserStatusListResponse> ListClanUsersStatusAsync(long clanId, RequestOptions? options = null)
         {
             var result = await ApiClient.ListClanUsersStatusAsync(clanId, options).ConfigureAwait(false);
-            return new ClanUserStatusListData(result);
+            return new Mezon.Net.Models.ClanUserStatusListResponse(result);
         }
 
-        public async Task<ListChannelTimelineResponseData> ListChannelTimelineAsync(Mezon.Net.Models.ListChannelTimelineParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ListChannelTimelineResponse> ListChannelTimelineAsync(Mezon.Net.Models.ListChannelTimelineParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.ListChannelTimelineAsync(ListChannelTimelineParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new ListChannelTimelineResponseData(result);
+            return new Mezon.Net.Models.ListChannelTimelineResponse(result);
         }
 
-        public async Task<ListArchivedChannelDescsResponseData> ListArchivedChannelDescsAsync(long clanId, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ListArchivedChannelDescsResponse> ListArchivedChannelDescsAsync(long clanId, RequestOptions? options = null)
         {
             var result = await ApiClient.ListArchivedChannelDescsAsync(clanId, options).ConfigureAwait(false);
-            return new ListArchivedChannelDescsResponseData(result);
+            return new Mezon.Net.Models.ListArchivedChannelDescsResponse(result);
         }
 
-        public async Task<ListUserOnlineResponseData> ListUserOnlineAsync(long clanId, int? limit, int? page, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ListUserOnlineResponse> ListUserOnlineAsync(long clanId, int? limit, int? page, RequestOptions? options = null)
         {
             var result = await ApiClient.ListUserOnlineAsync(clanId, limit, page, options).ConfigureAwait(false);
-            return new ListUserOnlineResponseData(result);
+            return new Mezon.Net.Models.ListUserOnlineResponse(result);
         }
 
         public async Task<Session> RegistrationEmailAsync(Mezon.Net.Models.RegistrationEmailParams body, RequestOptions? options = null)
@@ -1003,28 +1003,28 @@ namespace Mezon.Net.Client
             return new Session(result);
         }
 
-        public async Task<UploadAttachmentData> UploadAttachmentFileAsync(Mezon.Net.Models.UploadAttachmentParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.UploadAttachmentResponse> UploadAttachmentFileAsync(Mezon.Net.Models.UploadAttachmentParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.UploadAttachmentFileAsync(UploadAttachmentParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new UploadAttachmentData(result);
+            return new Mezon.Net.Models.UploadAttachmentResponse(result);
         }
 
-        public async Task<UploadAttachmentData> UploadOauthFileAsync(Mezon.Net.Models.UploadAttachmentParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.UploadAttachmentResponse> UploadOauthFileAsync(Mezon.Net.Models.UploadAttachmentParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.UploadOauthFileAsync(UploadAttachmentParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new UploadAttachmentData(result);
+            return new Mezon.Net.Models.UploadAttachmentResponse(result);
         }
 
-        public async Task<RoleData> CreateRoleAsync(Mezon.Net.Models.CreateRoleParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.RoleResponse> CreateRoleAsync(Mezon.Net.Models.CreateRoleParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.CreateRoleAsync(CreateRoleParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new RoleData(result);
+            return new Mezon.Net.Models.RoleResponse(result);
         }
 
-        public async Task<EventManagementData> CreateEventAsync(Mezon.Net.Models.CreateEventParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.EventManagementResponse> CreateEventAsync(Mezon.Net.Models.CreateEventParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.CreateEventAsync(CreateEventParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new EventManagementData(result);
+            return new Mezon.Net.Models.EventManagementResponse(result);
         }
 
         public async Task ArchiveChannelAsync(Mezon.Net.Models.ArchiveChannelParams body, RequestOptions? options = null)
@@ -1032,10 +1032,10 @@ namespace Mezon.Net.Client
             await ApiClient.ArchiveChannelAsync(ArchiveChannelParamsMapper.ToProto(body), options).ConfigureAwait(false);
         }
 
-        public async Task<LinkInviteUserData> CreateLinkInviteUserAsync(Mezon.Net.Models.LinkInviteUserParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.LinkInviteUserResponse> CreateLinkInviteUserAsync(Mezon.Net.Models.LinkInviteUserParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.CreateLinkInviteUserAsync(LinkInviteUserParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new LinkInviteUserData(result);
+            return new Mezon.Net.Models.LinkInviteUserResponse(result);
         }
 
         public async Task SetNotificationClanSettingAsync(Mezon.Net.Models.SetDefaultNotificationParams body, RequestOptions? options = null)
@@ -1069,10 +1069,10 @@ namespace Mezon.Net.Client
             await ApiClient.UpdateEventAsync(UpdateEventParamsMapper.ToProto(body), options).ConfigureAwait(false);
         }
 
-        public async Task<SearchMessageResponseData> SearchMessageAsync(Mezon.Net.Models.SearchMessageParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.SearchMessageResponse> SearchMessageAsync(Mezon.Net.Models.SearchMessageParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.SearchMessageAsync(SearchMessageParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new SearchMessageResponseData(result);
+            return new Mezon.Net.Models.SearchMessageResponse(result);
         }
 
         public async Task HandleWebhookAsync(Mezon.Net.Models.ClanWebhookHandlerParams body, RequestOptions? options = null)
@@ -1080,22 +1080,22 @@ namespace Mezon.Net.Client
             await ApiClient.HandleWebhookAsync(ClanWebhookHandlerParamsMapper.ToProto(body), options).ConfigureAwait(false);
         }
 
-        public async Task<CheckDuplicateNameResponseData> CheckDuplicateNameAsync(Mezon.Net.Models.CheckDuplicateNameParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.CheckDuplicateNameResponse> CheckDuplicateNameAsync(Mezon.Net.Models.CheckDuplicateNameParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.CheckDuplicateNameAsync(CheckDuplicateNameParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new CheckDuplicateNameResponseData(result);
+            return new Mezon.Net.Models.CheckDuplicateNameResponse(result);
         }
 
-        public async Task<AppData> AddAppAsync(Mezon.Net.Models.AddAppParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.AppResponse> AddAppAsync(Mezon.Net.Models.AddAppParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.AddAppAsync(AddAppParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new AppData(result);
+            return new Mezon.Net.Models.AppResponse(result);
         }
 
-        public async Task<UserActivityData> CreateActivityAsync(Mezon.Net.Models.CreateActivityParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.UserActivityResponse> CreateActivityAsync(Mezon.Net.Models.CreateActivityParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.CreateActivityAsync(CreateActivityParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new UserActivityData(result);
+            return new Mezon.Net.Models.UserActivityResponse(result);
         }
 
         public async Task UpdateUserCustomStatusAsync(Mezon.Net.Models.UserParams body, RequestOptions? options = null)
@@ -1103,40 +1103,40 @@ namespace Mezon.Net.Client
             await ApiClient.UpdateUserCustomStatusAsync(UserParamsMapper.ToProto(body), options).ConfigureAwait(false);
         }
 
-        public async Task<GenerateMezonMeetResponseData> CreateExternalMezonMeetAsync(RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.GenerateMezonMeetResponse> CreateExternalMezonMeetAsync(RequestOptions? options = null)
         {
             var result = await ApiClient.CreateExternalMezonMeetAsync(options).ConfigureAwait(false);
-            return new GenerateMezonMeetResponseData(result);
+            return new Mezon.Net.Models.GenerateMezonMeetResponse(result);
         }
 
-        public async Task<UpdateChannelTimelineResponseData> UpdateChannelTimelineAsync(Mezon.Net.Models.UpdateChannelTimelineParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.UpdateChannelTimelineResponse> UpdateChannelTimelineAsync(Mezon.Net.Models.UpdateChannelTimelineParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.UpdateChannelTimelineAsync(UpdateChannelTimelineParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new UpdateChannelTimelineResponseData(result);
+            return new Mezon.Net.Models.UpdateChannelTimelineResponse(result);
         }
 
-        public async Task<CreateChannelTimelineResponseData> CreateChannelTimelineAsync(Mezon.Net.Models.CreateChannelTimelineParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.CreateChannelTimelineResponse> CreateChannelTimelineAsync(Mezon.Net.Models.CreateChannelTimelineParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.CreateChannelTimelineAsync(CreateChannelTimelineParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new CreateChannelTimelineResponseData(result);
+            return new Mezon.Net.Models.CreateChannelTimelineResponse(result);
         }
 
-        public async Task<ChannelTimelineDetailResponseData> DetailChannelTimelineAsync(Mezon.Net.Models.ChannelTimelineDetailParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.ChannelTimelineDetailResponse> DetailChannelTimelineAsync(Mezon.Net.Models.ChannelTimelineDetailParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.DetailChannelTimelineAsync(ChannelTimelineDetailParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new ChannelTimelineDetailResponseData(result);
+            return new Mezon.Net.Models.ChannelTimelineDetailResponse(result);
         }
 
-        public async Task<CreatePollResponseData> CreatePollAsync(Mezon.Net.Models.CreatePollParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.CreatePollResponse> CreatePollAsync(Mezon.Net.Models.CreatePollParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.CreatePollAsync(CreatePollParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new CreatePollResponseData(result);
+            return new Mezon.Net.Models.CreatePollResponse(result);
         }
 
-        public async Task<VotePollResponseData> VotePollAsync(Mezon.Net.Models.VotePollParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.VotePollResponse> VotePollAsync(Mezon.Net.Models.VotePollParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.VotePollAsync(VotePollParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new VotePollResponseData(result);
+            return new Mezon.Net.Models.VotePollResponse(result);
         }
 
         public async Task ClosePollAsync(Mezon.Net.Models.ClosePollParams body, RequestOptions? options = null)
@@ -1144,10 +1144,10 @@ namespace Mezon.Net.Client
             await ApiClient.ClosePollAsync(ClosePollParamsMapper.ToProto(body), options).ConfigureAwait(false);
         }
 
-        public async Task<GetPollResponseData> GetPollAsync(Mezon.Net.Models.GetPollParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.GetPollResponse> GetPollAsync(Mezon.Net.Models.GetPollParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.GetPollAsync(GetPollParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new GetPollResponseData(result);
+            return new Mezon.Net.Models.GetPollResponse(result);
         }
 
         public async Task ReactChannelMessageAsync(Mezon.Net.Models.MessageReactionParams body, RequestOptions? options = null)
@@ -1155,16 +1155,16 @@ namespace Mezon.Net.Client
             await ApiClient.ReactChannelMessageAsync(MessageReactionParamsMapper.ToProto(body), options).ConfigureAwait(false);
         }
 
-        public async Task<MultipartUploadAttachmentData> MultipartUploadAttachmentFileStartAsync(Mezon.Net.Models.UploadAttachmentParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.MultipartUploadAttachmentResponse> MultipartUploadAttachmentFileStartAsync(Mezon.Net.Models.UploadAttachmentParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.MultipartUploadAttachmentFileStartAsync(UploadAttachmentParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new MultipartUploadAttachmentData(result);
+            return new Mezon.Net.Models.MultipartUploadAttachmentResponse(result);
         }
 
-        public async Task<UploadAttachmentData> MultipartUploadAttachmentFileFinishAsync(Mezon.Net.Models.MultipartUploadAttachmentFinishParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.UploadAttachmentResponse> MultipartUploadAttachmentFileFinishAsync(Mezon.Net.Models.MultipartUploadAttachmentFinishParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.MultipartUploadAttachmentFileFinishAsync(MultipartUploadAttachmentFinishParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new UploadAttachmentData(result);
+            return new Mezon.Net.Models.UploadAttachmentResponse(result);
         }
 
         public async Task SessionLogoutAsync(Mezon.Net.Models.SessionLogoutParams body, RequestOptions? options = null)
@@ -1172,10 +1172,10 @@ namespace Mezon.Net.Client
             await ApiClient.SessionLogoutAsync(SessionLogoutParamsMapper.ToProto(body), options).ConfigureAwait(false);
         }
 
-        public async Task<UploadAttachmentBatchData> UploadBatchAttachmentFileAsync(Mezon.Net.Models.UploadBatchAttachmentParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.UploadAttachmentBatchResponse> UploadBatchAttachmentFileAsync(Mezon.Net.Models.UploadBatchAttachmentParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.UploadBatchAttachmentFileAsync(UploadBatchAttachmentParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new UploadAttachmentBatchData(result);
+            return new Mezon.Net.Models.UploadAttachmentBatchResponse(result);
         }
 
     }

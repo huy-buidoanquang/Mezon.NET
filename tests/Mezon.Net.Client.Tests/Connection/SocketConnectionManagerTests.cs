@@ -1,6 +1,3 @@
-using System.Net.WebSockets;
-using Mezon.Net.Client.Tests.Helpers;
-using Mezon.Net.Core;
 using Mezon.Net.Core;
 using Mezon.Net.Logging;
 

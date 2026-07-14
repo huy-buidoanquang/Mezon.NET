@@ -5,11 +5,11 @@ namespace Mezon.Net.Models
 {
     public readonly struct ApiRequestEventEventData
     {
-        private readonly ApiRequestEventData _data;
-        internal ApiRequestEventEventData(ApiRequestEventData data) => _data = data;
-        internal ApiRequestEventData Data => _data;
+        private readonly ApiRequestEventResponse _data;
+        internal ApiRequestEventEventData(ApiRequestEventResponse data) => _data = data;
+        internal ApiRequestEventResponse Data => _data;
 
-        public static implicit operator ApiRequestEventData(ApiRequestEventEventData e) => e._data;
-        public static implicit operator ApiRequestEventEventData(ApiRequestEventData d) => new ApiRequestEventEventData(d);
+        public static implicit operator ApiRequestEventResponse(ApiRequestEventEventData e) => e._data;
+        public static implicit operator ApiRequestEventEventData(ApiRequestEventResponse d) => new ApiRequestEventEventData(d);
     }
 }

@@ -8,27 +8,17 @@ namespace Mezon.Net.Client
 {
     public partial class MezonClient
     {
-        private async Task ProcessMessageAsync(MezonMessageType type, int cid, int code, ReadOnlyMemory<byte>? data, Envelope? envelope)
+        private async Task ProcessMessageAsync(MezonMessageType type, int cid, int code, ReadOnlyMemory<byte> data, Envelope? envelope)
         {
             _lastMessageTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            if (type == MezonMessageType.Heartbeat)
+            if (type == MezonMessageType.Realtime)
             {
-                await _logger.DebugAsync("Received: HEARTBEAT (ignored for lifecycle)").ConfigureAwait(false);
-                return;
-            }
-            else if (type == MezonMessageType.Api)
-            {
-                await _logger.DebugAsync("Received: API").ConfigureAwait(false);
-                return;
-            }
-            else if (type == MezonMessageType.Abridged)
-            {
-                await _logger.DebugAsync("Received: ABRIDGED").ConfigureAwait(false);
+                //await _logger.DebugAsync("Received: ABRIDGED").ConfigureAwait(false);
                 if (envelope == null)
                 {
                     return;
                 }
-                await _logger.DebugAsync("Envelop:" + envelope?.ToString()).ConfigureAwait(false);
+                //await _logger.DebugAsync("Envelop:" + envelope?.ToString()).ConfigureAwait(false);
 
                 try
                 {
@@ -37,64 +27,64 @@ namespace Mezon.Net.Client
                         case Envelope.MessageOneofCase.None:
                             break;
                         case Envelope.MessageOneofCase.Channel:
-                            await TimedInvokeAsync(_channelReceivedEvent, nameof(ChannelReceivedEvent), new ChannelEventData(new ChannelData(envelope.Channel))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_channelReceivedEvent, nameof(ChannelReceivedEvent), new ChannelEventData(new ChannelResponse(envelope.Channel))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.ClanJoin:
-                            await TimedInvokeAsync(_clanJoinedEvent, nameof(ClanJoinedEvent), new ClanJoinEventData(new ClanJoinData(envelope.ClanJoin))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_clanJoinedEvent, nameof(ClanJoinedEvent), new ClanJoinEventData(new ClanJoinResponse(envelope.ClanJoin))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.ChannelJoin:
-                            await TimedInvokeAsync(_channelJoinedEvent, nameof(ChannelJoinedEvent), new ChannelJoinEventData(new ChannelJoinData(envelope.ChannelJoin))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_channelJoinedEvent, nameof(ChannelJoinedEvent), new ChannelJoinEventData(new ChannelJoinResponse(envelope.ChannelJoin))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.ChannelLeave:
-                            await TimedInvokeAsync(_channelLeftEvent, nameof(ChannelLeftEvent), new ChannelLeaveEventData(new ChannelLeaveData(envelope.ChannelLeave))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_channelLeftEvent, nameof(ChannelLeftEvent), new ChannelLeaveEventData(new ChannelLeaveResponse(envelope.ChannelLeave))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.ChannelMessage:
-                            await TimedInvokeAsync(_channelMessageReceivedEvent, nameof(ChannelMessageReceivedEvent), new ChannelMessageEventData(new ChannelMessageData(envelope.ChannelMessage))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_channelMessageReceivedEvent, nameof(ChannelMessageReceivedEvent), new ChannelMessageEventData(new Mezon.Net.Models.ChannelMessageResponse(envelope.ChannelMessage))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.ChannelMessageAck:
-                            await TimedInvokeAsync(_channelMessageAckReceivedEvent, nameof(ChannelMessageAckReceivedEvent), new ChannelMessageAckEventData(new ChannelMessageAckData(envelope.ChannelMessageAck))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_channelMessageAckReceivedEvent, nameof(ChannelMessageAckReceivedEvent), new ChannelMessageAckEventData(new ChannelMessageAckResponse(envelope.ChannelMessageAck))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.ChannelMessageSend:
-                            await TimedInvokeAsync(_channelMessageSentEvent, nameof(ChannelMessageSentEvent), new ChannelMessageSendEventData(new ChannelMessageSendData(envelope.ChannelMessageSend))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_channelMessageSentEvent, nameof(ChannelMessageSentEvent), new ChannelMessageSendEventData(new ChannelMessageSendResponse(envelope.ChannelMessageSend))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.ChannelMessageUpdate:
-                            await TimedInvokeAsync(_channelMessageUpdatedEvent, nameof(ChannelMessageUpdatedEvent), new ChannelMessageUpdateEventData(new ChannelMessageUpdateData(envelope.ChannelMessageUpdate))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_channelMessageUpdatedEvent, nameof(ChannelMessageUpdatedEvent), new ChannelMessageUpdateEventData(new ChannelMessageUpdateResponse(envelope.ChannelMessageUpdate))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.ChannelMessageRemove:
-                            await TimedInvokeAsync(_channelMessageRemovedEvent, nameof(ChannelMessageRemovedEvent), new ChannelMessageRemoveEventData(new ChannelMessageRemoveData(envelope.ChannelMessageRemove))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_channelMessageRemovedEvent, nameof(ChannelMessageRemovedEvent), new ChannelMessageRemoveEventData(new ChannelMessageRemoveResponse(envelope.ChannelMessageRemove))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.ChannelPresenceEvent:
-                            await TimedInvokeAsync(_channelPresenceChangedEvent, nameof(ChannelPresenceChangedEvent), new ChannelPresenceEventEventData(new ChannelPresenceEventData(envelope.ChannelPresenceEvent))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_channelPresenceChangedEvent, nameof(ChannelPresenceChangedEvent), new ChannelPresenceEventEventData(new ChannelPresenceEventResponse(envelope.ChannelPresenceEvent))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.Error:
-                            await TimedInvokeAsync(_errorReceivedEvent, nameof(ErrorReceivedEvent), new ErrorEventData(new ErrorData(envelope.Error))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_errorReceivedEvent, nameof(ErrorReceivedEvent), new ErrorEventData(new ErrorResponse(envelope.Error))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.Notifications:
-                            await TimedInvokeAsync(_notificationsReceivedEvent, nameof(NotificationsReceivedEvent), new NotificationsEventData(new NotificationsData(envelope.Notifications))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_notificationsReceivedEvent, nameof(NotificationsReceivedEvent), new NotificationsEventData(new Mezon.Net.Models.NotificationsResponse(envelope.Notifications))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.Rpc:
-                            await TimedInvokeAsync(_rpcReceivedEvent, nameof(RpcReceivedEvent), new RpcEventData(new RpcData(envelope.Rpc))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_rpcReceivedEvent, nameof(RpcReceivedEvent), new RpcEventData(new RpcResponse(envelope.Rpc))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.Status:
-                            await TimedInvokeAsync(_statusReceivedEvent, nameof(StatusReceivedEvent), new StatusEventData(new StatusData(envelope.Status))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_statusReceivedEvent, nameof(StatusReceivedEvent), new StatusEventData(new StatusResponse(envelope.Status))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.StatusFollow:
-                            await TimedInvokeAsync(_statusFollowedEvent, nameof(StatusFollowedEvent), new StatusFollowEventData(new StatusFollowData(envelope.StatusFollow))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_statusFollowedEvent, nameof(StatusFollowedEvent), new StatusFollowEventData(new StatusFollowResponse(envelope.StatusFollow))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.StatusPresenceEvent:
-                            await TimedInvokeAsync(_statusPresenceChangedEvent, nameof(StatusPresenceChangedEvent), new StatusPresenceEventEventData(new StatusPresenceEventData(envelope.StatusPresenceEvent))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_statusPresenceChangedEvent, nameof(StatusPresenceChangedEvent), new StatusPresenceEventEventData(new StatusPresenceEventResponse(envelope.StatusPresenceEvent))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.StatusUnfollow:
-                            await TimedInvokeAsync(_statusUnfollowedEvent, nameof(StatusUnfollowedEvent), new StatusUnfollowEventData(new StatusUnfollowData(envelope.StatusUnfollow))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_statusUnfollowedEvent, nameof(StatusUnfollowedEvent), new StatusUnfollowEventData(new StatusUnfollowResponse(envelope.StatusUnfollow))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.StatusUpdate:
-                            await TimedInvokeAsync(_statusUpdatedEvent, nameof(StatusUpdatedEvent), new StatusUpdateEventData(new StatusUpdateData(envelope.StatusUpdate))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_statusUpdatedEvent, nameof(StatusUpdatedEvent), new StatusUpdateEventData(new StatusUpdateResponse(envelope.StatusUpdate))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.StreamData:
-                            await TimedInvokeAsync(_streamDataReceivedEvent, nameof(StreamDataReceivedEvent), new StreamDataEventData(new StreamDataData(envelope.StreamData))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_streamDataReceivedEvent, nameof(StreamDataReceivedEvent), new StreamDataEventData(new StreamDataResponse(envelope.StreamData))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.StreamPresenceEvent:
-                            await TimedInvokeAsync(_streamPresenceChangedEvent, nameof(StreamPresenceChangedEvent), new StreamPresenceEventEventData(new StreamPresenceEventData(envelope.StreamPresenceEvent))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_streamPresenceChangedEvent, nameof(StreamPresenceChangedEvent), new StreamPresenceEventEventData(new StreamPresenceEventResponse(envelope.StreamPresenceEvent))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.Ping:
                             break;
@@ -104,47 +94,47 @@ namespace Mezon.Net.Client
                                 long latency = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - time;
                                 Latency = latency;
 
-                                await TimedInvokeAsync(_pongReceivedEvent, nameof(PongReceivedEvent), new PongEventData(new PongData(envelope.Pong))).ConfigureAwait(false);
+                                await TimedInvokeAsync(_pongReceivedEvent, nameof(PongReceivedEvent), new PongEventData(new PongResponse(envelope.Pong))).ConfigureAwait(false);
                             }
                             break;
                         case Envelope.MessageOneofCase.MessageTypingEvent:
-                            await TimedInvokeAsync(_messageTypingReceivedEvent, nameof(MessageTypingReceivedEvent), new MessageTypingEventEventData(new MessageTypingEventData(envelope.MessageTypingEvent))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_messageTypingReceivedEvent, nameof(MessageTypingReceivedEvent), new MessageTypingEventEventData(new MessageTypingEventResponse(envelope.MessageTypingEvent))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.LastSeenMessageEvent:
-                            await TimedInvokeAsync(_lastSeenMessageUpdatedEvent, nameof(LastSeenMessageUpdatedEvent), new LastSeenMessageEventEventData(new LastSeenMessageEventData(envelope.LastSeenMessageEvent))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_lastSeenMessageUpdatedEvent, nameof(LastSeenMessageUpdatedEvent), new LastSeenMessageEventEventData(new LastSeenMessageEventResponse(envelope.LastSeenMessageEvent))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.MessageReactionEvent:
-                            await TimedInvokeAsync(_messageReactionReceivedEvent, nameof(MessageReactionReceivedEvent), new MessageReactionEventData(new MessageReactionData(envelope.MessageReactionEvent))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_messageReactionReceivedEvent, nameof(MessageReactionReceivedEvent), new MessageReactionEventData(new MessageReactionResponse(envelope.MessageReactionEvent))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.VoiceJoinedEvent:
-                            await TimedInvokeAsync(_voiceJoinedEvent, nameof(VoiceJoinedEvent), new VoiceJoinedEventEventData(new VoiceJoinedEventData(envelope.VoiceJoinedEvent))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_voiceJoinedEvent, nameof(VoiceJoinedEvent), new VoiceJoinedEventEventData(new VoiceJoinedEventResponse(envelope.VoiceJoinedEvent))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.VoiceLeavedEvent:
-                            await TimedInvokeAsync(_voiceLeavedEvent, nameof(VoiceLeavedEvent), new VoiceLeavedEventEventData(new VoiceLeavedEventData(envelope.VoiceLeavedEvent))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_voiceLeavedEvent, nameof(VoiceLeavedEvent), new VoiceLeavedEventEventData(new VoiceLeavedEventResponse(envelope.VoiceLeavedEvent))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.VoiceStartedEvent:
-                            await TimedInvokeAsync(_voiceStartedEvent, nameof(VoiceStartedEvent), new VoiceStartedEventEventData(new VoiceStartedEventData(envelope.VoiceStartedEvent))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_voiceStartedEvent, nameof(VoiceStartedEvent), new VoiceStartedEventEventData(new VoiceStartedEventResponse(envelope.VoiceStartedEvent))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.VoiceEndedEvent:
-                            await TimedInvokeAsync(_voiceEndedEvent, nameof(VoiceEndedEvent), new VoiceEndedEventEventData(new VoiceEndedEventData(envelope.VoiceEndedEvent))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_voiceEndedEvent, nameof(VoiceEndedEvent), new VoiceEndedEventEventData(new VoiceEndedEventResponse(envelope.VoiceEndedEvent))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.ChannelCreatedEvent:
-                            await TimedInvokeAsync(_channelCreatedEvent, nameof(ChannelCreatedEvent), new ChannelCreatedEventEventData(new ChannelCreatedEventData(envelope.ChannelCreatedEvent))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_channelCreatedEvent, nameof(ChannelCreatedEvent), new ChannelCreatedEventEventData(new ChannelCreatedEventResponse(envelope.ChannelCreatedEvent))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.ChannelDeletedEvent:
-                            await TimedInvokeAsync(_channelDeletedEvent, nameof(ChannelDeletedEvent), new ChannelDeletedEventEventData(new ChannelDeletedEventData(envelope.ChannelDeletedEvent))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_channelDeletedEvent, nameof(ChannelDeletedEvent), new ChannelDeletedEventEventData(new ChannelDeletedEventResponse(envelope.ChannelDeletedEvent))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.ChannelUpdatedEvent:
-                            await TimedInvokeAsync(_channelUpdatedEvent, nameof(ChannelUpdatedEvent), new ChannelUpdatedEventEventData(new ChannelUpdatedEventData(envelope.ChannelUpdatedEvent))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_channelUpdatedEvent, nameof(ChannelUpdatedEvent), new ChannelUpdatedEventEventData(new ChannelUpdatedEventResponse(envelope.ChannelUpdatedEvent))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.LastPinMessageEvent:
-                            await TimedInvokeAsync(_lastPinMessageUpdatedEvent, nameof(LastPinMessageUpdatedEvent), new LastPinMessageEventEventData(new LastPinMessageEventData(envelope.LastPinMessageEvent))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_lastPinMessageUpdatedEvent, nameof(LastPinMessageUpdatedEvent), new LastPinMessageEventEventData(new LastPinMessageEventResponse(envelope.LastPinMessageEvent))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.CustomStatusEvent:
-                            await TimedInvokeAsync(_customStatusChangedEvent, nameof(CustomStatusChangedEvent), new CustomStatusEventEventData(new CustomStatusEventData(envelope.CustomStatusEvent))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_customStatusChangedEvent, nameof(CustomStatusChangedEvent), new CustomStatusEventEventData(new CustomStatusEventResponse(envelope.CustomStatusEvent))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.UserChannelAddedEvent:
-                            await TimedInvokeAsync(_userChannelAddedEvent, nameof(UserChannelAddedEvent), new UserChannelAddedEventData(new UserChannelAddedData(envelope.UserChannelAddedEvent))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_userChannelAddedEvent, nameof(UserChannelAddedEvent), new UserChannelAddedEventData(new UserChannelAddedResponse(envelope.UserChannelAddedEvent))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.UserChannelRemovedEvent:
                             await TimedInvokeAsync(_userChannelRemovedEvent, nameof(UserChannelRemovedEvent)).ConfigureAwait(false);
@@ -312,8 +302,8 @@ namespace Mezon.Net.Client
                             await TimedInvokeAsync(_anonymousAllowedEvent, nameof(AnonymousAllowedEvent)).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.ApiRequestEvent:
-                            await TimedInvokeAsync(_apiRequestReceivedEvent, nameof(ApiRequestReceivedEvent), new ApiRequestEventEventData(new ApiRequestEventData(envelope.ApiRequestEvent))).ConfigureAwait(false);
-                            await TimedInvokeAsync(_localCacheUpdatedEvent, nameof(LocalCacheUpdatedEvent), new ApiRequestEventEventData(new ApiRequestEventData(envelope.ApiRequestEvent))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_apiRequestReceivedEvent, nameof(ApiRequestReceivedEvent), new ApiRequestEventEventData(new ApiRequestEventResponse(envelope.ApiRequestEvent))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_localCacheUpdatedEvent, nameof(LocalCacheUpdatedEvent), new ApiRequestEventEventData(new ApiRequestEventResponse(envelope.ApiRequestEvent))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.ClanCreatedEvent:
                             await TimedInvokeAsync(_clanCreatedEvent, nameof(ClanCreatedEvent)).ConfigureAwait(false);
@@ -322,16 +312,16 @@ namespace Mezon.Net.Client
                             await TimedInvokeAsync(_aIAgentEnabledEvent, nameof(AIAgentEnabledEvent)).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.ListChannelUsersBannedEvent:
-                            await TimedInvokeAsync(_channelUsersBannedListedEvent, nameof(ChannelUsersBannedListedEvent), new ListChannelUsersBannedEventEventData(new ListChannelUsersBannedEventData(envelope.ListChannelUsersBannedEvent))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_channelUsersBannedListedEvent, nameof(ChannelUsersBannedListedEvent), new ListChannelUsersBannedEventEventData(new ListChannelUsersBannedEventResponse(envelope.ListChannelUsersBannedEvent))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.RefreshSessionEvent:
                             await TimedInvokeAsync(_sessionRefreshedEvent, nameof(SessionRefreshedEvent), new Session(envelope.RefreshSessionEvent)).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.ChannelArchiveEvent:
-                            await TimedInvokeAsync(_channelArchivedEvent, nameof(ChannelArchivedEvent), new ChannelArchiveEventEventData(new ChannelArchiveEventData(envelope.ChannelArchiveEvent))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_channelArchivedEvent, nameof(ChannelArchivedEvent), new ChannelArchiveEventEventData(new ChannelArchiveEventResponse(envelope.ChannelArchiveEvent))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.TopicInMessageEvent:
-                            await TimedInvokeAsync(_topicInMessageReceivedEvent, nameof(TopicInMessageReceivedEvent), new TopicInMessageEventEventData(new TopicInMessageEventData(envelope.TopicInMessageEvent))).ConfigureAwait(false);
+                            await TimedInvokeAsync(_topicInMessageReceivedEvent, nameof(TopicInMessageReceivedEvent), new TopicInMessageEventEventData(new TopicInMessageEventResponse(envelope.TopicInMessageEvent))).ConfigureAwait(false);
                             break;
                         default:
                             await _logger.WarningAsync($"Unknown message type ({envelope?.MessageCase})").ConfigureAwait(false);

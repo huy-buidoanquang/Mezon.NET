@@ -5,11 +5,11 @@ namespace Mezon.Net.Models
 {
     public readonly struct TopicInMessageEventEventData
     {
-        private readonly TopicInMessageEventData _data;
-        internal TopicInMessageEventEventData(TopicInMessageEventData data) => _data = data;
-        internal TopicInMessageEventData Data => _data;
+        private readonly TopicInMessageEventResponse _data;
+        internal TopicInMessageEventEventData(TopicInMessageEventResponse data) => _data = data;
+        internal TopicInMessageEventResponse Data => _data;
 
-        public static implicit operator TopicInMessageEventData(TopicInMessageEventEventData e) => e._data;
-        public static implicit operator TopicInMessageEventEventData(TopicInMessageEventData d) => new TopicInMessageEventEventData(d);
+        public static implicit operator TopicInMessageEventResponse(TopicInMessageEventEventData e) => e._data;
+        public static implicit operator TopicInMessageEventEventData(TopicInMessageEventResponse d) => new TopicInMessageEventEventData(d);
     }
 }

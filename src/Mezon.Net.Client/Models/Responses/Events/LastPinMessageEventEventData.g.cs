@@ -5,11 +5,11 @@ namespace Mezon.Net.Models
 {
     public readonly struct LastPinMessageEventEventData
     {
-        private readonly LastPinMessageEventData _data;
-        internal LastPinMessageEventEventData(LastPinMessageEventData data) => _data = data;
-        internal LastPinMessageEventData Data => _data;
+        private readonly LastPinMessageEventResponse _data;
+        internal LastPinMessageEventEventData(LastPinMessageEventResponse data) => _data = data;
+        internal LastPinMessageEventResponse Data => _data;
 
-        public static implicit operator LastPinMessageEventData(LastPinMessageEventEventData e) => e._data;
-        public static implicit operator LastPinMessageEventEventData(LastPinMessageEventData d) => new LastPinMessageEventEventData(d);
+        public static implicit operator LastPinMessageEventResponse(LastPinMessageEventEventData e) => e._data;
+        public static implicit operator LastPinMessageEventEventData(LastPinMessageEventResponse d) => new LastPinMessageEventEventData(d);
     }
 }

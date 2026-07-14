@@ -7,7 +7,7 @@ namespace Mezon.Net.Core
     {
         public const int MaxTimeRetry = 10;
         public const int DefaultApiTimeoutInMilliseconds = 7000;
-        public const int DefaultSocketTimeoutInMilliseconds = 3000;
+        public const int DefaultSocketTimeoutInMilliseconds = 7000;
         public const string DefaultMMNApi = "https://dong.mezon.ai/mmn-api/";
         public const string DefaultZKApi = "https://dong.mezon.ai/zk-api/";
         public const string DefaultServerKey = "defaultkey";
@@ -81,6 +81,7 @@ namespace Mezon.Net.Core
         public int SocketTimeoutInMilliseconds { get; set; } = DefaultSocketTimeoutInMilliseconds;
 
         public TransportType TransportType { get; set; } = TransportType.Auto;
+
         public bool AutoRefreshSession { get; set; } = true;
 
         public MezonOptions()

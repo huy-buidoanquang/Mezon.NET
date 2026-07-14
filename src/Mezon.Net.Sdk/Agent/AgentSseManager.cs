@@ -11,7 +11,7 @@ namespace Mezon.Net.Sdk.Agent
     public sealed class AgentSseSessionEvent
     {
         public string EventType { get; set; } = string.Empty;
-        public string RawData { get; set; } = string.Empty;
+        public string RawResponse { get; set; } = string.Empty;
     }
 
     public sealed class AgentSseManager : IDisposable
@@ -88,7 +88,7 @@ namespace Mezon.Net.Sdk.Agent
             await MessageReceived.Invoke(new AgentSseSessionEvent
             {
                 EventType = eventType,
-                RawData = raw,
+                RawResponse = raw,
             }).ConfigureAwait(false);
         }
 

@@ -4,6 +4,6 @@ namespace Mezon.Net.Core
     {
         Heartbeat = 0,
         Api = 1,
-        Abridged = 2,
+        Realtime = 2,
     }
 }

@@ -23,10 +23,10 @@ namespace Mezon.Net.Transport.Internal
             out int code,
             out ReadOnlyMemory<byte> frame)
         {
-            type = default;
-            cid = default;
-            code = default;
-            frame = default;
+            type = MezonMessageType.Heartbeat;
+            cid = -1;
+            code = -1;
+            frame = ReadOnlyMemory<byte>.Empty;
             if (buffer.IsEmpty)
             {
                 return false;
@@ -44,7 +44,6 @@ namespace Mezon.Net.Transport.Internal
                     if (TryReadPongFrame(ref reader, out cid))
                     {
                         type = MezonMessageType.Heartbeat;
-                        code = 0;
                         buffer = buffer.Slice(reader.Position);
                         return true;
                     }
@@ -68,10 +67,9 @@ namespace Mezon.Net.Transport.Internal
                     return false;
                 }
                 default:
-                    if (TryReadAbridgedFrame(ref reader, prefix, out frame))
+                    if (TryReadRealtimeFrame(ref reader, prefix, out frame))
                     {
-                        type = MezonMessageType.Abridged;
-                        code = 0;
+                        type = MezonMessageType.Realtime;
                         buffer = buffer.Slice(reader.Position);
                         return true;
                     }
@@ -80,7 +78,7 @@ namespace Mezon.Net.Transport.Internal
             }
         }
 
-        public static ReadOnlyMemory<byte> TrimPadding(ReadOnlyMemory<byte> frame)
+        public static ReadOnlyMemory<byte> TrimRealtimePadding(ReadOnlyMemory<byte> frame)
         {
             var span = frame.Span;
             int len = span.Length;
@@ -94,7 +92,7 @@ namespace Mezon.Net.Transport.Internal
             return trimmed == 0 ? frame : frame.Slice(0, len - trimmed);
         }
 
-        public static bool TryQueueAbridgedFrame(ChannelWriter<ReadOnlyMemory<byte>> writer, ReadOnlyMemory<byte> data)
+        public static bool TryQueueRealtimeFrame(ChannelWriter<ReadOnlyMemory<byte>> writer, ReadOnlyMemory<byte> data)
         {
             int padding = (4 - (data.Length % 4)) & 3;
             int payloadWithPadding = data.Length + padding;
@@ -155,7 +153,7 @@ namespace Mezon.Net.Transport.Internal
 
         private static bool TryReadPongFrame(ref SequenceReader<byte> reader, out int cid)
         {
-            cid = default;
+            cid = -1;
             if (reader.Remaining < 2 || !reader.TryReadBigEndian(out short cidS))
             {
                 return false;
@@ -172,9 +170,9 @@ namespace Mezon.Net.Transport.Internal
             out int code,
             out ReadOnlyMemory<byte> frame)
         {
-            frame = default;
-            cid = default;
-            code = default;
+            cid = -1;
+            code = -1;
+            frame = ReadOnlyMemory<byte>.Empty;
             const int headerSize = 10; // cid(2) + code(4) + payloadLen(4)
             if (reader.Remaining < headerSize)
             {
@@ -219,9 +217,9 @@ namespace Mezon.Net.Transport.Internal
             return false;
         }
 
-        private static bool TryReadAbridgedFrame(ref SequenceReader<byte> reader, byte prefix, out ReadOnlyMemory<byte> frame)
+        private static bool TryReadRealtimeFrame(ref SequenceReader<byte> reader, byte prefix, out ReadOnlyMemory<byte> frame)
         {
-            frame = default;
+            frame = ReadOnlyMemory<byte>.Empty;
             int payloadLen;
             if (prefix < AbridgedExtendedPrefix)
             {

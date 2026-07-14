@@ -5,11 +5,11 @@ namespace Mezon.Net.Models
 {
     public readonly struct CustomStatusEventEventData
     {
-        private readonly CustomStatusEventData _data;
-        internal CustomStatusEventEventData(CustomStatusEventData data) => _data = data;
-        internal CustomStatusEventData Data => _data;
+        private readonly CustomStatusEventResponse _data;
+        internal CustomStatusEventEventData(CustomStatusEventResponse data) => _data = data;
+        internal CustomStatusEventResponse Data => _data;
 
-        public static implicit operator CustomStatusEventData(CustomStatusEventEventData e) => e._data;
-        public static implicit operator CustomStatusEventEventData(CustomStatusEventData d) => new CustomStatusEventEventData(d);
+        public static implicit operator CustomStatusEventResponse(CustomStatusEventEventData e) => e._data;
+        public static implicit operator CustomStatusEventEventData(CustomStatusEventResponse d) => new CustomStatusEventEventData(d);
     }
 }

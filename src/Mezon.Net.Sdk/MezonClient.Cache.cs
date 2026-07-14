@@ -24,7 +24,7 @@ namespace Mezon.Net.Sdk
 
         private Task OnChannelMessageInternalAsync(ChannelMessageEventData messageEvent)
         {
-            var message = (ChannelMessageData)messageEvent;
+            var message = (ChannelMessageResponse)messageEvent;
             if (message.ChannelId != 0 && Channels.TryGet(message.ChannelId, out var channel))
             {
                 var entity = new Entities.Message(this, channel, message);
@@ -50,14 +50,14 @@ namespace Mezon.Net.Sdk
 
         private Task OnChannelCreatedInternalAsync(ChannelCreatedEventEventData evt)
         {
-            var data = (ChannelCreatedEventData)evt;
+            var data = (ChannelCreatedEventResponse)evt;
             UpdateChannelCache(data.ClanId, data.ChannelId, data.ChannelLabel, data.ChannelType, data.ChannelPrivate == 0);
             return Task.CompletedTask;
         }
 
         private Task OnChannelUpdatedInternalAsync(ChannelUpdatedEventEventData evt)
         {
-            var data = (ChannelUpdatedEventData)evt;
+            var data = (ChannelUpdatedEventResponse)evt;
             if (data.ChannelType == (int)ChannelType.Thread && data.Status == 1)
             {
                 return _engine.JoinChannelChatRtAsync(new ChannelJoinParams(data.ClanId, data.ChannelId, data.ChannelType, !data.ChannelPrivate));
@@ -69,7 +69,7 @@ namespace Mezon.Net.Sdk
 
         private Task OnChannelDeletedInternalAsync(ChannelDeletedEventEventData evt)
         {
-            var data = (ChannelDeletedEventData)evt;
+            var data = (ChannelDeletedEventResponse)evt;
             Channels.Remove(data.ChannelId);
             if (Clans.TryGet(data.ClanId, out _))
             {
@@ -81,7 +81,7 @@ namespace Mezon.Net.Sdk
 
         private async Task OnUserChannelAddedInternalAsync(UserChannelAddedEventData channelEvent)
         {
-            var data = (UserChannelAddedData)channelEvent;
+            var data = (UserChannelAddedResponse)channelEvent;
             var channelDesc = data.ChannelDesc;
             if (channelDesc.ChannelId == 0)
             {

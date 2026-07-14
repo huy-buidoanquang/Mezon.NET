@@ -5,11 +5,11 @@ namespace Mezon.Net.Models
 {
     public readonly struct MessageReactionEventData
     {
-        private readonly MessageReactionData _data;
-        internal MessageReactionEventData(MessageReactionData data) => _data = data;
-        internal MessageReactionData Data => _data;
+        private readonly MessageReactionResponse _data;
+        internal MessageReactionEventData(MessageReactionResponse data) => _data = data;
+        internal MessageReactionResponse Data => _data;
 
-        public static implicit operator MessageReactionData(MessageReactionEventData e) => e._data;
-        public static implicit operator MessageReactionEventData(MessageReactionData d) => new MessageReactionEventData(d);
+        public static implicit operator MessageReactionResponse(MessageReactionEventData e) => e._data;
+        public static implicit operator MessageReactionEventData(MessageReactionResponse d) => new MessageReactionEventData(d);
     }
 }

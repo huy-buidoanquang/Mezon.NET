@@ -131,7 +131,7 @@ public class MezonTransporterContractTests
         }
         else
         {
-            var message = await events.WaitForMessageAsync(m => m.type == MezonMessageType.Abridged).ConfigureAwait(false);
+            var message = await events.WaitForMessageAsync(m => m.type == MezonMessageType.Realtime).ConfigureAwait(false);
             var envelope = Envelope.Parser.ParseFrom(message.payload);
             Assert.NotNull(envelope.Pong);
             Assert.Equal(42, envelope.Cid);
@@ -205,7 +205,7 @@ public class MezonTransporterContractTests
         events.Attach(transporter);
         await ConnectAsync(transporter, session.Port, "token-abridged").ConfigureAwait(false);
 
-        var message = await events.WaitForMessageAsync(m => m.type == MezonMessageType.Abridged).ConfigureAwait(false);
+        var message = await events.WaitForMessageAsync(m => m.type == MezonMessageType.Realtime).ConfigureAwait(false);
         Assert.Equal([0x0A, 0x0B, 0x0C], message.payload);
         await transporter.DisconnectAsync().ConfigureAwait(false);
         await TransporterFactory.DisposeAsync(transporter).ConfigureAwait(false);
@@ -247,7 +247,7 @@ public class MezonTransporterContractTests
         else
         {
             var ping = new Envelope { Cid = 9, Ping = new Ping() };
-            await transporter.SendAsync(MezonMessageType.Abridged, 9, ping.ToByteArray()).ConfigureAwait(false);
+            await transporter.SendAsync(MezonMessageType.Realtime, 9, ping.ToByteArray()).ConfigureAwait(false);
             var frame = await frameReceived.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
             Assert.Equal(ping.ToByteArray(), frame);
         }
@@ -284,7 +284,7 @@ public class MezonTransporterContractTests
 
         var transporter = TransporterFactory.Create(kind);
         await ConnectAsync(transporter, session.Port, "token-send-abridged").ConfigureAwait(false);
-        await transporter.SendAsync(MezonMessageType.Abridged, 0, new ReadOnlyMemory<byte>(new byte[] { 0xDE, 0xAD, 0xBE, 0xEF })).ConfigureAwait(false);
+        await transporter.SendAsync(MezonMessageType.Realtime, 0, new ReadOnlyMemory<byte>(new byte[] { 0xDE, 0xAD, 0xBE, 0xEF })).ConfigureAwait(false);
 
         var frame = await frameReceived.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         if (kind == TransporterKind.Tcp)
@@ -309,7 +309,7 @@ public class MezonTransporterContractTests
     {
         var transporter = TransporterFactory.Create(kind);
         await transporter.SendAsync(MezonMessageType.Heartbeat, 1, ReadOnlyMemory<byte>.Empty).ConfigureAwait(false);
-        await transporter.SendAsync(MezonMessageType.Abridged, 0, ReadOnlyMemory<byte>.Empty).ConfigureAwait(false);
+        await transporter.SendAsync(MezonMessageType.Realtime, 0, ReadOnlyMemory<byte>.Empty).ConfigureAwait(false);
         await transporter.SendAsync(MezonMessageType.Api, 0, ReadOnlyMemory<byte>.Empty).ConfigureAwait(false);
         await TransporterFactory.DisposeAsync(transporter).ConfigureAwait(false);
     }

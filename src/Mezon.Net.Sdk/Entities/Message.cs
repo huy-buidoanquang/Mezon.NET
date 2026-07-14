@@ -1,10 +1,8 @@
 using System.Threading.Tasks;
-using Mezon.Net.Client;
 using Mezon.Net.Client.Messaging;
 using Mezon.Net.Core;
 using Mezon.Net.Core.Constants;
 using Mezon.Net.Core.Entities;
-using Mezon.Net.Internal.Api;
 using Mezon.Net.Internal.Realtime;
 using Mezon.Net.Models;
 
@@ -15,7 +13,7 @@ namespace Mezon.Net.Sdk.Entities
         private readonly MezonClient _client;
         private readonly TextChannel _channel;
 
-        internal Message(MezonClient client, TextChannel channel, ChannelMessageData source)
+        internal Message(MezonClient client, TextChannel channel, ChannelMessageResponse source)
         {
             _client = client;
             _channel = channel;
@@ -30,7 +28,7 @@ namespace Mezon.Net.Sdk.Entities
             ContentOverride = content;
         }
 
-        internal ChannelMessageData? Source { get; }
+        internal ChannelMessageResponse? Source { get; }
         internal ChannelMessageAck? Ack { get; }
         internal string? ContentOverride { get; }
 
@@ -42,7 +40,7 @@ namespace Mezon.Net.Sdk.Entities
         public int Code => Source?.Code ?? 0;
         public TextChannel Channel => _channel;
 
-        public Task<ChannelMessageAck> ReplyAsync(
+        public Task<ChannelMessageAckResponse> ReplyAsync(
             string content,
             long? topicId = null,
             int code = 0,
@@ -62,8 +60,7 @@ namespace Mezon.Net.Sdk.Entities
                 topicId,
                 code);
 
-            return _client.SendQueue.EnqueueAsync(ChannelId, () =>
-                MessageSendHelper.SendReplyAsync(_client.ApiClient, reply, options));
+            return _client.SendQueue.EnqueueAsync(ChannelId, () => MessageSendHelper.SendReplyAsync(_client.Engine, reply, options));
         }
 
         public Task UpdateAsync(string content, RequestOptions? options = null)
@@ -71,7 +68,7 @@ namespace Mezon.Net.Sdk.Entities
             var mode = ChannelModeConverter.ToStreamMode(_channel.Type);
             var update = new UpdateMessageParams(ClanId, ChannelId, Id, content, mode, _channel.IsPublic);
             return _client.SendQueue.EnqueueAsync(ChannelId, () =>
-                MessageSendHelper.UpdateAsync(_client.ApiClient, update, options));
+                MessageSendHelper.UpdateAsync(_client.Engine, update, options));
         }
 
         public Task DeleteAsync(RequestOptions? options = null)
@@ -79,7 +76,7 @@ namespace Mezon.Net.Sdk.Entities
             var mode = ChannelModeConverter.ToStreamMode(_channel.Type);
             var delete = new DeleteMessageParams(ClanId, ChannelId, Id, mode, _channel.IsPublic);
             return _client.SendQueue.EnqueueAsync(ChannelId, () =>
-                MessageSendHelper.DeleteAsync(_client.ApiClient, delete, options));
+                MessageSendHelper.DeleteAsync(_client.Engine, delete, options));
         }
 
         public Task ReactAsync(long emojiId, string emoji, long senderId, bool action = true, RequestOptions? options = null)
@@ -87,7 +84,7 @@ namespace Mezon.Net.Sdk.Entities
             var mode = ChannelModeConverter.ToStreamMode(_channel.Type);
             var react = new ReactMessageParams(ClanId, ChannelId, Id, emojiId, emoji, mode, _channel.IsPublic, senderId, action: action);
             return _client.SendQueue.EnqueueAsync(ChannelId, () =>
-                MessageSendHelper.ReactAsync(_client.ApiClient, react, options));
+                MessageSendHelper.ReactAsync(_client.Engine, react, options));
         }
     }
 }

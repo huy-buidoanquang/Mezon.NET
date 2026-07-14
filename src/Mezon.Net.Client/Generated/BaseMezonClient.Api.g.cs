@@ -13,10 +13,10 @@ namespace Mezon.Net.Client
 {
     public abstract partial class BaseMezonClient
     {
-        public async Task<LoginIdData> CreateQRLoginAsync(Mezon.Net.Models.LoginParams body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.LoginIdResponse> CreateQRLoginAsync(Mezon.Net.Models.LoginParams body, RequestOptions? options = null)
         {
             var result = await ApiClient.CreateQRLoginAsync(Options.ServerKey, "", LoginParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new LoginIdData(result);
+            return new Mezon.Net.Models.LoginIdResponse(result);
         }
 
         public async Task<Session> CheckLoginRequestAsync(Mezon.Net.Models.ConfirmLoginParams body, RequestOptions? options = null)
@@ -42,10 +42,10 @@ namespace Mezon.Net.Client
             return new Session(result);
         }
 
-        public async Task<LinkAccountConfirmRequestData> AuthenticateSMSOTPAsync(Mezon.Net.Client.AuthenticateSMSRequest body, RequestOptions? options = null)
+        public async Task<Mezon.Net.Models.LinkAccountConfirmRequestResponse> AuthenticateSMSOTPAsync(Mezon.Net.Client.AuthenticateSMSRequest body, RequestOptions? options = null)
         {
             var result = await ApiClient.AuthenticateSMSOTPAsync(Options.ServerKey, "", body, options).ConfigureAwait(false);
-            return new LinkAccountConfirmRequestData(result);
+            return new Mezon.Net.Models.LinkAccountConfirmRequestResponse(result);
         }
 
         public async Task<Session> AuthenticateAppAsync(Mezon.Net.Client.AppAuthenticationRequest body, RequestOptions? options = null)

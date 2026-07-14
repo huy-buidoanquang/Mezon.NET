@@ -5,11 +5,11 @@ namespace Mezon.Net.Models
 {
     public readonly struct PongEventData
     {
-        private readonly PongData _data;
-        internal PongEventData(PongData data) => _data = data;
-        internal PongData Data => _data;
+        private readonly PongResponse _data;
+        internal PongEventData(PongResponse data) => _data = data;
+        internal PongResponse Data => _data;
 
-        public static implicit operator PongData(PongEventData e) => e._data;
-        public static implicit operator PongEventData(PongData d) => new PongEventData(d);
+        public static implicit operator PongResponse(PongEventData e) => e._data;
+        public static implicit operator PongEventData(PongResponse d) => new PongEventData(d);
     }
 }

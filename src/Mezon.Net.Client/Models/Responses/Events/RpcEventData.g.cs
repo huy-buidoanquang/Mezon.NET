@@ -5,11 +5,11 @@ namespace Mezon.Net.Models
 {
     public readonly struct RpcEventData
     {
-        private readonly RpcData _data;
-        internal RpcEventData(RpcData data) => _data = data;
-        internal RpcData Data => _data;
+        private readonly RpcResponse _data;
+        internal RpcEventData(RpcResponse data) => _data = data;
+        internal RpcResponse Data => _data;
 
-        public static implicit operator RpcData(RpcEventData e) => e._data;
-        public static implicit operator RpcEventData(RpcData d) => new RpcEventData(d);
+        public static implicit operator RpcResponse(RpcEventData e) => e._data;
+        public static implicit operator RpcEventData(RpcResponse d) => new RpcEventData(d);
     }
 }

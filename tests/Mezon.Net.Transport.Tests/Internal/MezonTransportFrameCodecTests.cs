@@ -69,7 +69,7 @@ public class MezonTransportFrameCodecTests
     public void TrimPadding_RemovesUpToThreeTrailingZeros()
     {
         var frame = new ReadOnlyMemory<byte>([0x0A, 0x0B, 0x0C, 0x00]);
-        var trimmed = MezonTransportFrameCodec.TrimPadding(frame);
+        var trimmed = MezonTransportFrameCodec.TrimRealtimePadding(frame);
         Assert.Equal([0x0A, 0x0B, 0x0C], trimmed.ToArray());
     }
 
@@ -82,7 +82,7 @@ public class MezonTransportFrameCodecTests
         var payload = new byte[payloadLength];
         payload.AsSpan().Fill(0xAB);
         var channel = System.Threading.Channels.Channel.CreateUnbounded<ReadOnlyMemory<byte>>();
-        Assert.True(MezonTransportFrameCodec.TryQueueAbridgedFrame(channel.Writer, payload));
+        Assert.True(MezonTransportFrameCodec.TryQueueRealtimeFrame(channel.Writer, payload));
         Assert.True(channel.Reader.TryRead(out var frame));
         int padding = (4 - (payloadLength % 4)) & 3;
         int totalPayload = payloadLength + padding;
