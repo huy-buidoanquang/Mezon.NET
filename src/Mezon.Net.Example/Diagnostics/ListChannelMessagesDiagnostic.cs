@@ -2,7 +2,6 @@ using System.Diagnostics;
 using Google.Protobuf;
 using Mezon.Net.Client;
 using Mezon.Net.Core;
-using Mezon.Net.Core.Protocol;
 using Mezon.Net.Internal.Api;
 using Mezon.Net.Internal.Realtime;
 using Mezon.Net.Example.Infrastructure;

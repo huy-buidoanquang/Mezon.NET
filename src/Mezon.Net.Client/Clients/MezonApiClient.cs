@@ -29,8 +29,6 @@ namespace Mezon.Net.Client
         private CancellationTokenSource _loginCancelToken = new CancellationTokenSource();
 
         private readonly RestClientProvider _restClientProvider;
-        //private readonly Logger _logger;
-
         internal RequestQueue RequestQueue { get; }
 
         public LoginState LoginState { get; private set; }
@@ -46,10 +44,6 @@ namespace Mezon.Net.Client
         long? IMezonApiClient.CurrentUserId => CurrentUserId;
 
         protected IRestClient RestClient { get; private set; } = default!;
-
-        internal bool UseSystemClock { get; set; }
-
-        public RetryMode DefaultRetryMode { get; }
 
         protected MezonOptions MezonOptions;
 
@@ -271,9 +265,6 @@ namespace Mezon.Net.Client
             {
                 CheckState();
             }
-
-            request.Options.RetryMode ??= DefaultRetryMode;
-            request.Options.UseSystemClock ??= UseSystemClock;
 
             var stopwatch = Stopwatch.StartNew();
             var responseStream = await RequestQueue.SendAsync(request).ConfigureAwait(false);

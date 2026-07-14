@@ -1,8 +1,5 @@
-using System;
 using System.Collections.Generic;
 using System.Threading;
-using System.Threading.Tasks;
-using Mezon.Net.Abstractions;
 
 namespace Mezon.Net.Core
 {
@@ -36,10 +33,6 @@ namespace Mezon.Net.Core
         ///     A <see cref="CancellationToken"/> for this request.
         /// </returns>
         public CancellationToken CancelToken { get; set; } = CancellationToken.None;
-        /// <summary>
-        ///     Gets or sets the retry behavior when the request fails.
-        /// </summary>
-        public RetryMode? RetryMode { get; set; }
         public bool HeaderOnly { get; internal set; }
         /// <summary>
         ///     Gets or sets the reason for this action in the guild's audit log.
@@ -49,17 +42,6 @@ namespace Mezon.Net.Core
         ///     to all actions.
         /// </remarks>
         public string? AuditLogReason { get; set; }
-        /// <summary>
-        ///		Gets or sets whether or not this request should use the system
-        ///		clock for rate-limiting. Defaults to <see langword="true" />.
-        /// </summary>
-        /// <remarks>
-        ///		This property can also be set in <see cref="MezonOptions"/>.
-        ///		On a per-request basis, the system clock should only be disabled
-        ///		when millisecond precision is especially important, and the
-        ///		hosting system is known to have a desynced clock.
-        /// </remarks>
-        public bool? UseSystemClock { get; set; }
 
         internal bool IgnoreState { get; set; }
 

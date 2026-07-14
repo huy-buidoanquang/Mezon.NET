@@ -26,9 +26,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Mezon.Net.Core\Mezon.Net.Core.csproj" />
     <ProjectReference Include="..\Mezon.Net.Transport\Mezon.Net.Transport.csproj" />
-    <ProjectReference Include="..\Mezon.Net.Generators\Mezon.Net.Generators.csproj"
-                      OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\Mezon.Net.Generators\Mezon.Net.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>

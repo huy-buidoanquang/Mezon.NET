@@ -1,6 +1,6 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
-using Mezon.Net.Core.Protocol;
+using Mezon.Net.Core;
 
 namespace Mezon.Net.Client.Tests;
 

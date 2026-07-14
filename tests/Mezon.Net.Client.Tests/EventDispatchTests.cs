@@ -2,7 +2,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using Mezon.Net.Client;
 using Mezon.Net.Core;
-using Mezon.Net.Core.Protocol;
+using Mezon.Net.Core;
 using Mezon.Net.Internal.Realtime;
 using Mezon.Net.Models;
 
