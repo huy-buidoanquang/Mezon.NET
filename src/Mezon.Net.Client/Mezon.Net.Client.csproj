@@ -34,4 +34,8 @@
     <InternalsVisibleTo Include="Mezon.Net.Sdk" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Constants\" />
+  </ItemGroup>
+
 </Project>

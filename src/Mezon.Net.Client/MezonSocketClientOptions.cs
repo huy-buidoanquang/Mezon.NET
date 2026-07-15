@@ -1,4 +1,4 @@
-using Mezon.Net.Core.Constants;
+using Mezon.Net.Core;
 
 namespace Mezon.Net.Client
 {

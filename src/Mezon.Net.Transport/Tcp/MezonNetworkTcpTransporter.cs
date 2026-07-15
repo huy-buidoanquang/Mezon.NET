@@ -109,7 +109,6 @@ namespace Mezon.Net.Transport
                 var sslOptions = new SslClientAuthenticationOptions
                 {
                     TargetHost = host,
-                    RemoteCertificateValidationCallback = MezonNetworkSettings.DefaultValidateServerCertificate,
                 };
                 await sslStream.AuthenticateAsClientAsync(sslOptions, _internalCt).ConfigureAwait(false);
                 _dataStream = sslStream;

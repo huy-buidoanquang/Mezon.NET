@@ -1,4 +1,4 @@
-namespace Mezon.Net.Core.Constants
+namespace Mezon.Net.Core
 {
     /// <summary>
     ///     Default socket transport rate limits enforced client-side before sending over Abridged TCP / WebSocket.

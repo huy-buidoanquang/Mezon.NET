@@ -93,10 +93,6 @@ namespace Mezon.Net.Transport
                 }
             };
 
-#if NET5_0_OR_GREATER
-            _wsClient.Options.RemoteCertificateValidationCallback = MezonNetworkSettings.DefaultValidateServerCertificate;
-#endif
-
             if (_headers?.Count > 0)
             {
                 foreach (var header in _headers)
