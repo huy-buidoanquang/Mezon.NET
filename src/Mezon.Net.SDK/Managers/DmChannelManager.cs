@@ -2,20 +2,19 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Mezon.Net.Core;
-using Mezon.Net.Core.Constants;
 using Mezon.Net.Internal.Api;
 using Mezon.Net.Models;
 
-namespace Mezon.Net.Client.Managers
+namespace Mezon.Net.Sdk.Managers
 {
     public sealed class DmChannelManager
     {
-        private readonly ConcurrentDictionary<long, long> _userToChannelId = new();
-        private readonly List<ChannelDescription> _dmChannelDescs = new();
+        private readonly ConcurrentDictionary<long, long> _userToChannelId = new ConcurrentDictionary<long, long>();
+        private readonly List<ChannelDescription> _dmChannelDescs = new List<ChannelDescription>();
 
         public IReadOnlyList<ChannelDescription> DmChannelDescriptions => _dmChannelDescs;
 
-        public async Task InitializeAsync(MezonClient client, RequestOptions? options = null)
+        public async Task InitializeAsync(Client.MezonClient client, RequestOptions? options = null)
         {
             _userToChannelId.Clear();
             _dmChannelDescs.Clear();
@@ -46,7 +45,7 @@ namespace Mezon.Net.Client.Managers
             => _userToChannelId.TryGetValue(userId, out channelId);
 
         public async Task<ChannelDescription?> CreateDmChannelAsync(
-            MezonClient client,
+            Client.MezonClient client,
             long userId,
             RequestOptions? options = null)
         {

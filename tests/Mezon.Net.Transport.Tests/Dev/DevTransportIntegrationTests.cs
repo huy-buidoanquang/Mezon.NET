@@ -1,7 +1,5 @@
 using Mezon.Net.Client;
 using Mezon.Net.Core;
-using Mezon.Net.Core.Abstractions;
-using Mezon.Net.Transport;
 using Mezon.Net.Transport.Tests.Helpers;
 
 namespace Mezon.Net.Transport.Tests.Dev;
@@ -12,6 +10,8 @@ public sealed class DevTransportIntegrationTests
     private static readonly SemaphoreSlim DevSessionGate = new(1, 1);
     private const string DevApiHost = "dev-mezon.nccsoft.vn";
     private const string DevApiPort = "8088";
+    private const string DevSocketHost = "dev-mezon-sock.nccsoft.vn";
+    private const int DevSocketPort = 4433;
     private const string DevEmail = "";
     private const string DevPassword = "";
 
@@ -52,8 +52,8 @@ public sealed class DevTransportIntegrationTests
             events.Attach(transporter);
 
             await transporter.ConnectAsync(
-                MezonNetworkSettings.DefaultSocketHost,
-                MezonNetworkSettings.DefaultSocketPort,
+                DevSocketHost,
+                DevSocketPort,
                 token,
                 useSsl: true,
                 createStatus: false).ConfigureAwait(false);
@@ -82,8 +82,8 @@ public sealed class DevTransportIntegrationTests
             events.Attach(transporter);
 
             await transporter.ConnectAsync(
-                MezonNetworkSettings.DefaultSocketHost,
-                MezonNetworkSettings.DefaultSocketPort,
+                DevSocketHost,
+                DevSocketPort,
                 token,
                 useSsl: true,
                 createStatus: false).ConfigureAwait(false);
@@ -113,8 +113,8 @@ public sealed class DevTransportIntegrationTests
             events.Attach(transporter);
 
             await transporter.ConnectAsync(
-                MezonNetworkSettings.DefaultSocketHost,
-                MezonNetworkSettings.DefaultSocketPort,
+                DevSocketHost,
+                DevSocketPort,
                 auth.SessionId,
                 useSsl: true).ConfigureAwait(false);
 

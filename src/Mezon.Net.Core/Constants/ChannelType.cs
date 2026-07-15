@@ -1,4 +1,4 @@
-namespace Mezon.Net.Core.Constants
+namespace Mezon.Net.Core
 {
     public enum ChannelType
     {
@@ -21,13 +21,6 @@ namespace Mezon.Net.Core.Constants
         Dm = 4,
         Clan = 5,
         Thread = 6,
-    }
-
-    public enum TypeMessage
-    {
-        Chat = 0,
-        ChatUpdate = 1,
-        SendToken = 2,
     }
 
     public static class ChannelModeConverter

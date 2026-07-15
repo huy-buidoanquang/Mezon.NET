@@ -1,7 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Mezon.Net.Client.Managers;
+using Mezon.Net.Sdk.Managers;
 using Mezon.Net.Core;
 using Mezon.Net.Logging;
 using Mezon.Net.Mmn;

@@ -16,6 +16,8 @@ public sealed class DevTransportProbe
 {
     private const string DevApiHost = "dev-mezon.nccsoft.vn";
     private const string DevApiPort = "8088";
+    private const string DevSocketHost = "dev-mezon-sock.nccsoft.vn";
+    private const int DevSocketPort = 4433;
     private const string DevEmail = "";
     private const string DevPassword = "";
 
@@ -37,8 +39,8 @@ public sealed class DevTransportProbe
         var tokensToTry = new[] { session.SessionId, session.AuthToken };
         var endpoints = new (string host, int port, bool ssl, TransportType type)[]
         {
-            (MezonNetworkSettings.DefaultSocketHost, MezonNetworkSettings.DefaultSocketPort, true, TransportType.WebSocket),
-            (MezonNetworkSettings.DefaultSocketHost, MezonNetworkSettings.DefaultSocketPort, true, TransportType.Tcp),
+            (DevSocketHost, DevSocketPort, true, TransportType.WebSocket),
+            (DevSocketHost, DevSocketPort, true, TransportType.Tcp),
             ("dev-mezon.nccsoft.vn", 7349, true, TransportType.WebSocket),
             ("dev-mezon.nccsoft.vn", 7349, true, TransportType.Tcp),
         };

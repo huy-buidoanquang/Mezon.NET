@@ -105,8 +105,8 @@ namespace Mezon.Net.Client
                 _connectCancelToken?.Dispose();
                 _connectCancelToken = new CancellationTokenSource();
                 NetworkTransporter.SetCancelToken(_connectCancelToken.Token);
-                var (host, port, token) = GetTransportEndpoint();
                 var socketOptions = (MezonSocketClientOptions)MezonOptions;
+                var (host, port, token) = GetTransportEndpoint(socketOptions);
                 await NetworkTransporter.ConnectAsync(host, port, token, useSsl: true, createStatus: socketOptions.CreateStatusOnConnect).ConfigureAwait(false);
                 ConnectionState = ConnectionState.Connected;
             }
@@ -208,25 +208,20 @@ namespace Mezon.Net.Client
             }
         }
 
-        private (string host, int port, string token) GetTransportEndpoint()
+        private (string host, int port, string token) GetTransportEndpoint(MezonSocketClientOptions options)
         {
-            var session = SessionManager<MezonApiClientOptions>.Instance.CurrentSession();
+            var session = SessionManager<MezonSocketClientOptions>.Instance.CurrentSession();
             var connectToken = !string.IsNullOrEmpty(session.SessionId)
                 ? session.SessionId
                 : session.AuthToken ?? string.Empty;
-            var endpointUrl = _transportType == TransportType.Tcp ? session.TcpUrl : session.WsUrl;
-            if (string.IsNullOrWhiteSpace(endpointUrl))
-            {
-                return (MezonNetworkSettings.DefaultSocketHost, MezonNetworkSettings.DefaultSocketPort, connectToken);
-            }
-
+            var endpointUrl = _transportType == TransportType.Tcp || _transportType == TransportType.Auto ? session.TcpUrl : session.WsUrl;
             var parts = endpointUrl.Split(':');
             if (parts.Length >= 2 && int.TryParse(parts[^1], out var port))
             {
                 return (parts[0], port, connectToken);
             }
 
-            return (MezonNetworkSettings.DefaultSocketHost, MezonNetworkSettings.DefaultSocketPort, connectToken);
+            return (string.Empty, 0, connectToken);
         }
 
         #region Event Handlers
