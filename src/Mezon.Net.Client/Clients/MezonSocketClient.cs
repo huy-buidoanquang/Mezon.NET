@@ -20,7 +20,6 @@ namespace Mezon.Net.Client
 {
     internal class MezonSocketClient : MezonApiClient, IMezonSocketClient, IDisposable, IAsyncDisposable
     {
-        private const int IgnoreMessage = -1;
         private Logger? _logger;
         private readonly TransportType _transportType;
         private readonly SocketCorrelationHub _correlationHub = new();
@@ -185,7 +184,7 @@ namespace Mezon.Net.Client
 
             var cid = _correlationHub.AllocateCid();
             var timeout = options.SocketSendTimeout ?? MezonOptions.SocketTimeoutInMilliseconds;
-            var waitTask = _correlationHub.WaitAsync(cid, timeout, options.CancelToken);
+            var pendingRequest = _correlationHub.Register(cid, options.CancelToken);
             LogTrace($"[SOCKET-SEND] heartbeat cid={cid} timeout={timeout}ms");
 
             try
@@ -200,10 +199,12 @@ namespace Mezon.Net.Client
                     await SendSocketInternalAsync(MezonMessageType.Heartbeat, cid, Array.Empty<byte>(), options, bypassRateLimiter: true).ConfigureAwait(false);
                 }
 
-                await waitTask.ConfigureAwait(false);
+                pendingRequest.StartTimeout(timeout);
+                await pendingRequest.Task.ConfigureAwait(false);
             }
             catch
             {
+                pendingRequest.Abort(new OperationCanceledException("Heartbeat send failed before a response was received."));
                 NetworkTransporter.RemoveApiChunkBuffer(cid);
                 throw;
             }
@@ -411,14 +412,15 @@ namespace Mezon.Net.Client
             var cid = _correlationHub.AllocateCid();
             envelope.Cid = cid;
             var timeout = options.SocketSendTimeout ?? MezonOptions.SocketTimeoutInMilliseconds;
-            var waitTask = _correlationHub.WaitAsync(cid, timeout, options.CancelToken);
+            var pendingRequest = _correlationHub.Register(cid, options.CancelToken);
             var payload = SerializeMessage(envelope);
             LogTrace($"[SOCKET-SEND] api={envelope.ApiRequestEvent.ApiName} cid={cid} bytes={payload.Length} timeout={timeout}ms");
 
             try
             {
                 await SendSocketInternalAsync(MezonMessageType.Api, cid, payload, options).ConfigureAwait(false);
-                var socketResponse = await waitTask.ConfigureAwait(false);
+                pendingRequest.StartTimeout(timeout);
+                var socketResponse = await pendingRequest.Task.ConfigureAwait(false);
 
                 if (socketResponse.Code != 0)
                 {
@@ -429,6 +431,7 @@ namespace Mezon.Net.Client
             }
             catch
             {
+                pendingRequest.Abort(new OperationCanceledException("Socket API send failed before a response was received."));
                 NetworkTransporter.RemoveApiChunkBuffer(cid);
                 throw;
             }
@@ -438,7 +441,6 @@ namespace Mezon.Net.Client
         {
             options ??= RequestOptions.CreateOrClone(options);
             CheckState();
-
             envelope.Cid = _correlationHub.AllocateCid();
             var payload = SerializeMessage(envelope);
             await SendSocketInternalAsync(MezonMessageType.Realtime, envelope.Cid, payload, options).ConfigureAwait(false);
@@ -452,12 +454,14 @@ namespace Mezon.Net.Client
             var cid = _correlationHub.AllocateCid();
             envelope.Cid = cid;
             var timeout = options.SocketSendTimeout ?? MezonOptions.SocketTimeoutInMilliseconds;
-            var waitTask = _correlationHub.WaitAsync(cid, timeout, options.CancelToken);
+            var pendingRequest = _correlationHub.Register(cid, options.CancelToken);
             var payload = SerializeMessage(envelope);
             try
             {
+                LogTrace($"[SOCKET-SEND] rt-await-ack env={envelope.MessageCase} cid={cid} timeout={timeout}ms");
                 await SendSocketInternalAsync(MezonMessageType.Realtime, cid, payload, options).ConfigureAwait(false);
-                var socketResponse = await waitTask.ConfigureAwait(false);
+                pendingRequest.StartTimeout(timeout);
+                var socketResponse = await pendingRequest.Task.ConfigureAwait(false);
 
                 if (socketResponse.Code != 0)
                 {
@@ -473,6 +477,7 @@ namespace Mezon.Net.Client
             }
             catch
             {
+                pendingRequest.Abort(new OperationCanceledException("Realtime send failed before an acknowledgement was received."));
                 NetworkTransporter.RemoveApiChunkBuffer(cid);
                 throw;
             }
@@ -494,7 +499,7 @@ namespace Mezon.Net.Client
         public int LatencyMilliseconds { get; private set; }
 
         internal int PendingSocketRequestCount => _correlationHub.PendingCount;
-        
+
         public override Task<ClanDescList> ListClanDescsAsync(ListClanDescRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));

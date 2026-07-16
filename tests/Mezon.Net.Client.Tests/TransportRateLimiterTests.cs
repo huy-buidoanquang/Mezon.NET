@@ -126,3 +126,32 @@ public sealed class TransportRateLimiterTests
         Assert.True(limiter.EnterAsync().IsCompletedSuccessfully);
     }
 }
+
+public sealed class SocketCorrelationHubTests
+{
+    [Fact]
+    public async Task Register_does_not_timeout_before_timeout_is_started()
+    {
+        var hub = new SocketCorrelationHub();
+        var pending = hub.Register(cid: 42);
+
+        await Task.Delay(150);
+        Assert.False(pending.Task.IsCompleted);
+
+        Assert.True(hub.TryComplete(42, 0, ReadOnlyMemory<byte>.Empty));
+        var response = await pending.Task;
+        Assert.Equal(0, response.Code);
+    }
+
+    [Fact]
+    public async Task Timeout_starts_only_after_explicit_start()
+    {
+        var hub = new SocketCorrelationHub();
+        var pending = hub.Register(cid: 77);
+
+        await Task.Delay(150);
+        pending.StartTimeout(100);
+
+        await Assert.ThrowsAsync<TimeoutException>(async () => await pending.Task);
+    }
+}
