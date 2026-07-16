@@ -1,6 +1,7 @@
 using Mezon.Net.Models;
 using Mezon.Net.Sdk;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 
 internal class Program
 {
@@ -44,6 +45,9 @@ internal class Program
         }
 
         var options = new MezonClientOptions(botId, token);
+        options.DefaultRatelimitCallback += async (x) => Console.WriteLine(JsonConvert.SerializeObject(x));
+        options.MaxTransportRequestsPerSecond = 5;
+        options.MaxTransportRequestsPerMinute = 10;
         options.LogLevel = Mezon.Net.Logging.LogLevel.Trace;
         await using var client = new MezonClient(options);
         WireClientLog(client, logger);
@@ -63,10 +67,9 @@ internal class Program
         try
         {
             var channel = await client.GetChannelAsync(TargetChannelId);
-            for (int i = 0; i < 100; i++)
+            for (int i = 0; i < 20; i++)
             {
                 var ack = await channel.SendAsync("{\"t\":\"Lorem ctus commodo augue.\"}").ConfigureAwait(false);
-                Console.WriteLine($"Sent to clan {TargetClanId}, channel {TargetChannelId}: message_id={ack.MessageId}");
             }
         }
         catch (Exception ex)

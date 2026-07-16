@@ -4,7 +4,7 @@ using Mezon.Net.Core;
 
 namespace Mezon.Net.Client
 {
-    public abstract partial class BaseSocketClient
+    public abstract partial class BaseMezonSocketClient
     {
         public event Func<Task> ClientReadyEvent
         {

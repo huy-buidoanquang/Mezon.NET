@@ -8,7 +8,7 @@ using Mezon.Net.Logging;
 
 namespace Mezon.Net.Client
 {
-    public partial class MezonClient : BaseSocketClient, IMezonClient, IMezonClientApi, IMezonClientRealtime
+    public partial class MezonClient : BaseMezonSocketClient, IMezonClient
     {
         private readonly SocketConnectionManager _connection;
         private readonly SemaphoreSlim _stateLock;
