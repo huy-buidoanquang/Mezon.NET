@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
@@ -20,32 +21,92 @@ namespace Mezon.Net.Client
 
     internal sealed class PendingSocketRequest : IValueTaskSource<SocketResponse>
     {
+        private readonly SocketCorrelationHub _owner;
+        private readonly int _cid;
         private ManualResetValueTaskSourceCore<SocketResponse> _core;
         private short _version;
+        private CancellationTokenRegistration _cancellationRegistration;
+
+        public PendingSocketRequest(SocketCorrelationHub owner, int cid)
+        {
+            _owner = owner;
+            _cid = cid;
+            _core = new ManualResetValueTaskSourceCore<SocketResponse>
+            {
+                RunContinuationsAsynchronously = true
+            };
+        }
 
         public ValueTask<SocketResponse> Task => new(this, _version);
 
-        public void Reset(CancellationToken cancellationToken)
+        public void Initialize(CancellationToken cancellationToken)
         {
+            _cancellationRegistration.Dispose();
             _core.Reset();
             _version++;
             if (cancellationToken.CanBeCanceled)
             {
-                cancellationToken.Register(static state =>
+                _cancellationRegistration = cancellationToken.Register(static state =>
                 {
                     var pending = (PendingSocketRequest)state!;
-                    pending.TrySetException(new OperationCanceledException());
+                    pending.Abort(new OperationCanceledException());
                 }, this);
             }
         }
 
-        public void TrySetResult(SocketResponse result) => _core.SetResult(result);
-        public void TrySetException(Exception error) => _core.SetException(error);
+        public void StartTimeout(int timeoutMilliseconds)
+        {
+            if (timeoutMilliseconds <= 0 || timeoutMilliseconds == Timeout.Infinite)
+            {
+                return;
+            }
+
+            _ = System.Threading.Tasks.Task.Delay(timeoutMilliseconds).ContinueWith(static (t, state) =>
+            {
+                if (t.IsCanceled)
+                {
+                    return;
+                }
+
+                var pending = (PendingSocketRequest)state!;
+                pending.Abort(new TimeoutException("The socket timed out while waiting for a response."));
+            }, this, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+        }
+
+        public void Abort(Exception error) => _owner.TryFail(_cid, this, error);
+
+        public void TrySetResult(SocketResponse result)
+        {
+            _cancellationRegistration.Dispose();
+            _core.SetResult(result);
+        }
+
+        public void TrySetException(Exception error)
+        {
+            _cancellationRegistration.Dispose();
+            _core.SetException(error);
+        }
 
         SocketResponse IValueTaskSource<SocketResponse>.GetResult(short token) => _core.GetResult(token);
         ValueTaskSourceStatus IValueTaskSource<SocketResponse>.GetStatus(short token) => _core.GetStatus(token);
         void IValueTaskSource<SocketResponse>.OnCompleted(Action<object?> continuation, object? state, short token, ValueTaskSourceOnCompletedFlags flags)
             => _core.OnCompleted(continuation, state, token, flags);
+    }
+
+    internal readonly struct PendingSocketRequestHandle
+    {
+        private readonly PendingSocketRequest _pending;
+
+        public PendingSocketRequestHandle(PendingSocketRequest pending)
+        {
+            _pending = pending;
+        }
+
+        public ValueTask<SocketResponse> Task => _pending.Task;
+
+        public void StartTimeout(int timeoutMilliseconds) => _pending.StartTimeout(timeoutMilliseconds);
+
+        public void Abort(Exception error) => _pending.Abort(error);
     }
 
     /// <summary>
@@ -79,34 +140,16 @@ namespace Mezon.Net.Client
 
         public int PendingCount => _pending.Count;
 
-        public ValueTask<SocketResponse> WaitAsync(int cid, int timeoutMilliseconds = DefaultTimeoutMilliseconds, CancellationToken cancellationToken = default)
+        public PendingSocketRequestHandle Register(int cid, CancellationToken cancellationToken = default)
         {
-            var pending = new PendingSocketRequest();
+            var pending = new PendingSocketRequest(this, cid);
             if (!_pending.TryAdd(cid, pending))
             {
-                return new ValueTask<SocketResponse>(Task.FromException<SocketResponse>(new InvalidOperationException($"Duplicate pending cid {cid}.")));
+                throw new InvalidOperationException($"Duplicate pending cid {cid}.");
             }
 
-            pending.Reset(cancellationToken);
-            if (timeoutMilliseconds > 0 && timeoutMilliseconds != Timeout.Infinite)
-            {
-                var capturedCid = cid;
-                _ = Task.Delay(timeoutMilliseconds).ContinueWith(static (t, state) =>
-                {
-                    if (t.IsCanceled)
-                    {
-                        return;
-                    }
-
-                    var (hub, pendingCid) = ((SocketCorrelationHub, int))state!;
-                    if (hub._pending.TryRemove(pendingCid, out var p))
-                    {
-                        p.TrySetException(new TimeoutException("The socket timed out while waiting for a response."));
-                    }
-                }, (this, capturedCid), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
-            }
-
-            return pending.Task;
+            pending.Initialize(cancellationToken);
+            return new PendingSocketRequestHandle(pending);
         }
 
         public bool TryComplete(int cid, int code, ReadOnlyMemory<byte> payload)
@@ -114,6 +157,17 @@ namespace Mezon.Net.Client
             if (_pending.TryRemove(cid, out var pending))
             {
                 pending.TrySetResult(new SocketResponse(code, payload));
+                return true;
+            }
+
+            return false;
+        }
+
+        public bool TryFail(int cid, PendingSocketRequest pending, Exception error)
+        {
+            if (TryRemoveExact(cid, pending))
+            {
+                pending.TrySetException(error);
                 return true;
             }
 
@@ -130,5 +184,9 @@ namespace Mezon.Net.Client
                 }
             }
         }
+
+        private bool TryRemoveExact(int cid, PendingSocketRequest pending)
+            => ((ICollection<KeyValuePair<int, PendingSocketRequest>>)_pending)
+                .Remove(new KeyValuePair<int, PendingSocketRequest>(cid, pending));
     }
 }
