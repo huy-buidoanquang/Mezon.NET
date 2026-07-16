@@ -1,11 +1,9 @@
 using System.Threading.Tasks;
 using Mezon.Net.Abstractions;
-using Mezon.Net.Core;
-using Mezon.Net.Internal.Realtime;
 
 namespace Mezon.Net.Client
 {
-    public abstract partial class BaseSocketClient : BaseMezonClient, IMezonClient, IMezonClientRealtime, IApiClientProvider
+    public abstract partial class BaseMezonSocketClient : BaseMezonClient, IMezonClient, IApiClientProvider
     {
         /// <summary>
         ///     Gets the estimated round-trip latency, in milliseconds, to the gateway server.
@@ -21,10 +19,10 @@ namespace Mezon.Net.Client
         internal new MezonSocketClient ApiClient => (base.ApiClient as MezonSocketClient)!;
 
         /// <summary>
-        ///     Initializes a new <see cref="BaseSocketClient"/> with the provided configuration.
+        ///     Initializes a new <see cref="BaseMezonSocketClient"/> with the provided configuration.
         /// </summary>
         /// <param name="options">The configuration to be used with the client.</param>
-        internal BaseSocketClient(MezonSocketClientOptions options, IMezonApiClient apiClient) : base(options, apiClient)
+        internal BaseMezonSocketClient(MezonSocketClientOptions options, IMezonApiClient apiClient) : base(options, apiClient)
         {
             Options = options;
         }
@@ -32,12 +30,6 @@ namespace Mezon.Net.Client
         public abstract Task ConnectAsync();
 
         public abstract Task DisconnectAsync();
-
-        protected Task SendRtAsync(Envelope envelope, RequestOptions? options = null)
-            => ApiClient.SendRtInternalAsync(envelope, options);
-
-        protected Task<Envelope> SendRtAwaitAckAsync(Envelope envelope, RequestOptions? options = null)
-            => ApiClient.SendRtInternalAwaitResponseAsync(envelope, options);
 
         IMezonClient IApiClientProvider.MezonApiClient => this;
     }

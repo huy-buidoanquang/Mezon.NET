@@ -10,8 +10,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 MEZON_JS_TRANSPORT = ROOT.parent / "mezon-js" / "packages" / "mezon-js" / "transport.ts"
 MEZON_JS_CLIENT = ROOT.parent / "mezon-js" / "packages" / "mezon-js" / "client.ts"
-DOTNET_API_IFACE = ROOT / "src" / "Mezon.Net.Client" / "Generated" / "IMezonClientApi.g.cs"
-DOTNET_RT_IFACE = ROOT / "src" / "Mezon.Net.Client" / "Generated" / "IMezonClientRealtime.g.cs"
+DOTNET_API_FACADE = ROOT / "src" / "Mezon.Net.Client" / "Generated" / "BaseMezonSocketClient.Api.g.cs"
+DOTNET_RT_FACADE = ROOT / "src" / "Mezon.Net.Client" / "Generated" / "BaseMezonSocketClient.Realtime.g.cs"
 
 # mezon-js realtime transport method -> .NET Rt method
 REALTIME_JS_TO_DOTNET = {
@@ -61,8 +61,12 @@ def parse_transport_api_methods(text: str) -> set[str]:
     return names
 
 
-def parse_dotnet_iface_methods(text: str) -> set[str]:
-    return set(re.findall(r"\b(\w+Async)\s*\(", text))
+def parse_realtime_facade_methods(text: str) -> set[str]:
+    return set(re.findall(r"public async Task(?:<[^>]+>)? (\w+RtAsync)\s*\(", text))
+
+
+def parse_api_facade_methods(text: str) -> set[str]:
+    return set(re.findall(r"public async Task(?:<[^>]+>)? (\w+Async)\s*\(", text))
 
 
 def camel_to_pascal(name: str) -> str:
@@ -72,14 +76,14 @@ def camel_to_pascal(name: str) -> str:
 def main() -> int:
     errors: list[str] = []
 
-    rt_text = read_text(DOTNET_RT_IFACE)
-    dotnet_rt = parse_dotnet_iface_methods(rt_text)
+    rt_text = read_text(DOTNET_RT_FACADE)
+    dotnet_rt = parse_realtime_facade_methods(rt_text)
     expected_rt = set(REALTIME_JS_TO_DOTNET.values())
 
     missing_rt = expected_rt - dotnet_rt
     extra_rt = dotnet_rt - expected_rt
     if len(dotnet_rt) != 21:
-        errors.append(f"IMezonClientRealtime expected 21 methods, found {len(dotnet_rt)}")
+        errors.append(f"BaseMezonSocketClient.Realtime expected 21 methods, found {len(dotnet_rt)}")
     if missing_rt:
         errors.append(f"Missing realtime methods: {sorted(missing_rt)}")
     if extra_rt:
@@ -97,23 +101,23 @@ def main() -> int:
         if extra_js_rt:
             errors.append(f"Mapping includes methods absent from transport.ts: {sorted(extra_js_rt)}")
 
-        api_text = read_text(DOTNET_API_IFACE)
-        dotnet_api = parse_dotnet_iface_methods(api_text)
+        api_text = read_text(DOTNET_API_FACADE)
+        dotnet_api = parse_api_facade_methods(api_text)
 
         # Socket API names in transport are PascalCase RPC names; .NET adds Async suffix.
         mapped_api = {camel_to_pascal(n) + "Async" for n in js_api}
         unmapped_transport_api = sorted(mapped_api - dotnet_api)
         if unmapped_transport_api:
-            print(f"Note: {len(unmapped_transport_api)} transport socket APIs have no IMezonClientApi match (REST-only or renamed).")
+            print(f"Note: {len(unmapped_transport_api)} transport socket APIs have no facade match (REST-only or renamed).")
             print("  Sample:", ", ".join(unmapped_transport_api[:8]))
 
         print(f"transport.ts socket API methods: {len(js_api)}")
         print(f"transport.ts realtime methods: {len(js_rt)}")
-        print(f"IMezonClientApi methods: {len(dotnet_api)}")
+        print(f"BaseMezonSocketClient.Api methods: {len(dotnet_api)}")
     else:
         print(f"Warning: transport.ts not found at {MEZON_JS_TRANSPORT}")
 
-    print(f"IMezonClientRealtime methods: {len(dotnet_rt)}")
+    print(f"BaseMezonSocketClient.Realtime methods: {len(dotnet_rt)}")
 
     if errors:
         for err in errors:

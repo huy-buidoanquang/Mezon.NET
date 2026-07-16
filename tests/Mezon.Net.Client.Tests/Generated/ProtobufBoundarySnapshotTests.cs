@@ -9,12 +9,11 @@ namespace Mezon.Net.Client.Tests.Generated
         public void Generated_facade_contains_core_socket_apis()
         {
             var root = FindRepoRoot();
-            var facade = File.ReadAllText(Path.Combine(root, "src", "Mezon.Net.Client", "Generated", "BaseSocketClient.Api.g.cs"));
-            var iface = File.ReadAllText(Path.Combine(root, "src", "Mezon.Net.Client", "Generated", "IMezonClientApi.g.cs"));
+            var facade = File.ReadAllText(Path.Combine(root, "src", "Mezon.Net.Client", "Generated", "BaseMezonSocketClient.Api.g.cs"));
 
             Assert.Contains("ListClanDescsAsync", facade);
             Assert.Contains("SendChannelMessageAsync", facade);
-            Assert.Contains("Task<Mezon.Net.Models.ChannelMessageAckResponse> SendChannelMessageAsync", iface);
+            Assert.Contains("Task<Mezon.Net.Models.ChannelMessageAckResponse> SendChannelMessageAsync", facade);
         }
 
         [Fact]
@@ -42,10 +41,11 @@ namespace Mezon.Net.Client.Tests.Generated
         public void Generated_realtime_facade_has_21_methods()
         {
             var root = FindRepoRoot();
-            var iface = File.ReadAllText(Path.Combine(root, "src", "Mezon.Net.Client", "Generated", "IMezonClientRealtime.g.cs"));
-            var facade = File.ReadAllText(Path.Combine(root, "src", "Mezon.Net.Client", "Generated", "BaseSocketClient.Realtime.g.cs"));
+            var facade = File.ReadAllText(Path.Combine(root, "src", "Mezon.Net.Client", "Generated", "BaseMezonSocketClient.Realtime.g.cs"));
 
-            var methodCount = System.Text.RegularExpressions.Regex.Matches(iface, @"\b\w+RtAsync\s*\(").Count;
+            var methodCount = System.Text.RegularExpressions.Regex.Matches(
+                facade,
+                @"public async Task(?:<[^>]+>)? (\w+RtAsync)\s*\(").Count;
             Assert.Equal(21, methodCount);
             Assert.Contains("SendChatMessageRtAsync", facade);
             Assert.Contains("LeaveChannelChatRtAsync", facade);
