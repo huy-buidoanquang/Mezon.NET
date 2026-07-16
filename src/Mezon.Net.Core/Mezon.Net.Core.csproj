@@ -1,89 +1,45 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-
-
+  <Import Project="../../Mezon.Net.targets" />
 
   <PropertyGroup>
-
-    <TargetFramework>netstandard2.1</TargetFramework>
-
     <TargetFrameworks>netstandard2.1;net6.0;net8.0;net9.0;net10.0;</TargetFrameworks>
-
     <WarningLevel>5</WarningLevel>
-
     <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
-
     <IsTrimmable>false</IsTrimmable>
-
     <IsAotCompatible>false</IsAotCompatible>
-
-    <IncludeSymbols>true</IncludeSymbols>
-
-    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-
     <Nullable>enable</Nullable>
-
     <WarningsAsErrors>$(WarningsAsErrors);CS8600;CS8602;CS8603</WarningsAsErrors>
-
+    <PackageId>Mezon.Net.Core</PackageId>
+    <Description>Core contracts, options, protobuf models, and shared types for Mezon.Net.</Description>
+    <IsPackable>true</IsPackable>
   </PropertyGroup>
 
-
-
   <ItemGroup>
-
     <PackageReference Include="Google.Api.CommonProtos" Version="2.17.0" GeneratePathProperty="true" />
-
     <PackageReference Include="Google.Protobuf" Version="3.33.2" />
-
     <PackageReference Include="Grpc.Net.Client" Version="2.76.0" />
-
     <PackageReference Include="Grpc.Net.Client.Web" Version="2.76.0" />
-
     <PackageReference Include="Grpc.Tools" Version="2.76.0" GeneratePathProperty="true">
-
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-
       <PrivateAssets>all</PrivateAssets>
-
     </PackageReference>
-
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-
     <PackageReference Include="System.Collections.Immutable" Version="10.0.1" />
-
   </ItemGroup>
 
-
-
   <PropertyGroup>
-
     <Protobuf_ProtocFullPath Condition="'$(Protobuf_ProtocFullPath)' == '' and '$(PkgGrpc_Tools)' != ''">$(PkgGrpc_Tools)\tools\windows_x64\protoc.exe</Protobuf_ProtocFullPath>
-
     <Protobuf_GrpcFullPath Condition="'$(Protobuf_GrpcFullPath)' == '' and '$(PkgGrpc_Tools)' != ''">$(PkgGrpc_Tools)\tools\windows_x64\grpc_csharp_plugin.exe</Protobuf_GrpcFullPath>
-
     <Protobuf_ProtocFullPath Condition="'$(Protobuf_ProtocFullPath)' == '' and Exists('$(NuGetPackageRoot)grpc.tools\2.76.0\tools\windows_x64\protoc.exe')">$(NuGetPackageRoot)grpc.tools\2.76.0\tools\windows_x64\protoc.exe</Protobuf_ProtocFullPath>
-
     <Protobuf_GrpcFullPath Condition="'$(Protobuf_GrpcFullPath)' == '' and Exists('$(NuGetPackageRoot)grpc.tools\2.76.0\tools\windows_x64\grpc_csharp_plugin.exe')">$(NuGetPackageRoot)grpc.tools\2.76.0\tools\windows_x64\grpc_csharp_plugin.exe</Protobuf_GrpcFullPath>
-
     <Protobuf_ProtocFullPath Condition="'$(Protobuf_ProtocFullPath)' == '' and '$(USERPROFILE)' != '' and Exists('$(USERPROFILE)\.nuget\packages\grpc.tools\2.76.0\tools\windows_x64\protoc.exe')">$(USERPROFILE)\.nuget\packages\grpc.tools\2.76.0\tools\windows_x64\protoc.exe</Protobuf_ProtocFullPath>
     <Protobuf_GrpcFullPath Condition="'$(Protobuf_GrpcFullPath)' == '' and '$(USERPROFILE)' != '' and Exists('$(USERPROFILE)\.nuget\packages\grpc.tools\2.76.0\tools\windows_x64\grpc_csharp_plugin.exe')">$(USERPROFILE)\.nuget\packages\grpc.tools\2.76.0\tools\windows_x64\grpc_csharp_plugin.exe</Protobuf_GrpcFullPath>
-
     <_UserNuGetPackages Condition="'$(USERPROFILE)' != ''">$(USERPROFILE)\.nuget\packages\</_UserNuGetPackages>
     <Protobuf_ImportPaths>Protobuf\;$(_UserNuGetPackages)google.api.commonprotos\2.17.0\content\protos;$(_UserNuGetPackages)grpc.tools\2.76.0\build\native\include</Protobuf_ImportPaths>
-
   </PropertyGroup>
 
-
-
   <ItemGroup>
-
     <Protobuf Include="Protobuf\Api\api.proto" GrpcServices="None" AdditionalImportDirs="$(Protobuf_ImportPaths)" />
-
     <Protobuf Include="Protobuf\Realtime\realtime.proto" GrpcServices="None" AdditionalImportDirs="$(Protobuf_ImportPaths)" />
-
   </ItemGroup>
-
-
-
 </Project>
-
-

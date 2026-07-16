@@ -22,21 +22,36 @@ namespace Mezon.Net.Queue
         private CancellationToken _parentToken = CancellationToken.None;
         private CancellationTokenSource? _requestCancelTokenSource;
         private CancellationToken _requestCancelToken = CancellationToken.None;
-        private TransportRateLimiter _transportLimiter = new TransportRateLimiter();
+        private readonly TransportRateLimiter _transportLimiter = new TransportRateLimiter();
+        private Func<IRateLimitInfo, Task>? _defaultRatelimitCallback;
 
+        /// <summary>
+        ///     Updates transport rate-limit capacities without replacing the limiter instance.
+        /// </summary>
         internal void ConfigureTransportLimits(
             int maxRequestsPerSecond,
             int maxRequestsPerMinute,
             int maxConnectRequestsPerSecond)
         {
-            _transportLimiter = new TransportRateLimiter(
+            _transportLimiter.Configure(
                 maxRequestsPerSecond,
                 maxRequestsPerMinute,
                 maxConnectRequestsPerSecond);
         }
 
+        /// <summary>
+        ///     Sets the client-wide default rate-limit callback applied when a request has none.
+        /// </summary>
+        internal void SetDefaultRatelimitCallback(Func<IRateLimitInfo, Task>? callback)
+        {
+            _defaultRatelimitCallback = callback;
+        }
+
         internal ValueTask EnterTransportAsync(RequestOptions options)
-            => _transportLimiter.EnterAsync(options.CancelToken);
+        {
+            options.ApplyDefaultRatelimitCallback(_defaultRatelimitCallback);
+            return _transportLimiter.EnterAsync(options.CancelToken, options.RatelimitCallback);
+        }
 
         internal void BeginConnectPhase() => _transportLimiter.BeginConnectPhase();
 
@@ -81,10 +96,16 @@ namespace Mezon.Net.Queue
         public async Task<Stream> SendAsync(ApiRequest request)
         {
             CancellationTokenSource? createdTokenSource = null;
-            if (request.Options.CancelToken.CanBeCanceled)
+            var requestToken = request.Options.CancelToken;
+
+            if (requestToken.CanBeCanceled && _requestCancelToken.CanBeCanceled)
             {
-                createdTokenSource = CancellationTokenSource.CreateLinkedTokenSource(_requestCancelToken, request.Options.CancelToken);
+                createdTokenSource = CancellationTokenSource.CreateLinkedTokenSource(_requestCancelToken, requestToken);
                 request.Options.CancelToken = createdTokenSource.Token;
+            }
+            else if (requestToken.CanBeCanceled)
+            {
+                request.Options.CancelToken = requestToken;
             }
             else
             {
@@ -115,6 +136,11 @@ namespace Mezon.Net.Queue
             {
                 try
                 {
+                    if (response.Stream.CanSeek && response.Stream.Length == 0)
+                    {
+                        return new HttpException(response.StatusCode, request, reason);
+                    }
+
                     using var reader = new StreamReader(response.Stream);
                     var json = reader.ReadToEnd();
                     if (!string.IsNullOrEmpty(json))
@@ -123,7 +149,10 @@ namespace Mezon.Net.Queue
                         reason = error?.Message ?? json;
                     }
                 }
-                catch { }
+                catch
+                {
+                    // Best-effort error body parsing.
+                }
             }
 
             return new HttpException(response.StatusCode, request, reason);

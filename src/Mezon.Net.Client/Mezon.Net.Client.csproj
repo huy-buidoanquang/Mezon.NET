@@ -1,16 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <Import Project="../../Mezon.Net.targets" />
+
   <PropertyGroup>
-    <TargetFramework>netstandard2.1</TargetFramework>
     <TargetFrameworks>netstandard2.1;net6.0;net8.0;net9.0;net10.0;</TargetFrameworks>
     <WarningLevel>5</WarningLevel>
     <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
     <IsTrimmable>false</IsTrimmable>
     <IsAotCompatible>false</IsAotCompatible>
-    <IncludeSymbols>true</IncludeSymbols>
-    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <Nullable>enable</Nullable>
     <WarningsAsErrors>$(WarningsAsErrors);CS8600;CS8602;CS8603</WarningsAsErrors>
+    <PackageId>Mezon.Net.Client</PackageId>
+    <Description>Mezon.Net socket engine — API-over-socket, realtime envelopes, events, and session lifecycle.</Description>
+    <IsPackable>true</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
@@ -33,9 +34,4 @@
     <InternalsVisibleTo Include="Mezon.Net.Client.Tests" />
     <InternalsVisibleTo Include="Mezon.Net.Sdk" />
   </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Constants\" />
-  </ItemGroup>
-
 </Project>

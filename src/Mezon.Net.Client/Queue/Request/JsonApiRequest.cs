@@ -15,6 +15,12 @@ namespace Mezon.Net.Queue
         }
 
         public override Task<HttpResponse> SendAsync()
-            => RestClient.SendAsync(Method, Endpoint, Json, Options.CancelToken, Options.HeaderOnly, Options.RequestHeaders);
+            => RestClient.SendAsync(
+                Method,
+                Endpoint,
+                Json,
+                Options.CancelToken,
+                Options.HeaderOnly,
+                Options.HasRequestHeaders ? Options.RequestHeaders : null);
     }
 }
