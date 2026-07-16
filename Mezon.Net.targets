@@ -1,36 +1,47 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-    <PropertyGroup>
-        <VersionPrefix>2</VersionPrefix>
-        <LangVersion>latest</LangVersion>
-        <Authors>Mezon.Net Contributors</Authors>
-        <PackageTags>mezon;mezon.net</PackageTags>
-        <PackageProjectUrl>https://github.com/Mezon-Net/Mezon.Net</PackageProjectUrl>
-        <PackageLicenseExpression>MIT</PackageLicenseExpression>
-        <PackageIcon>PackageLogo.png</PackageIcon>
-        <RepositoryType>git</RepositoryType>
-        <RepositoryUrl>git://github.com/Mezon-Net/Mezon.Net</RepositoryUrl>
-        <PackageReadmeFile>NUGET_README.md</PackageReadmeFile>
-    </PropertyGroup>
-    <PropertyGroup Condition=" '$(IsTagBuild)' == 'true' ">
-        <VersionSuffix Condition=" '$(BuildNumber)' == '' "></VersionSuffix>
-        <VersionSuffix Condition=" '$(BuildNumber)' != '' ">$(BuildNumber)</VersionSuffix>
-        <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
-    </PropertyGroup>
-    <PropertyGroup Condition=" '$(BuildNumber)' == '' And $(IsTagBuild) != 'true' ">
-        <VersionSuffix Condition=" '$(VersionSuffix)' != ''">$(VersionSuffix)-dev</VersionSuffix>
-        <VersionSuffix Condition=" '$(VersionSuffix)' == ''">dev</VersionSuffix>
-    </PropertyGroup>
-    <PropertyGroup Condition=" '$(BuildNumber)' != '' And $(IsTagBuild) != 'true' ">
-        <VersionSuffix Condition=" '$(VersionSuffix)' != '' ">$(VersionSuffix)-$(BuildNumber)</VersionSuffix>
-        <VersionSuffix Condition=" '$(VersionSuffix)' == '' ">$(BuildNumber)</VersionSuffix>
-    </PropertyGroup>
-    <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
-        <NoWarn>$(NoWarn);CS1573;CS1591</NoWarn>
-        <WarningsAsErrors>true</WarningsAsErrors>
-        <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    </PropertyGroup>
-    <ItemGroup>
-        <None Include="../../docs/marketing/logo/PackageLogo.png" Pack="true" PackagePath=""/>
-        <None Include="../../NUGET_README.md" Pack="true" PackagePath=""/>
-    </ItemGroup>
+  <PropertyGroup>
+    <VersionPrefix>0.1.0</VersionPrefix>
+    <LangVersion>latest</LangVersion>
+    <Authors>Mezon.Net Contributors</Authors>
+    <Company>Mezon.Net</Company>
+    <Copyright>Copyright (c) Mezon.Net Contributors</Copyright>
+    <PackageTags>mezon;mezon.net;chat;bot;realtime;websocket;protobuf</PackageTags>
+    <PackageProjectUrl>https://github.com/Mezon-Net/Mezon.Net</PackageProjectUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageIcon>PackageLogo.png</PackageIcon>
+    <PackageReadmeFile>NUGET_README.md</PackageReadmeFile>
+    <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/Mezon-Net/Mezon.Net</RepositoryUrl>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+  </PropertyGroup>
+
+  <PropertyGroup Condition=" '$(IsTagBuild)' == 'true' ">
+    <VersionSuffix Condition=" '$(BuildNumber)' == '' "></VersionSuffix>
+    <VersionSuffix Condition=" '$(BuildNumber)' != '' ">$(BuildNumber)</VersionSuffix>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(BuildNumber)' == '' And $(IsTagBuild) != 'true' ">
+    <VersionSuffix Condition=" '$(VersionSuffix)' != ''">$(VersionSuffix)-dev</VersionSuffix>
+    <VersionSuffix Condition=" '$(VersionSuffix)' == ''">dev</VersionSuffix>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(BuildNumber)' != '' And $(IsTagBuild) != 'true' ">
+    <VersionSuffix Condition=" '$(VersionSuffix)' != '' ">$(VersionSuffix)-$(BuildNumber)</VersionSuffix>
+    <VersionSuffix Condition=" '$(VersionSuffix)' == '' ">$(BuildNumber)</VersionSuffix>
+  </PropertyGroup>
+
+  <!-- XML docs for IntelliSense / NuGet; missing docs suppressed until full public API coverage. -->
+  <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+    <NoWarn>$(NoWarn);CS1573;CS1591</NoWarn>
+    <WarningsAsErrors>true</WarningsAsErrors>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)docs\marketing\logo\PackageLogo.png" Pack="true" PackagePath="" Condition="Exists('$(MSBuildThisFileDirectory)docs\marketing\logo\PackageLogo.png')" />
+    <None Include="$(MSBuildThisFileDirectory)NUGET_README.md" Pack="true" PackagePath="" Condition="Exists('$(MSBuildThisFileDirectory)NUGET_README.md')" />
+  </ItemGroup>
 </Project>

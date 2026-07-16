@@ -43,6 +43,7 @@ namespace Mezon.Net.Transport.Internal
                 case PongPrefix:
                     if (TryReadPongFrame(ref reader, out cid))
                     {
+                        code = 0;
                         type = MezonMessageType.Heartbeat;
                         buffer = buffer.Slice(reader.Position);
                         return true;
@@ -69,6 +70,7 @@ namespace Mezon.Net.Transport.Internal
                 default:
                     if (TryReadRealtimeFrame(ref reader, prefix, out frame))
                     {
+                        code = 0;
                         type = MezonMessageType.Realtime;
                         buffer = buffer.Slice(reader.Position);
                         return true;

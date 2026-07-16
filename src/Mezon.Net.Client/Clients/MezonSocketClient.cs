@@ -52,6 +52,7 @@ namespace Mezon.Net.Client
                 options.MaxTransportRequestsPerSecond,
                 options.MaxTransportRequestsPerMinute,
                 options.MaxConnectRequestsPerSecond);
+            RequestQueue.SetDefaultRatelimitCallback(options.DefaultRatelimitCallback);
             NetworkTransporter.Opened += NetworkTransporter_Opened;
             NetworkTransporter.Closed += NetworkTransporter_Closed;
             NetworkTransporter.ErrorOccurred += NetworkTransporter_ErrorOccurred;
@@ -106,7 +107,7 @@ namespace Mezon.Net.Client
                 _connectCancelToken = new CancellationTokenSource();
                 NetworkTransporter.SetCancelToken(_connectCancelToken.Token);
                 var socketOptions = (MezonSocketClientOptions)MezonOptions;
-                var (host, port, token) = GetTransportEndpoint(socketOptions);
+                var (host, port, token) = GetTransportEndpoint();
                 await NetworkTransporter.ConnectAsync(host, port, token, useSsl: true, createStatus: socketOptions.CreateStatusOnConnect).ConfigureAwait(false);
                 ConnectionState = ConnectionState.Connected;
             }
@@ -208,14 +209,25 @@ namespace Mezon.Net.Client
             }
         }
 
-        private (string host, int port, string token) GetTransportEndpoint(MezonSocketClientOptions options)
+        private (string host, int port, string token) GetTransportEndpoint()
         {
-            var session = SessionManager<MezonSocketClientOptions>.Instance.CurrentSession();
+            var session = SessionManager<MezonApiClientOptions>.Instance.CurrentSession();
             var connectToken = !string.IsNullOrEmpty(session.SessionId)
                 ? session.SessionId
                 : session.AuthToken ?? string.Empty;
             var endpointUrl = _transportType == TransportType.Tcp || _transportType == TransportType.Auto ? session.TcpUrl : session.WsUrl;
+
+            if (endpointUrl == null)
+            {
+                return (string.Empty, 0, connectToken);
+            }
+
             var parts = endpointUrl.Split(':');
+            if (parts == null)
+            {
+                return (string.Empty, 0, connectToken);
+            }
+
             if (parts.Length >= 2 && int.TryParse(parts[^1], out var port))
             {
                 return (parts[0], port, connectToken);
@@ -240,22 +252,18 @@ namespace Mezon.Net.Client
             return Task.CompletedTask;
         }
 
-        private async Task NetworkTransporter_Closed(Exception? exception)
+        private Task NetworkTransporter_Closed(Exception? exception)
         {
             if (ConnectionState == ConnectionState.Disconnected)
             {
-                await NotifyDisconnectedAsync(exception).ConfigureAwait(false);
-                return;
+                if (!_socketDisconnected.HasSubscribers)
+                {
+                    return Task.CompletedTask;
+                }
+
+                return _socketDisconnected.InvokeAsync(exception ?? new Exception("Socket closed."));
             }
 
-            // Transport is already closed when this event fires. Do not call
-            // DisconnectInternalAsync here — it would re-enter transport.DisconnectAsync
-            // and deadlock while the transport still holds its disconnect lock.
-            await CompleteTransportClosedAsync(exception).ConfigureAwait(false);
-        }
-
-        private async Task CompleteTransportClosedAsync(Exception? exception)
-        {
             ConnectionState = ConnectionState.Disconnecting;
             try
             {
@@ -266,11 +274,6 @@ namespace Mezon.Net.Client
             }
 
             ConnectionState = ConnectionState.Disconnected;
-            await NotifyDisconnectedAsync(exception).ConfigureAwait(false);
-        }
-
-        private Task NotifyDisconnectedAsync(Exception? exception)
-        {
             if (!_socketDisconnected.HasSubscribers)
             {
                 return Task.CompletedTask;
@@ -290,7 +293,7 @@ namespace Mezon.Net.Client
             {
                 if (type == MezonMessageType.Heartbeat)
                 {
-                    if (cid == IgnoreMessage)
+                    if (cid == -1)
                     {
                         return default;
                     }
@@ -309,7 +312,7 @@ namespace Mezon.Net.Client
 
                 if (type == MezonMessageType.Api)
                 {
-                    if (cid == IgnoreMessage || code == IgnoreMessage)
+                    if (cid == -1 || code == -1)
                     {
                         return default;
                     }
@@ -379,19 +382,8 @@ namespace Mezon.Net.Client
             return base.DisposeAsync(disposing);
         }
 
-        #region Socket API
-
-        public int LatencyMilliseconds { get; private set; }
-
-        internal int PendingSocketRequestCount => _correlationHub.PendingCount;
-
-        public Task<TResponse> SendApiAsync<TRequest, TResponse>(
-            string apiName,
-            TRequest request,
-            MessageParser<TResponse> responseParser,
-            RequestOptions? options = null)
-            where TRequest : IMessage<TRequest>
-            where TResponse : IMessage<TResponse>
+        #region Core
+        public Task<TResponse> SendSocketApiAsync<TRequest, TResponse>(string apiName, TRequest request, MessageParser<TResponse> responseParser, RequestOptions? options = null) where TRequest : IMessage<TRequest> where TResponse : IMessage<TResponse>
         {
             if (!MezonApiMap.TryGetIndex(apiName, out var apiIndex))
             {
@@ -408,14 +400,10 @@ namespace Mezon.Net.Client
                 }
             };
 
-            return SendApiAsync(envelope, responseParser, options);
+            return SendSocketApiInternalAsync(envelope, responseParser, options);
         }
 
-        public async Task<TResponse> SendApiAsync<TResponse>(
-            Envelope envelope,
-            MessageParser<TResponse> responseParser,
-            RequestOptions? options = null)
-            where TResponse : IMessage<TResponse>
+        private async Task<TResponse> SendSocketApiInternalAsync<TResponse>(Envelope envelope, MessageParser<TResponse> responseParser, RequestOptions? options = null) where TResponse : IMessage<TResponse>
         {
             options ??= RequestOptions.CreateOrClone(options);
             CheckState();
@@ -490,12 +478,7 @@ namespace Mezon.Net.Client
             }
         }
 
-        internal async Task SendSocketInternalAsync(
-            MezonMessageType type,
-            int cid,
-            ReadOnlyMemory<byte> data,
-            RequestOptions options,
-            bool bypassRateLimiter = false)
+        internal async Task SendSocketInternalAsync(MezonMessageType type, int cid, ReadOnlyMemory<byte> data, RequestOptions options, bool bypassRateLimiter = false)
         {
             if (!bypassRateLimiter)
             {
@@ -504,28 +487,35 @@ namespace Mezon.Net.Client
 
             await NetworkTransporter.SendAsync(type, cid, data).ConfigureAwait(false);
         }
+        #endregion
 
+        #region Socket API
+
+        public int LatencyMilliseconds { get; private set; }
+
+        internal int PendingSocketRequestCount => _correlationHub.PendingCount;
+        
         public override Task<ClanDescList> ListClanDescsAsync(ListClanDescRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("ListClanDescs", body, ClanDescList.Parser, options);
+            return SendSocketApiAsync("ListClanDescs", body, ClanDescList.Parser, options);
         }
 
         public override Task<MezonSession> RefreshSessionAsync(string basicAuthUsername, string basicAuthPassword, global::Mezon.Net.Internal.Api.SessionRefreshRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
             options ??= RequestOptions.CreateOrClone(options);
-            return SendApiAsync("SessionRefresh", body, MezonSession.Parser, options);
+            return SendSocketApiAsync("SessionRefresh", body, MezonSession.Parser, options);
         }
 
         public override async Task DeleteAccountAsync(RequestOptions? options = null)
         {
-            await SendApiAsync("DeleteAccount", new Empty(), Empty.Parser, options);
+            await SendSocketApiAsync("DeleteAccount", new Empty(), Empty.Parser, options);
         }
 
         public override Task<Account> GetAccountAsync(RequestOptions? options = null)
         {
-            return SendApiAsync("GetAccount", new Empty(), Account.Parser, options);
+            return SendSocketApiAsync("GetAccount", new Empty(), Account.Parser, options);
         }
 
         public override Task<AddFriendsResponse> AddFriendsAsync(IEnumerable<long>? ids = null, IEnumerable<string>? usernames = null, RequestOptions? options = null)
@@ -545,7 +535,7 @@ namespace Mezon.Net.Client
                     request.Usernames.Add(username);
                 }
             }
-            return SendApiAsync("AddFriends", request, AddFriendsResponse.Parser, options);
+            return SendSocketApiAsync("AddFriends", request, AddFriendsResponse.Parser, options);
         }
 
         public override async Task BlockFriendsAsync(IEnumerable<long>? ids = null, IEnumerable<string>? usernames = null, RequestOptions? options = null)
@@ -565,7 +555,7 @@ namespace Mezon.Net.Client
                     request.Usernames.Add(username);
                 }
             }
-            await SendApiAsync("BlockFriends", request, Empty.Parser, options);
+            await SendSocketApiAsync("BlockFriends", request, Empty.Parser, options);
         }
 
         public override async Task UnblockFriendsAsync(IEnumerable<long>? ids = null, IEnumerable<string>? usernames = null, RequestOptions? options = null)
@@ -585,7 +575,7 @@ namespace Mezon.Net.Client
                     request.Usernames.Add(username);
                 }
             }
-            await SendApiAsync("UnblockFriends", request, Empty.Parser, options);
+            await SendSocketApiAsync("UnblockFriends", request, Empty.Parser, options);
         }
 
         public override async Task DeleteFriendsAsync(IEnumerable<long>? ids = null, IEnumerable<string>? usernames = null, RequestOptions? options = null)
@@ -605,7 +595,7 @@ namespace Mezon.Net.Client
                     request.Usernames.Add(username);
                 }
             }
-            await SendApiAsync("DeleteFriends", request, Empty.Parser, options);
+            await SendSocketApiAsync("DeleteFriends", request, Empty.Parser, options);
         }
 
         public override Task<FriendList> ListFriendsAsync(int? state = null, int? limit = null, string? cursor = null, RequestOptions? options = null)
@@ -623,7 +613,7 @@ namespace Mezon.Net.Client
             {
                 request.Cursor = cursor;
             }
-            return SendApiAsync("ListFriends", request, FriendList.Parser, options);
+            return SendSocketApiAsync("ListFriends", request, FriendList.Parser, options);
         }
 
         public override Task<ClanDesc> CreateClanDescAsync(string clanName, string? logo = null, string? banner = null, RequestOptions? options = null)
@@ -639,27 +629,27 @@ namespace Mezon.Net.Client
             {
                 request.Banner = banner;
             }
-            return SendApiAsync("CreateClanDesc", request, ClanDesc.Parser, options);
+            return SendSocketApiAsync("CreateClanDesc", request, ClanDesc.Parser, options);
         }
 
         public override async Task DeleteClanDescAsync(long clanId, RequestOptions? options = null)
         {
             var request = new DeleteClanDescRequest();
             request.ClanDescId = clanId;
-            await SendApiAsync("DeleteClanDesc", request, Empty.Parser, options);
+            await SendSocketApiAsync("DeleteClanDesc", request, Empty.Parser, options);
         }
 
         public override async Task UpdateClanDescAsync(UpdateClanDescRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("UpdateClanDesc", body, Empty.Parser, options);
+            await SendSocketApiAsync("UpdateClanDesc", body, Empty.Parser, options);
         }
 
         public override Task<ClanUserList> ListClanUsersAsync(long clanId, RequestOptions? options = null)
         {
             var request = new ListClanUsersRequest();
             request.ClanId = clanId;
-            return SendApiAsync("ListClanUsers", request, ClanUserList.Parser, options);
+            return SendSocketApiAsync("ListClanUsers", request, ClanUserList.Parser, options);
         }
 
         public override async Task RemoveClanUsersAsync(long clanId, IEnumerable<long> userIds, RequestOptions? options = null)
@@ -671,7 +661,7 @@ namespace Mezon.Net.Client
             {
                 request.UserIds.Add(userId);
             }
-            await SendApiAsync("RemoveClanUsers", request, Empty.Parser, options);
+            await SendSocketApiAsync("RemoveClanUsers", request, Empty.Parser, options);
         }
 
         public override async Task BanClanUsersAsync(long clanId, long channelId, IEnumerable<long> userIds, int? banTime = null, string? reason = null, RequestOptions? options = null)
@@ -692,26 +682,27 @@ namespace Mezon.Net.Client
             {
                 request.Reason = reason;
             }
-            await SendApiAsync("BanClanUsers", request, Empty.Parser, options);
+            await SendSocketApiAsync("BanClanUsers", request, Empty.Parser, options);
         }
 
         public override Task<Internal.Api.ChannelDescription> CreateChannelDescAsync(CreateChannelDescRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("CreateChannelDesc", body, Internal.Api.ChannelDescription.Parser, options);
+            return SendSocketApiAsync("CreateChannelDesc", body, Internal.Api.ChannelDescription.Parser, options);
         }
 
         public override async Task DeleteChannelDescAsync(long channelId, RequestOptions? options = null)
         {
             var request = new DeleteChannelDescRequest();
             request.ChannelId = channelId;
-            await SendApiAsync("DeleteChannelDesc", request, Empty.Parser, options);
+            request.ClanId = 2050100607154393088;
+            await SendSocketApiAsync("DeleteChannelDesc", request, Empty.Parser, options);
         }
 
         public override async Task UpdateChannelDescAsync(UpdateChannelDescRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("UpdateChannelDesc", body, Empty.Parser, options);
+            await SendSocketApiAsync("UpdateChannelDesc", body, Empty.Parser, options);
         }
 
         public override async Task AddChannelUsersAsync(long channelId, IEnumerable<long> userIds, RequestOptions? options = null)
@@ -723,7 +714,7 @@ namespace Mezon.Net.Client
             {
                 request.UserIds.Add(userId);
             }
-            await SendApiAsync("AddChannelUsers", request, Empty.Parser, options);
+            await SendSocketApiAsync("AddChannelUsers", request, Empty.Parser, options);
         }
 
         public override async Task RemoveChannelUsersAsync(long channelId, IEnumerable<long> userIds, RequestOptions? options = null)
@@ -735,7 +726,7 @@ namespace Mezon.Net.Client
             {
                 request.UserIds.Add(userId);
             }
-            await SendApiAsync("RemoveChannelUsers", request, Empty.Parser, options);
+            await SendSocketApiAsync("RemoveChannelUsers", request, Empty.Parser, options);
         }
 
         public override Task<ChannelMessageList> ListChannelMessagesAsync(long clanId, long channelId, long? messageId = null, int? direction = null, int? limit = null, long? topicId = null, RequestOptions? options = null)
@@ -759,7 +750,7 @@ namespace Mezon.Net.Client
             {
                 request.TopicId = topicId.Value;
             }
-            return SendApiAsync("ListChannelMessages", request, ChannelMessageList.Parser, options);
+            return SendSocketApiAsync("ListChannelMessages", request, ChannelMessageList.Parser, options);
         }
 
         public override Task<ChannelUserList> ListChannelUsersAsync(long clanId, long channelId, int channelType, int? limit = null, int? state = null, string? cursor = null, RequestOptions? options = null)
@@ -780,32 +771,32 @@ namespace Mezon.Net.Client
             {
                 request.Cursor = cursor;
             }
-            return SendApiAsync("ListChannelUsers", request, ChannelUserList.Parser, options);
+            return SendSocketApiAsync("ListChannelUsers", request, ChannelUserList.Parser, options);
         }
 
         public override async Task DeleteRoleAsync(long roleId, RequestOptions? options = null)
         {
             var request = new DeleteRoleRequest();
             request.RoleId = roleId;
-            await SendApiAsync("DeleteRole", request, Empty.Parser, options);
+            await SendSocketApiAsync("DeleteRole", request, Empty.Parser, options);
         }
 
         public override Task<RoleListEventResponse> ListRolesAsync(RoleListEventRequest request, RequestOptions? options = null)
         {
-            return SendApiAsync("ListRoles", request, RoleListEventResponse.Parser, options);
+            return SendSocketApiAsync("ListRoles", request, RoleListEventResponse.Parser, options);
         }
 
         public override async Task UpdateUserAsync(UpdateUsersRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("UpdateUser", body, Empty.Parser, options);
+            await SendSocketApiAsync("UpdateUser", body, Empty.Parser, options);
         }
 
         public override async Task DeleteEventAsync(long eventId, RequestOptions? options = null)
         {
             var request = new DeleteEventRequest();
             request.EventId = eventId;
-            await SendApiAsync("DeleteEvent", request, Empty.Parser, options);
+            await SendSocketApiAsync("DeleteEvent", request, Empty.Parser, options);
         }
 
         public override Task<EventList> ListEventsAsync(long? clanId = null, RequestOptions? options = null)
@@ -815,13 +806,13 @@ namespace Mezon.Net.Client
             {
                 request.ClanId = clanId.Value;
             }
-            return SendApiAsync("ListEvents", request, EventList.Parser, options);
+            return SendSocketApiAsync("ListEvents", request, EventList.Parser, options);
         }
 
         public override Task<ChannelMessage> CreatePinMessageAsync(PinMessageRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("CreatePinMessage", body, ChannelMessage.Parser, options);
+            return SendSocketApiAsync("CreatePinMessage", body, ChannelMessage.Parser, options);
         }
 
         public override Task<PinMessagesList> GetPinMessagesListAsync(long channelId, long clanId, RequestOptions? options = null)
@@ -829,7 +820,7 @@ namespace Mezon.Net.Client
             var request = new PinMessageRequest();
             request.ChannelId = channelId;
             request.ClanId = clanId;
-            return SendApiAsync("GetPinMessagesList", request, PinMessagesList.Parser, options);
+            return SendSocketApiAsync("GetPinMessagesList", request, PinMessagesList.Parser, options);
         }
 
         public override async Task DeletePinMessageAsync(long messageId, long channelId, long clanId, RequestOptions? options = null)
@@ -838,25 +829,25 @@ namespace Mezon.Net.Client
             request.MessageId = messageId;
             request.ChannelId = channelId;
             request.ClanId = clanId;
-            await SendApiAsync("DeletePinMessage", request, Empty.Parser, options);
+            await SendSocketApiAsync("DeletePinMessage", request, Empty.Parser, options);
         }
 
         public override async Task MarkAsReadAsync(MarkAsReadRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("MarkAsRead", body, Empty.Parser, options);
+            await SendSocketApiAsync("MarkAsRead", body, Empty.Parser, options);
         }
 
         public override async Task CreateClanEmojiAsync(ClanEmojiCreateRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("CreateClanEmoji", body, Empty.Parser, options);
+            await SendSocketApiAsync("CreateClanEmoji", body, Empty.Parser, options);
         }
 
         public override async Task UpdateClanEmojiByIdAsync(ClanEmojiUpdateRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("UpdateClanEmojiById", body, Empty.Parser, options);
+            await SendSocketApiAsync("UpdateClanEmojiById", body, Empty.Parser, options);
         }
 
         public override async Task DeleteClanEmojiByIdAsync(long emojiId, long clanId, RequestOptions? options = null)
@@ -864,19 +855,19 @@ namespace Mezon.Net.Client
             var request = new ClanEmojiDeleteRequest();
             request.Id = emojiId;
             request.ClanId = clanId;
-            await SendApiAsync("DeleteByIdClanEmoji", request, Empty.Parser, options);
+            await SendSocketApiAsync("DeleteByIdClanEmoji", request, Empty.Parser, options);
         }
 
         public override async Task AddClanStickerAsync(ClanStickerAddRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("AddClanSticker", body, Empty.Parser, options);
+            await SendSocketApiAsync("AddClanSticker", body, Empty.Parser, options);
         }
 
         public override async Task UpdateClanStickerByIdAsync(ClanStickerUpdateByIdRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("UpdateClanStickerById", body, Empty.Parser, options);
+            await SendSocketApiAsync("UpdateClanStickerById", body, Empty.Parser, options);
         }
 
         public override async Task DeleteClanStickerByIdAsync(long stickerId, long clanId, RequestOptions? options = null)
@@ -884,23 +875,23 @@ namespace Mezon.Net.Client
             var request = new ClanStickerDeleteRequest();
             request.Id = stickerId;
             request.ClanId = clanId;
-            await SendApiAsync("DeleteClanStickerById", request, Empty.Parser, options);
+            await SendSocketApiAsync("DeleteClanStickerById", request, Empty.Parser, options);
         }
 
         public override Task<EmojiListedResponse> GetListEmojisByUserIdAsync(RequestOptions? options = null)
         {
-            return SendApiAsync("GetListEmojisByUserId", new Empty(), EmojiListedResponse.Parser, options);
+            return SendSocketApiAsync("GetListEmojisByUserId", new Empty(), EmojiListedResponse.Parser, options);
         }
 
         public override Task<StickerListedResponse> GetListStickersByUserIdAsync(RequestOptions? options = null)
         {
-            return SendApiAsync("GetListStickersByUserId", new Empty(), StickerListedResponse.Parser, options);
+            return SendSocketApiAsync("GetListStickersByUserId", new Empty(), StickerListedResponse.Parser, options);
         }
 
         public override Task<WebhookGenerateResponse> GenerateWebhookAsync(WebhookCreateRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("GenerateWebhook", body, WebhookGenerateResponse.Parser, options);
+            return SendSocketApiAsync("GenerateWebhook", body, WebhookGenerateResponse.Parser, options);
         }
 
         public override Task<WebhookListResponse> ListWebhookByChannelIdAsync(long channelId, long clanId, RequestOptions? options = null)
@@ -908,70 +899,70 @@ namespace Mezon.Net.Client
             var request = new WebhookListRequest();
             request.ChannelId = channelId;
             request.ClanId = clanId;
-            return SendApiAsync("ListWebhookByChannelId", request, WebhookListResponse.Parser, options);
+            return SendSocketApiAsync("ListWebhookByChannelId", request, WebhookListResponse.Parser, options);
         }
 
         public override async Task UpdateWebhookByIdAsync(WebhookUpdateRequestById body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("UpdateWebhookById", body, Empty.Parser, options);
+            await SendSocketApiAsync("UpdateWebhookById", body, Empty.Parser, options);
         }
 
         public override async Task DeleteWebhookByIdAsync(WebhookDeleteRequestById body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("DeleteWebhookById", body, Empty.Parser, options);
+            await SendSocketApiAsync("DeleteWebhookById", body, Empty.Parser, options);
         }
 
         public override async Task CreateSystemMessageAsync(SystemMessageRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("CreateSystemMessage", body, Empty.Parser, options);
+            await SendSocketApiAsync("CreateSystemMessage", body, Empty.Parser, options);
         }
 
         public override async Task UpdateSystemMessageAsync(SystemMessageRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("UpdateSystemMessage", body, Empty.Parser, options);
+            await SendSocketApiAsync("UpdateSystemMessage", body, Empty.Parser, options);
         }
 
         public override Task<SystemMessage> GetSystemMessageByClanIdAsync(long clanId, RequestOptions? options = null)
         {
             var request = new GetSystemMessage();
             request.ClanId = clanId;
-            return SendApiAsync("GetSystemMessageByClanId", request, SystemMessage.Parser, options);
+            return SendSocketApiAsync("GetSystemMessageByClanId", request, SystemMessage.Parser, options);
         }
 
         public override async Task DeleteSystemMessageAsync(long clanId, RequestOptions? options = null)
         {
             var request = new DeleteSystemMessage();
             request.ClanId = clanId;
-            await SendApiAsync("DeleteSystemMessage", request, Empty.Parser, options);
+            await SendSocketApiAsync("DeleteSystemMessage", request, Empty.Parser, options);
         }
 
         public override async Task UpdateRoleOrderAsync(UpdateRoleOrderRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("UpdateRoleOrder", body, Empty.Parser, options);
+            await SendSocketApiAsync("UpdateRoleOrder", body, Empty.Parser, options);
         }
 
         public override async Task UpdateClanOrderAsync(UpdateClanOrderRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("UpdateClanOrder", body, Empty.Parser, options);
+            await SendSocketApiAsync("UpdateClanOrder", body, Empty.Parser, options);
         }
 
         public override Task<ChanEncryptionMethod> GetChanEncryptionMethodAsync(long channelId, RequestOptions? options = null)
         {
             var request = new ChanEncryptionMethod();
             request.ChannelId = channelId;
-            return SendApiAsync("GetChanEncryptionMethod", request, ChanEncryptionMethod.Parser, options);
+            return SendSocketApiAsync("GetChanEncryptionMethod", request, ChanEncryptionMethod.Parser, options);
         }
 
         public override async Task SetChanEncryptionMethodAsync(ChanEncryptionMethod body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("SetChanEncryptionMethod", body, Empty.Parser, options);
+            await SendSocketApiAsync("SetChanEncryptionMethod", body, Empty.Parser, options);
         }
 
         public override Task<GetPubKeysResponse> GetPublicKeysAsync(IEnumerable<long> userIds, RequestOptions? options = null)
@@ -982,18 +973,18 @@ namespace Mezon.Net.Client
             {
                 request.UserIds.Add(userId);
             }
-            return SendApiAsync("GetPubKeys", request, GetPubKeysResponse.Parser, options);
+            return SendSocketApiAsync("GetPubKeys", request, GetPubKeysResponse.Parser, options);
         }
 
         public override async Task PushPublicKeyAsync(PushPubKeyRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("PushPubKey", body, Empty.Parser, options);
+            await SendSocketApiAsync("PushPubKey", body, Empty.Parser, options);
         }
 
         public override Task<GetKeyServerResp> GetKeyServerAsync(RequestOptions? options = null)
         {
-            return SendApiAsync("GetKeyServer", new Empty(), GetKeyServerResp.Parser, options);
+            return SendSocketApiAsync("GetKeyServer", new Empty(), GetKeyServerResp.Parser, options);
         }
 
         public override Task<ListOnboardingResponse> ListOnboardingAsync(long clanId, int? guideType = null, RequestOptions? options = null)
@@ -1004,7 +995,7 @@ namespace Mezon.Net.Client
             {
                 request.GuideType = guideType.Value;
             }
-            return SendApiAsync("ListOnboarding", request, ListOnboardingResponse.Parser, options);
+            return SendSocketApiAsync("ListOnboarding", request, ListOnboardingResponse.Parser, options);
         }
 
         public override Task<OnboardingItem> GetOnboardingDetailAsync(long id, long clanId, RequestOptions? options = null)
@@ -1012,19 +1003,19 @@ namespace Mezon.Net.Client
             var request = new OnboardingRequest();
             request.Id = id;
             request.ClanId = clanId;
-            return SendApiAsync("GetOnboardingDetail", request, OnboardingItem.Parser, options);
+            return SendSocketApiAsync("GetOnboardingDetail", request, OnboardingItem.Parser, options);
         }
 
         public override Task<ListOnboardingResponse> CreateOnboardingAsync(CreateOnboardingRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("CreateOnboarding", body, ListOnboardingResponse.Parser, options);
+            return SendSocketApiAsync("CreateOnboarding", body, ListOnboardingResponse.Parser, options);
         }
 
         public override async Task UpdateOnboardingAsync(UpdateOnboardingRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("UpdateOnboarding", body, Empty.Parser, options);
+            await SendSocketApiAsync("UpdateOnboarding", body, Empty.Parser, options);
         }
 
         public override async Task DeleteOnboardingAsync(long id, long clanId, RequestOptions? options = null)
@@ -1032,41 +1023,41 @@ namespace Mezon.Net.Client
             var request = new OnboardingRequest();
             request.Id = id;
             request.ClanId = clanId;
-            await SendApiAsync("DeleteOnboarding", request, Empty.Parser, options);
+            await SendSocketApiAsync("DeleteOnboarding", request, Empty.Parser, options);
         }
 
         public override Task<ListUserActivity> ListActivityAsync(RequestOptions? options = null)
         {
-            return SendApiAsync("ListActivity", new Empty(), ListUserActivity.Parser, options);
+            return SendSocketApiAsync("ListActivity", new Empty(), ListUserActivity.Parser, options);
         }
 
         public override Task<GenerateMeetTokenResponse> GenerateMeetTokenAsync(GenerateMeetTokenRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("GenerateMeetToken", body, GenerateMeetTokenResponse.Parser, options);
+            return SendSocketApiAsync("GenerateMeetToken", body, GenerateMeetTokenResponse.Parser, options);
         }
 
         public override async Task TransferOwnershipAsync(TransferOwnershipRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("TransferOwnership", body, Empty.Parser, options);
+            await SendSocketApiAsync("TransferOwnership", body, Empty.Parser, options);
         }
 
         public override Task<PermissionList> GetListPermissionAsync(RequestOptions? options = null)
         {
-            return SendApiAsync("GetListPermission", new Empty(), PermissionList.Parser, options);
+            return SendSocketApiAsync("GetListPermission", new Empty(), PermissionList.Parser, options);
         }
 
         public override Task<PermissionList> ListRolePermissionsAsync(long roleId, RequestOptions? options = null)
         {
             var request = new ListPermissionsRequest();
             request.RoleId = roleId;
-            return SendApiAsync("ListRolePermissions", request, PermissionList.Parser, options);
+            return SendSocketApiAsync("ListRolePermissions", request, PermissionList.Parser, options);
         }
 
         public override Task<RoleUserList> ListRoleUsersAsync(ListRoleUsersRequest request, RequestOptions? options = null)
         {
-            return SendApiAsync("ListRoleUsers", request, RoleUserList.Parser, options);
+            return SendSocketApiAsync("ListRoleUsers", request, RoleUserList.Parser, options);
         }
 
         public override Task<UserPermissionInChannelListResponse> ListUserPermissionInChannelAsync(long clanId, long channelId, RequestOptions? options = null)
@@ -1074,7 +1065,7 @@ namespace Mezon.Net.Client
             var request = new UserPermissionInChannelListRequest();
             request.ClanId = clanId;
             request.ChannelId = channelId;
-            return SendApiAsync("ListUserPermissionInChannel", request, UserPermissionInChannelListResponse.Parser, options);
+            return SendSocketApiAsync("ListUserPermissionInChannel", request, UserPermissionInChannelListResponse.Parser, options);
         }
 
         public override async Task DeleteNotificationsAsync(IEnumerable<long>? ids = null, int? category = null, RequestOptions? options = null)
@@ -1091,7 +1082,7 @@ namespace Mezon.Net.Client
             {
                 request.Category = category.Value;
             }
-            await SendApiAsync("DeleteNotifications", request, Empty.Parser, options);
+            await SendSocketApiAsync("DeleteNotifications", request, Empty.Parser, options);
         }
 
         public override Task<NotificationList> ListNotificationsAsync(long? clanId = null, long? notificationId = null, int? limit = null, int? category = null, int? direction = null, RequestOptions? options = null)
@@ -1117,13 +1108,13 @@ namespace Mezon.Net.Client
             {
                 request.Direction = direction.Value;
             }
-            return SendApiAsync("ListNotifications", request, NotificationList.Parser, options);
+            return SendSocketApiAsync("ListNotifications", request, NotificationList.Parser, options);
         }
 
         public override Task<CategoryDesc> CreateCategoryDescAsync(CreateCategoryDescRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("CreateCategoryDesc", body, CategoryDesc.Parser, options);
+            return SendSocketApiAsync("CreateCategoryDesc", body, CategoryDesc.Parser, options);
         }
 
         public override async Task DeleteCategoryDescAsync(long categoryId, long clanId, RequestOptions? options = null)
@@ -1131,70 +1122,70 @@ namespace Mezon.Net.Client
             var request = new DeleteCategoryDescRequest();
             request.CategoryId = categoryId;
             request.ClanId = clanId;
-            await SendApiAsync("DeleteCategoryDesc", request, Empty.Parser, options);
+            await SendSocketApiAsync("DeleteCategoryDesc", request, Empty.Parser, options);
         }
 
         public override async Task UpdateCategoryAsync(UpdateCategoryDescRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("UpdateCategory", body, Empty.Parser, options);
+            await SendSocketApiAsync("UpdateCategory", body, Empty.Parser, options);
         }
 
         public override Task<CategoryDescList> ListCategoryDescsAsync(long clanId, RequestOptions? options = null)
         {
             var request = new CategoryDesc();
             request.ClanId = clanId;
-            return SendApiAsync("ListCategoryDescs", request, CategoryDescList.Parser, options);
+            return SendSocketApiAsync("ListCategoryDescs", request, CategoryDescList.Parser, options);
         }
 
         public override Task<InviteUserRes> InviteUserAsync(long inviteId, RequestOptions? options = null)
         {
             var request = new InviteUserRequest();
             request.InviteId = inviteId;
-            return SendApiAsync("InviteUser", request, InviteUserRes.Parser, options);
+            return SendSocketApiAsync("InviteUser", request, InviteUserRes.Parser, options);
         }
 
         public override async Task SetNotificationChannelSettingAsync(SetNotificationRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("SetNotificationChannelSetting", body, Empty.Parser, options);
+            await SendSocketApiAsync("SetNotificationChannelSetting", body, Empty.Parser, options);
         }
 
         public override async Task SetMuteNotificationCategoryAsync(SetMuteRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("SetMuteCategory", body, Empty.Parser, options);
+            await SendSocketApiAsync("SetMuteCategory", body, Empty.Parser, options);
         }
 
         public override async Task SetMuteNotificationChannelAsync(SetMuteRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("SetMuteChannel", body, Empty.Parser, options);
+            await SendSocketApiAsync("SetMuteChannel", body, Empty.Parser, options);
         }
 
         public override Task<NotificationChannelCategorySettingList> GetChannelCategoryNotificationSettingsAsync(long clanId, RequestOptions? options = null)
         {
             var request = new NotificationClan();
             request.ClanId = clanId;
-            return SendApiAsync("GetChannelCategoryNotiSettingsList", request, NotificationChannelCategorySettingList.Parser, options);
+            return SendSocketApiAsync("GetChannelCategoryNotiSettingsList", request, NotificationChannelCategorySettingList.Parser, options);
         }
 
         public override Task<NotificationSetting> GetClanNotificationSettingAsync(long clanId, RequestOptions? options = null)
         {
             var request = new NotificationClan();
             request.ClanId = clanId;
-            return SendApiAsync("GetNotificationClan", request, NotificationSetting.Parser, options);
+            return SendSocketApiAsync("GetNotificationClan", request, NotificationSetting.Parser, options);
         }
 
         public override Task<UserStatus> GetUserStatusAsync(RequestOptions? options = null)
         {
-            return SendApiAsync("GetUserStatus", new Empty(), UserStatus.Parser, options);
+            return SendSocketApiAsync("GetUserStatus", new Empty(), UserStatus.Parser, options);
         }
 
         public override async Task UpdateUserStatusAsync(UserStatusUpdate body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("UpdateUserStatus", body, Empty.Parser, options);
+            await SendSocketApiAsync("UpdateUserStatus", body, Empty.Parser, options);
         }
 
         public override Task<AppList> ListAppsAsync(string? filter = null, bool? tombstones = null, string? cursor = null, RequestOptions? options = null)
@@ -1212,20 +1203,20 @@ namespace Mezon.Net.Client
             {
                 request.Cursor = cursor;
             }
-            return SendApiAsync("ListApps", request, AppList.Parser, options);
+            return SendSocketApiAsync("ListApps", request, AppList.Parser, options);
         }
 
         public override Task<App> GetAppAsync(long id, RequestOptions? options = null)
         {
             var request = new AppId();
             request.Id = id;
-            return SendApiAsync("GetApp", request, App.Parser, options);
+            return SendSocketApiAsync("GetApp", request, App.Parser, options);
         }
 
         public override Task<App> UpdateAppAsync(UpdateAppRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("UpdateApp", body, App.Parser, options);
+            return SendSocketApiAsync("UpdateApp", body, App.Parser, options);
         }
 
         public override async Task DeleteAppAsync(long id, bool? recordDeletion = null, RequestOptions? options = null)
@@ -1236,7 +1227,7 @@ namespace Mezon.Net.Client
             {
                 request.RecordDeletion = recordDeletion.Value;
             }
-            await SendApiAsync("DeleteApp", request, Empty.Parser, options);
+            await SendSocketApiAsync("DeleteApp", request, Empty.Parser, options);
         }
 
         public override async Task AddAppToClanAsync(long appId, long clanId, RequestOptions? options = null)
@@ -1244,7 +1235,7 @@ namespace Mezon.Net.Client
             var request = new AppClan();
             request.AppId = appId;
             request.ClanId = clanId;
-            await SendApiAsync("AddAppToClan", request, Empty.Parser, options);
+            await SendSocketApiAsync("AddAppToClan", request, Empty.Parser, options);
         }
 
         public override Task<ListAuditLog> ListAuditLogAsync(long? clanId = null, string? actionLog = null, long? userId = null, string? dateLog = null, RequestOptions? options = null)
@@ -1266,13 +1257,13 @@ namespace Mezon.Net.Client
             {
                 request.DateLog = dateLog;
             }
-            return SendApiAsync("ListAuditLog", request, ListAuditLog.Parser, options);
+            return SendSocketApiAsync("ListAuditLog", request, ListAuditLog.Parser, options);
         }
 
         public override async Task AddUserEventAsync(UserEventRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("AddUserEvent", body, Empty.Parser, options);
+            await SendSocketApiAsync("AddUserEvent", body, Empty.Parser, options);
         }
 
         public override async Task DeleteUserEventAsync(long clanId, long eventId, RequestOptions? options = null)
@@ -1280,31 +1271,31 @@ namespace Mezon.Net.Client
             var request = new UserEventRequest();
             request.ClanId = clanId;
             request.EventId = eventId;
-            await SendApiAsync("DeleteUserEvent", request, Empty.Parser, options);
+            await SendSocketApiAsync("DeleteUserEvent", request, Empty.Parser, options);
         }
 
         public override async Task HealthcheckAsync(RequestOptions? options = null)
         {
-            await SendApiAsync("Healthcheck", new Empty(), Empty.Parser, options);
+            await SendSocketApiAsync("Healthcheck", new Empty(), Empty.Parser, options);
         }
 
         public override Task<ChannelDescList> ListChannelDescsAsync(ListChannelDescsRequest request, RequestOptions? options = null)
         {
-            return SendApiAsync("ListChannelDescs", request, ChannelDescList.Parser, options);
+            return SendSocketApiAsync("ListChannelDescs", request, ChannelDescList.Parser, options);
         }
 
         public override Task<Internal.Api.ChannelDescription> GetChannelDetailAsync(long channelId, RequestOptions? options = null)
         {
             var request = new ListChannelDetailRequest();
             request.ChannelId = channelId;
-            return SendApiAsync("ListChannelDetail", request, Internal.Api.ChannelDescription.Parser, options);
+            return SendSocketApiAsync("ListChannelDetail", request, Internal.Api.ChannelDescription.Parser, options);
         }
 
         public override Task<BannedUserList> ListBannedUsersAsync(long clanId, RequestOptions? options = null)
         {
             var request = new BannedUserListRequest();
             request.ClanId = clanId;
-            return SendApiAsync("ListBannedUsers", request, BannedUserList.Parser, options);
+            return SendSocketApiAsync("ListBannedUsers", request, BannedUserList.Parser, options);
         }
 
         public override async Task UnbanClanUsersAsync(long clanId, IEnumerable<long> userIds, RequestOptions? options = null)
@@ -1316,18 +1307,18 @@ namespace Mezon.Net.Client
             {
                 request.UserIds.Add(userId);
             }
-            await SendApiAsync("UnbanClanUsers", request, Empty.Parser, options);
+            await SendSocketApiAsync("UnbanClanUsers", request, Empty.Parser, options);
         }
 
         public override Task<RegistFcmDeviceTokenResponse> RegistFCMDeviceTokenAsync(RegistFcmDeviceTokenRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("RegistFCMDeviceToken", body, RegistFcmDeviceTokenResponse.Parser, options);
+            return SendSocketApiAsync("RegistFCMDeviceToken", body, RegistFcmDeviceTokenResponse.Parser, options);
         }
 
         public override Task<AllUserClans> ListUserClansByUserIdAsync(RequestOptions? options = null)
         {
-            return SendApiAsync("ListUserClansByUserId", new Empty(), AllUserClans.Parser, options);
+            return SendSocketApiAsync("ListUserClansByUserId", new Empty(), AllUserClans.Parser, options);
         }
 
         public override Task<ListChannelAppsResponse> ListChannelAppsAsync(long? clanId = null, RequestOptions? options = null)
@@ -1337,130 +1328,130 @@ namespace Mezon.Net.Client
             {
                 request.ClanId = clanId.Value;
             }
-            return SendApiAsync("ListChannelApps", request, ListChannelAppsResponse.Parser, options);
+            return SendSocketApiAsync("ListChannelApps", request, ListChannelAppsResponse.Parser, options);
         }
 
         public override async Task CloseDMByChannelIdAsync(long channelId, RequestOptions? options = null)
         {
             var request = new DeleteChannelDescRequest();
             request.ChannelId = channelId;
-            await SendApiAsync("CloseDMByChannelId", request, Empty.Parser, options);
+            await SendSocketApiAsync("CloseDMByChannelId", request, Empty.Parser, options);
         }
 
         public override async Task OpenDMByChannelIdAsync(long channelId, RequestOptions? options = null)
         {
             var request = new DeleteChannelDescRequest();
             request.ChannelId = channelId;
-            await SendApiAsync("OpenDMByChannelId", request, Empty.Parser, options);
+            await SendSocketApiAsync("OpenDMByChannelId", request, Empty.Parser, options);
         }
 
         public override Task<ClanProfile> GetUserProfileOnClanAsync(long clanId, RequestOptions? options = null)
         {
             var request = new ClanProfileRequest();
             request.ClanId = clanId;
-            return SendApiAsync("GetUserProfileOnClan", request, ClanProfile.Parser, options);
+            return SendSocketApiAsync("GetUserProfileOnClan", request, ClanProfile.Parser, options);
         }
 
         public override async Task UpdateUserProfileByClanAsync(UpdateClanProfileRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("UpdateUserProfileByClan", body, Empty.Parser, options);
+            await SendSocketApiAsync("UpdateUserProfileByClan", body, Empty.Parser, options);
         }
 
         public override async Task LeaveThreadAsync(long channelId, RequestOptions? options = null)
         {
             var request = new LeaveThreadRequest();
             request.ChannelId = channelId;
-            await SendApiAsync("LeaveThread", request, Empty.Parser, options);
+            await SendSocketApiAsync("LeaveThread", request, Empty.Parser, options);
         }
 
         public override Task<ChannelDescListNoPool> ListThreadDescsAsync(long channelId, RequestOptions? options = null)
         {
             var request = new ListThreadRequest();
             request.ChannelId = channelId;
-            return SendApiAsync("ListThreadDescs", request, ChannelDescListNoPool.Parser, options);
+            return SendSocketApiAsync("ListThreadDescs", request, ChannelDescListNoPool.Parser, options);
         }
 
         public override Task<ChannelDescList> SearchThreadAsync(SearchThreadRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("SearchThread", body, ChannelDescList.Parser, options);
+            return SendSocketApiAsync("SearchThread", body, ChannelDescList.Parser, options);
         }
 
         public override Task<LinkAccountConfirmRequest> LinkSMSAsync(AccountMezon body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("LinkSMS", body, LinkAccountConfirmRequest.Parser, options);
+            return SendSocketApiAsync("LinkSMS", body, LinkAccountConfirmRequest.Parser, options);
         }
 
         public override async Task ConfirmLinkMezonOTPAsync(LinkAccountConfirmRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("ConfirmLinkMezonOTP", body, Empty.Parser, options);
+            await SendSocketApiAsync("ConfirmLinkMezonOTP", body, Empty.Parser, options);
         }
 
         public override Task<LinkAccountConfirmRequest> LinkEmailAsync(AccountEmail body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("LinkEmail", body, LinkAccountConfirmRequest.Parser, options);
+            return SendSocketApiAsync("LinkEmail", body, LinkAccountConfirmRequest.Parser, options);
         }
 
         public override async Task UnlinkMezonAsync(AccountMezon body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("UnlinkMezon", body, Empty.Parser, options);
+            await SendSocketApiAsync("UnlinkMezon", body, Empty.Parser, options);
         }
 
         public override async Task UnlinkEmailAsync(AccountEmail body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("UnlinkEmail", body, Empty.Parser, options);
+            await SendSocketApiAsync("UnlinkEmail", body, Empty.Parser, options);
         }
 
         public override Task<IsBannedResponse> IsBannedAsync(long channelId, RequestOptions? options = null)
         {
             var request = new IsBannedRequest();
             request.ChannelId = channelId;
-            return SendApiAsync("IsBanned", request, IsBannedResponse.Parser, options);
+            return SendSocketApiAsync("IsBanned", request, IsBannedResponse.Parser, options);
         }
 
         public override async Task AddRolesChannelDescAsync(AddRoleChannelDescRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("AddRolesChannelDesc", body, Empty.Parser, options);
+            await SendSocketApiAsync("AddRolesChannelDesc", body, Empty.Parser, options);
         }
 
         public override async Task DeleteRoleChannelDescAsync(long roleId, RequestOptions? options = null)
         {
             var request = new DeleteRoleRequest();
             request.RoleId = roleId;
-            await SendApiAsync("DeleteRoleChannelDesc", request, Empty.Parser, options);
+            await SendSocketApiAsync("DeleteRoleChannelDesc", request, Empty.Parser, options);
         }
 
         public override async Task SetRoleChannelPermissionAsync(UpdateRoleChannelRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("SetRoleChannelPermission", body, Empty.Parser, options);
+            await SendSocketApiAsync("SetRoleChannelPermission", body, Empty.Parser, options);
         }
 
         public override Task<RoleList> GetRoleOfUserInTheClanAsync(long clanId, RequestOptions? options = null)
         {
             var request = new ListPermissionOfUsersRequest();
             request.ClanId = clanId;
-            return SendApiAsync("GetRoleOfUserInTheClan", request, RoleList.Parser, options);
+            return SendSocketApiAsync("GetRoleOfUserInTheClan", request, RoleList.Parser, options);
         }
 
         public override Task<PermissionRoleChannelListEventResponse> GetPermissionByRoleIdChannelIdAsync(PermissionRoleChannelListEventRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("GetPermissionByRoleIdChannelId", body, PermissionRoleChannelListEventResponse.Parser, options);
+            return SendSocketApiAsync("GetPermissionByRoleIdChannelId", body, PermissionRoleChannelListEventResponse.Parser, options);
         }
 
         public override Task<ChannelAttachmentList> ListChannelAttachmentAsync(long channelId, RequestOptions? options = null)
         {
             var request = new ListChannelAttachmentRequest();
             request.ChannelId = channelId;
-            return SendApiAsync("ListChannelAttachment", request, ChannelAttachmentList.Parser, options);
+            return SendSocketApiAsync("ListChannelAttachment", request, ChannelAttachmentList.Parser, options);
         }
 
         public override Task<VoiceChannelUserList> ListChannelVoiceUsersAsync(long clanId, long channelId, int channelType, RequestOptions? options = null)
@@ -1469,7 +1460,7 @@ namespace Mezon.Net.Client
             request.ClanId = clanId;
             request.ChannelId = channelId;
             request.ChannelType = channelType;
-            return SendApiAsync("ListChannelVoiceUsers", request, VoiceChannelUserList.Parser, options);
+            return SendSocketApiAsync("ListChannelVoiceUsers", request, VoiceChannelUserList.Parser, options);
         }
 
         public override Task<StreamingChannelUserList> ListStreamingChannelUsersAsync(long clanId, long channelId, int channelType, RequestOptions? options = null)
@@ -1478,182 +1469,182 @@ namespace Mezon.Net.Client
             request.ClanId = clanId;
             request.ChannelId = channelId;
             request.ChannelType = channelType;
-            return SendApiAsync("ListStreamingChannelUsers", request, StreamingChannelUserList.Parser, options);
+            return SendSocketApiAsync("ListStreamingChannelUsers", request, StreamingChannelUserList.Parser, options);
         }
 
         public override Task<ChannelDescListNoPool> ListChannelByUserIdAsync(RequestOptions? options = null)
         {
-            return SendApiAsync("ListChannelByUserId", new Empty(), ChannelDescListNoPool.Parser, options);
+            return SendSocketApiAsync("ListChannelByUserId", new Empty(), ChannelDescListNoPool.Parser, options);
         }
 
         public override Task<NotificationUserChannel> GetNotificationChannelAsync(NotificationChannel body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("GetNotificationChannel", body, NotificationUserChannel.Parser, options);
+            return SendSocketApiAsync("GetNotificationChannel", body, NotificationUserChannel.Parser, options);
         }
 
         public override Task<NotificationUserChannel> GetNotificationCategoryAsync(DefaultNotificationCategory body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("GetNotificationCategory", body, NotificationUserChannel.Parser, options);
+            return SendSocketApiAsync("GetNotificationCategory", body, NotificationUserChannel.Parser, options);
         }
 
         public override async Task SetNotificationCategorySettingAsync(SetNotificationRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("SetNotificationCategorySetting", body, Empty.Parser, options);
+            await SendSocketApiAsync("SetNotificationCategorySetting", body, Empty.Parser, options);
         }
 
         public override async Task DeleteNotificationCategorySettingAsync(DefaultNotificationCategory body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("DeleteNotificationCategorySetting", body, Empty.Parser, options);
+            await SendSocketApiAsync("DeleteNotificationCategorySetting", body, Empty.Parser, options);
         }
 
         public override async Task DeleteNotificationChannelAsync(NotificationChannel body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("DeleteNotificationChannel", body, Empty.Parser, options);
+            await SendSocketApiAsync("DeleteNotificationChannel", body, Empty.Parser, options);
         }
 
         public override Task<ChannelMessage> CreateMessage2InboxAsync(Message2InboxRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("CreateMessage2Inbox", body, ChannelMessage.Parser, options);
+            return SendSocketApiAsync("CreateMessage2Inbox", body, ChannelMessage.Parser, options);
         }
 
         public override Task<ChannelSettingListResponse> ListChannelSettingAsync(long clanId, RequestOptions? options = null)
         {
             var request = new ChannelSettingListRequest();
             request.ClanId = clanId;
-            return SendApiAsync("ListChannelSetting", request, ChannelSettingListResponse.Parser, options);
+            return SendSocketApiAsync("ListChannelSetting", request, ChannelSettingListResponse.Parser, options);
         }
 
         public override async Task UpdateChannelPrivateAsync(ChangeChannelPrivateRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("UpdateChannelPrivate", body, Empty.Parser, options);
+            await SendSocketApiAsync("UpdateChannelPrivate", body, Empty.Parser, options);
         }
 
         public override async Task ChangeChannelCategoryAsync(ChangeChannelCategoryRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("ChangeChannelCategory", body, Empty.Parser, options);
+            await SendSocketApiAsync("ChangeChannelCategory", body, Empty.Parser, options);
         }
 
         public override Task<EmojiRecentList> EmojiRecentListAsync(RequestOptions? options = null)
         {
-            return SendApiAsync("EmojiRecentList", new Empty(), EmojiRecentList.Parser, options);
+            return SendSocketApiAsync("EmojiRecentList", new Empty(), EmojiRecentList.Parser, options);
         }
 
         public override Task<AllUsersAddChannelResponse> ListChannelUsersUCAsync(AllUsersAddChannelRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("ListChannelUsersUC", body, AllUsersAddChannelResponse.Parser, options);
+            return SendSocketApiAsync("ListChannelUsersUC", body, AllUsersAddChannelResponse.Parser, options);
         }
 
         public override Task<EditChannelCanvasResponse> EditChannelCanvasesAsync(EditChannelCanvasRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("EditChannelCanvases", body, EditChannelCanvasResponse.Parser, options);
+            return SendSocketApiAsync("EditChannelCanvases", body, EditChannelCanvasResponse.Parser, options);
         }
 
         public override Task<ChannelCanvasListResponse> GetChannelCanvasListAsync(long channelId, RequestOptions? options = null)
         {
             var request = new ChannelCanvasListRequest();
             request.ChannelId = channelId;
-            return SendApiAsync("GetChannelCanvasList", request, ChannelCanvasListResponse.Parser, options);
+            return SendSocketApiAsync("GetChannelCanvasList", request, ChannelCanvasListResponse.Parser, options);
         }
 
         public override Task<ChannelCanvasDetailResponse> GetChannelCanvasDetailAsync(long id, RequestOptions? options = null)
         {
             var request = new ChannelCanvasDetailRequest();
             request.Id = id;
-            return SendApiAsync("GetChannelCanvasDetail", request, ChannelCanvasDetailResponse.Parser, options);
+            return SendSocketApiAsync("GetChannelCanvasDetail", request, ChannelCanvasDetailResponse.Parser, options);
         }
 
         public override async Task DeleteChannelCanvasAsync(long canvasId, RequestOptions? options = null)
         {
             var request = new DeleteChannelCanvasRequest();
             request.CanvasId = canvasId;
-            await SendApiAsync("DeleteChannelCanvas", request, Empty.Parser, options);
+            await SendSocketApiAsync("DeleteChannelCanvas", request, Empty.Parser, options);
         }
 
         public override Task<ListFavoriteChannelResponse> GetListFavoriteChannelAsync(long clanId, RequestOptions? options = null)
         {
             var request = new ListFavoriteChannelRequest();
             request.ClanId = clanId;
-            return SendApiAsync("GetListFavoriteChannel", request, ListFavoriteChannelResponse.Parser, options);
+            return SendSocketApiAsync("GetListFavoriteChannel", request, ListFavoriteChannelResponse.Parser, options);
         }
 
         public override Task<AddFavoriteChannelResponse> AddChannelFavoriteAsync(AddFavoriteChannelRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("AddChannelFavorite", body, AddFavoriteChannelResponse.Parser, options);
+            return SendSocketApiAsync("AddChannelFavorite", body, AddFavoriteChannelResponse.Parser, options);
         }
 
         public override async Task RemoveChannelFavoriteAsync(long channelId, RequestOptions? options = null)
         {
             var request = new RemoveFavoriteChannelRequest();
             request.ChannelId = channelId;
-            await SendApiAsync("RemoveChannelFavorite", request, Empty.Parser, options);
+            await SendSocketApiAsync("RemoveChannelFavorite", request, Empty.Parser, options);
         }
 
         public override Task<GenerateClanWebhookResponse> GenerateClanWebhookAsync(GenerateClanWebhookRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("GenerateClanWebhook", body, GenerateClanWebhookResponse.Parser, options);
+            return SendSocketApiAsync("GenerateClanWebhook", body, GenerateClanWebhookResponse.Parser, options);
         }
 
         public override Task<ListClanWebhookResponse> ListClanWebhookAsync(long clanId, RequestOptions? options = null)
         {
             var request = new ListClanWebhookRequest();
             request.ClanId = clanId;
-            return SendApiAsync("ListClanWebhook", request, ListClanWebhookResponse.Parser, options);
+            return SendSocketApiAsync("ListClanWebhook", request, ListClanWebhookResponse.Parser, options);
         }
 
         public override async Task UpdateClanWebhookByIdAsync(UpdateClanWebhookRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("UpdateClanWebhookById", body, Empty.Parser, options);
+            await SendSocketApiAsync("UpdateClanWebhookById", body, Empty.Parser, options);
         }
 
         public override async Task DeleteClanWebhookByIdAsync(long id, RequestOptions? options = null)
         {
             var request = new ClanWebhookRequest();
             request.Id = id;
-            await SendApiAsync("DeleteClanWebhookById", request, Empty.Parser, options);
+            await SendSocketApiAsync("DeleteClanWebhookById", request, Empty.Parser, options);
         }
 
         public override Task<ListOnboardingStepResponse> ListOnboardingStepAsync(long clanId, RequestOptions? options = null)
         {
             var request = new ListOnboardingStepRequest();
             request.ClanId = clanId;
-            return SendApiAsync("ListOnboardingStep", request, ListOnboardingStepResponse.Parser, options);
+            return SendSocketApiAsync("ListOnboardingStep", request, ListOnboardingStepResponse.Parser, options);
         }
 
         public override async Task UpdateOnboardingStepAsync(UpdateOnboardingStepRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("UpdateOnboardingStep", body, Empty.Parser, options);
+            await SendSocketApiAsync("UpdateOnboardingStep", body, Empty.Parser, options);
         }
 
         public override async Task DeleteQuickMenuAccessAsync(QuickMenuAccess body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("DeleteQuickMenuAccess", body, Empty.Parser, options);
+            await SendSocketApiAsync("DeleteQuickMenuAccess", body, Empty.Parser, options);
         }
 
         public override async Task AddQuickMenuAccessAsync(QuickMenuAccess body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("AddQuickMenuAccess", body, Empty.Parser, options);
+            await SendSocketApiAsync("AddQuickMenuAccess", body, Empty.Parser, options);
         }
 
         public override async Task UpdateQuickMenuAccessAsync(QuickMenuAccess body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("UpdateQuickMenuAccess", body, Empty.Parser, options);
+            await SendSocketApiAsync("UpdateQuickMenuAccess", body, Empty.Parser, options);
         }
 
         public override Task<QuickMenuAccessList> ListQuickMenuAccessAsync(long botId, long channelId, int? menuType = null, RequestOptions? options = null)
@@ -1665,19 +1656,19 @@ namespace Mezon.Net.Client
             {
                 request.MenuType = menuType.Value;
             }
-            return SendApiAsync("ListQuickMenuAccess", request, QuickMenuAccessList.Parser, options);
+            return SendSocketApiAsync("ListQuickMenuAccess", request, QuickMenuAccessList.Parser, options);
         }
 
         public override Task<IsFollowerResponse> IsFollowerAsync(IsFollowerRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("IsFollower", body, IsFollowerResponse.Parser, options);
+            return SendSocketApiAsync("IsFollower", body, IsFollowerResponse.Parser, options);
         }
 
         public override Task<ChannelMessageAck> SendChannelMessageAsync(ChannelMessageSend body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("SendChannelMessage", body, ChannelMessageAck.Parser, options);
+            return SendSocketApiAsync("SendChannelMessage", body, ChannelMessageAck.Parser, options);
         }
 
         public override Task<ChannelMessageAck> SendChannelMessageAsync(Mezon.Net.Models.SendChannelMessageParams message, RequestOptions? options = null)
@@ -1686,143 +1677,143 @@ namespace Mezon.Net.Client
         public override async Task UpdateChannelMessageAsync(ChannelMessageUpdate body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("UpdateChannelMessage", body, Empty.Parser, options);
+            await SendSocketApiAsync("UpdateChannelMessage", body, Empty.Parser, options);
         }
 
         public override async Task DeleteChannelMessageAsync(ChannelMessageRemove body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("DeleteChannelMessage", body, Empty.Parser, options);
+            await SendSocketApiAsync("DeleteChannelMessage", body, Empty.Parser, options);
         }
 
         public override async Task RemoveParticipantMezonMeetAsync(MeetParticipantRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("RemoveParticipantMezonMeet", body, Empty.Parser, options);
+            await SendSocketApiAsync("RemoveParticipantMezonMeet", body, Empty.Parser, options);
         }
 
         public override async Task MuteParticipantMezonMeetAsync(MeetParticipantRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("MuteParticipantMezonMeet", body, Empty.Parser, options);
+            await SendSocketApiAsync("MuteParticipantMezonMeet", body, Empty.Parser, options);
         }
 
         public override Task<CreateRoomChannelApps> CreateRoomChannelAppsAsync(CreateRoomChannelApps body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("CreateRoomChannelApps", body, CreateRoomChannelApps.Parser, options);
+            return SendSocketApiAsync("CreateRoomChannelApps", body, CreateRoomChannelApps.Parser, options);
         }
 
         public override Task<GenerateHashChannelAppsResponse> GenerateHashChannelAppsAsync(GenerateHashChannelAppsRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("GenerateHashChannelApps", body, GenerateHashChannelAppsResponse.Parser, options);
+            return SendSocketApiAsync("GenerateHashChannelApps", body, GenerateHashChannelAppsResponse.Parser, options);
         }
 
         public override Task<MezonOauthClient> GetMezonOauthClientAsync(GetMezonOauthClientRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("GetMezonOauthClient", body, MezonOauthClient.Parser, options);
+            return SendSocketApiAsync("GetMezonOauthClient", body, MezonOauthClient.Parser, options);
         }
 
         public override async Task DeleteMezonOauthClientAsync(MezonOauthClient body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("DeleteMezonOauthClient", body, Empty.Parser, options);
+            await SendSocketApiAsync("DeleteMezonOauthClient", body, Empty.Parser, options);
         }
 
         public override Task<MezonOauthClient> UpdateMezonOauthClientAsync(MezonOauthClient body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("UpdateMezonOauthClient", body, MezonOauthClient.Parser, options);
+            return SendSocketApiAsync("UpdateMezonOauthClient", body, MezonOauthClient.Parser, options);
         }
 
         public override Task<SdTopicList> ListSdTopicAsync(ListSdTopicRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("ListSdTopic", body, SdTopicList.Parser, options);
+            return SendSocketApiAsync("ListSdTopic", body, SdTopicList.Parser, options);
         }
 
         public override Task<SdTopic> GetTopicDetailAsync(SdTopicDetailRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("GetTopicDetail", body, SdTopic.Parser, options);
+            return SendSocketApiAsync("GetTopicDetail", body, SdTopic.Parser, options);
         }
 
         public override Task<SdTopic> CreateSdTopicAsync(SdTopicRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("CreateSdTopic", body, SdTopic.Parser, options);
+            return SendSocketApiAsync("CreateSdTopic", body, SdTopic.Parser, options);
         }
 
         public override async Task DeleteSdTopicAsync(DeleteSdTopicRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("DeleteSdTopic", body, Empty.Parser, options);
+            await SendSocketApiAsync("DeleteSdTopic", body, Empty.Parser, options);
         }
 
         public override async Task MessageButtonClickAsync(MessageButtonClicked body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("MessageButtonClick", body, Empty.Parser, options);
+            await SendSocketApiAsync("MessageButtonClick", body, Empty.Parser, options);
         }
 
         public override async Task DropdownBoxSelectedAsync(DropdownBoxSelected body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("DropdownBoxSelected", body, Empty.Parser, options);
+            await SendSocketApiAsync("DropdownBoxSelected", body, Empty.Parser, options);
         }
 
         public override async Task ActiveArchivedThreadAsync(ActiveArchivedThread body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("ActiveArchivedThread", body, Empty.Parser, options);
+            await SendSocketApiAsync("ActiveArchivedThread", body, Empty.Parser, options);
         }
 
         public override async Task AddAgentToChannelAsync(UpdateAIAgentRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("AddAgentToChannel", body, Empty.Parser, options);
+            await SendSocketApiAsync("AddAgentToChannel", body, Empty.Parser, options);
         }
 
         public override async Task DisconnectAgentAsync(UpdateAIAgentRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("DisconnectAgent", body, Empty.Parser, options);
+            await SendSocketApiAsync("DisconnectAgent", body, Empty.Parser, options);
         }
 
         public override async Task ReportMessageAbuseAsync(ReportMessageAbuseReqest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("ReportMessageAbuse", body, Empty.Parser, options);
+            await SendSocketApiAsync("ReportMessageAbuse", body, Empty.Parser, options);
         }
 
         public override Task<StreamHttpCallbackResponse> StreamingServerCallbackAsync(StreamHttpCallbackRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("StreamingServerCallback", body, StreamHttpCallbackResponse.Parser, options);
+            return SendSocketApiAsync("StreamingServerCallback", body, StreamHttpCallbackResponse.Parser, options);
         }
 
         public override Task<ForSaleItemList> ListForSaleItemsAsync(ListForSaleItemsRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("ListForSaleItems", body, ForSaleItemList.Parser, options);
+            return SendSocketApiAsync("ListForSaleItems", body, ForSaleItemList.Parser, options);
         }
 
         public override async Task HandleClanWebhookAsync(ClanWebhookHandlerRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("HandleClanWebhook", body, Empty.Parser, options);
+            await SendSocketApiAsync("HandleClanWebhook", body, Empty.Parser, options);
         }
 
         public override Task<MutedChannelList> ListMutedChannelAsync(long clanId, RequestOptions? options = null)
         {
             var request = new ListMutedChannelRequest { ClanId = clanId };
-            return SendApiAsync("ListMutedChannel", request, MutedChannelList.Parser, options);
+            return SendSocketApiAsync("ListMutedChannel", request, MutedChannelList.Parser, options);
         }
 
         public override Task<ListClanBadgeCountResponse> ListClanBadgeCountAsync(RequestOptions? options = null)
-            => SendApiAsync("ListClanBadgeCount", new NoParams(), ListClanBadgeCountResponse.Parser, options);
+            => SendSocketApiAsync("ListClanBadgeCount", new NoParams(), ListClanBadgeCountResponse.Parser, options);
 
         public override Task<ListChannelBadgeCountResponse> ListChannelBadgeCountAsync(long clanId, int? limit = null, int? page = null, RequestOptions? options = null)
         {
@@ -1835,28 +1826,28 @@ namespace Mezon.Net.Client
             {
                 request.Page = page.Value;
             }
-            return SendApiAsync("ListChannelBadgeCount", request, ListChannelBadgeCountResponse.Parser, options);
+            return SendSocketApiAsync("ListChannelBadgeCount", request, ListChannelBadgeCountResponse.Parser, options);
         }
 
         public override Task<LogedDeviceList> ListLogedDeviceAsync(RequestOptions? options = null)
-            => SendApiAsync("ListLogedDevice", new NoParams(), LogedDeviceList.Parser, options);
+            => SendSocketApiAsync("ListLogedDevice", new NoParams(), LogedDeviceList.Parser, options);
 
         public override Task<ClanUserStatusList> ListClanUsersStatusAsync(long clanId, RequestOptions? options = null)
         {
             var request = new ListClanUsersStatusRequest { ClanId = clanId };
-            return SendApiAsync("ListClanUsersStatus", request, ClanUserStatusList.Parser, options);
+            return SendSocketApiAsync("ListClanUsersStatus", request, ClanUserStatusList.Parser, options);
         }
 
         public override Task<ListChannelTimelineResponse> ListChannelTimelineAsync(ListChannelTimelineRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("ListChannelTimeline", body, ListChannelTimelineResponse.Parser, options);
+            return SendSocketApiAsync("ListChannelTimeline", body, ListChannelTimelineResponse.Parser, options);
         }
 
         public override Task<ListArchivedChannelDescsResponse> ListArchivedChannelDescsAsync(long clanId, RequestOptions? options = null)
         {
             var request = new ListArchivedChannelDescsRequest { ClanId = clanId };
-            return SendApiAsync("ListArchivedChannelDescs", request, ListArchivedChannelDescsResponse.Parser, options);
+            return SendSocketApiAsync("ListArchivedChannelDescs", request, ListArchivedChannelDescsResponse.Parser, options);
         }
 
         public override Task<ListUserOnlineResponse> ListUserOnlineAsync(long clanId, int? limit = null, int? page = null, RequestOptions? options = null)
@@ -1870,199 +1861,198 @@ namespace Mezon.Net.Client
             {
                 request.Page = page.Value;
             }
-            return SendApiAsync("ListUserOnline", request, ListUserOnlineResponse.Parser, options);
+            return SendSocketApiAsync("ListUserOnline", request, ListUserOnlineResponse.Parser, options);
         }
 
         public override Task<MezonSession> RegistrationEmailAsync(global::Mezon.Net.Internal.Api.RegistrationEmailRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("RegistrationEmail", body, MezonSession.Parser, options);
+            return SendSocketApiAsync("RegistrationEmail", body, MezonSession.Parser, options);
         }
 
         public override Task<UploadAttachment> UploadAttachmentFileAsync(global::Mezon.Net.Internal.Api.UploadAttachmentRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("UploadAttachmentFile", body, UploadAttachment.Parser, options);
+            return SendSocketApiAsync("UploadAttachmentFile", body, UploadAttachment.Parser, options);
         }
 
         public override Task<UploadAttachment> UploadOauthFileAsync(global::Mezon.Net.Internal.Api.UploadAttachmentRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("UploadOauthFile", body, UploadAttachment.Parser, options);
+            return SendSocketApiAsync("UploadOauthFile", body, UploadAttachment.Parser, options);
         }
 
         public override Task<Role> CreateRoleAsync(global::Mezon.Net.Internal.Api.CreateRoleRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("CreateRole", body, Role.Parser, options);
+            return SendSocketApiAsync("CreateRole", body, Role.Parser, options);
         }
 
         public override Task<EventManagement> CreateEventAsync(global::Mezon.Net.Internal.Api.CreateEventRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("CreateEvent", body, EventManagement.Parser, options);
+            return SendSocketApiAsync("CreateEvent", body, EventManagement.Parser, options);
         }
 
         public override async Task ArchiveChannelAsync(ArchiveChannelRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("ArchiveChannel", body, Empty.Parser, options);
+            await SendSocketApiAsync("ArchiveChannel", body, Empty.Parser, options);
         }
 
         public override Task<LinkInviteUser> CreateLinkInviteUserAsync(global::Mezon.Net.Internal.Api.LinkInviteUserRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("CreateLinkInviteUser", body, LinkInviteUser.Parser, options);
+            return SendSocketApiAsync("CreateLinkInviteUser", body, LinkInviteUser.Parser, options);
         }
 
         public override async Task SetNotificationClanSettingAsync(global::Mezon.Net.Internal.Api.SetDefaultNotificationRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("SetNotificationClanSetting", body, Empty.Parser, options);
+            await SendSocketApiAsync("SetNotificationClanSetting", body, Empty.Parser, options);
         }
 
         public override async Task UpdateAccountAsync(Internal.Api.UpdateAccountRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("UpdateAccount", body, Empty.Parser, options);
+            await SendSocketApiAsync("UpdateAccount", body, Empty.Parser, options);
         }
 
         public override Task<MezonSession> UpdateUsernameAsync(UpdateUsernameRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("UpdateUsername", body, MezonSession.Parser, options);
+            return SendSocketApiAsync("UpdateUsername", body, MezonSession.Parser, options);
         }
 
         public override async Task UpdateCategoryOrderAsync(global::Mezon.Net.Internal.Api.UpdateCategoryOrderRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("UpdateCategoryOrder", body, Empty.Parser, options);
+            await SendSocketApiAsync("UpdateCategoryOrder", body, Empty.Parser, options);
         }
 
         public override async Task UpdateRoleAsync(global::Mezon.Net.Internal.Api.UpdateRoleRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("UpdateRole", body, Empty.Parser, options);
+            await SendSocketApiAsync("UpdateRole", body, Empty.Parser, options);
         }
 
         public override async Task UpdateEventAsync(global::Mezon.Net.Internal.Api.UpdateEventRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("UpdateEvent", body, Empty.Parser, options);
+            await SendSocketApiAsync("UpdateEvent", body, Empty.Parser, options);
         }
 
         public override Task<global::Mezon.Net.Internal.Api.SearchMessageResponse> SearchMessageAsync(global::Mezon.Net.Internal.Api.SearchMessageRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("SearchMessage", body, global::Mezon.Net.Internal.Api.SearchMessageResponse.Parser, options);
+            return SendSocketApiAsync("SearchMessage", body, global::Mezon.Net.Internal.Api.SearchMessageResponse.Parser, options);
         }
 
         public override async Task HandleWebhookAsync(ClanWebhookHandlerRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("HandleWebhook", body, Empty.Parser, options);
+            await SendSocketApiAsync("HandleWebhook", body, Empty.Parser, options);
         }
 
         public override Task<CheckDuplicateNameResponse> CheckDuplicateNameAsync(CheckDuplicateNameRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("CheckDuplicateName", body, CheckDuplicateNameResponse.Parser, options);
+            return SendSocketApiAsync("CheckDuplicateName", body, CheckDuplicateNameResponse.Parser, options);
         }
 
         public override Task<App> AddAppAsync(global::Mezon.Net.Internal.Api.AddAppRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("AddApp", body, App.Parser, options);
+            return SendSocketApiAsync("AddApp", body, App.Parser, options);
         }
 
         public override Task<UserActivity> CreateActivityAsync(global::Mezon.Net.Internal.Api.CreateActivityRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("CreateActiviy", body, UserActivity.Parser, options);
+            return SendSocketApiAsync("CreateActiviy", body, UserActivity.Parser, options);
         }
 
         public override async Task UpdateUserCustomStatusAsync(User body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("UpdateUserCustomStatus", body, Empty.Parser, options);
+            await SendSocketApiAsync("UpdateUserCustomStatus", body, Empty.Parser, options);
         }
 
         public override Task<global::Mezon.Net.Internal.Api.GenerateMezonMeetResponse> CreateExternalMezonMeetAsync(RequestOptions? options = null)
-            => SendApiAsync("CreateExternalMezonMeet", new Empty(), global::Mezon.Net.Internal.Api.GenerateMezonMeetResponse.Parser, options);
+            => SendSocketApiAsync("CreateExternalMezonMeet", new Empty(), global::Mezon.Net.Internal.Api.GenerateMezonMeetResponse.Parser, options);
 
         public override Task<UpdateChannelTimelineResponse> UpdateChannelTimelineAsync(UpdateChannelTimelineRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("UpdateChannelTimeline", body, UpdateChannelTimelineResponse.Parser, options);
+            return SendSocketApiAsync("UpdateChannelTimeline", body, UpdateChannelTimelineResponse.Parser, options);
         }
 
         public override Task<CreateChannelTimelineResponse> CreateChannelTimelineAsync(CreateChannelTimelineRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("CreateChannelTimeline", body, CreateChannelTimelineResponse.Parser, options);
+            return SendSocketApiAsync("CreateChannelTimeline", body, CreateChannelTimelineResponse.Parser, options);
         }
 
         public override Task<ChannelTimelineDetailResponse> DetailChannelTimelineAsync(ChannelTimelineDetailRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("DetailChannelTimeline", body, ChannelTimelineDetailResponse.Parser, options);
+            return SendSocketApiAsync("DetailChannelTimeline", body, ChannelTimelineDetailResponse.Parser, options);
         }
 
         public override Task<CreatePollResponse> CreatePollAsync(CreatePollRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("CreatePoll", body, CreatePollResponse.Parser, options);
+            return SendSocketApiAsync("CreatePoll", body, CreatePollResponse.Parser, options);
         }
 
         public override Task<VotePollResponse> VotePollAsync(VotePollRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("VotePoll", body, VotePollResponse.Parser, options);
+            return SendSocketApiAsync("VotePoll", body, VotePollResponse.Parser, options);
         }
 
         public override async Task ClosePollAsync(ClosePollRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("ClosePoll", body, Empty.Parser, options);
+            await SendSocketApiAsync("ClosePoll", body, Empty.Parser, options);
         }
 
         public override Task<GetPollResponse> GetPollAsync(GetPollRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("GetPoll", body, GetPollResponse.Parser, options);
+            return SendSocketApiAsync("GetPoll", body, GetPollResponse.Parser, options);
         }
 
         public override async Task ReactChannelMessageAsync(MessageReaction body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("ReactChannelMessage", body, Empty.Parser, options);
+            await SendSocketApiAsync("ReactChannelMessage", body, Empty.Parser, options);
         }
 
         public override Task<MultipartUploadAttachment> MultipartUploadAttachmentFileStartAsync(global::Mezon.Net.Internal.Api.UploadAttachmentRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("MultipartUploadAttachmentFileStart", body, MultipartUploadAttachment.Parser, options);
+            return SendSocketApiAsync("MultipartUploadAttachmentFileStart", body, MultipartUploadAttachment.Parser, options);
         }
 
         public override Task<UploadAttachment> MultipartUploadAttachmentFileFinishAsync(MultipartUploadAttachmentFinishRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("MultipartUploadAttachmentFileFinish", body, UploadAttachment.Parser, options);
+            return SendSocketApiAsync("MultipartUploadAttachmentFileFinish", body, UploadAttachment.Parser, options);
         }
 
         public override async Task SessionLogoutAsync(SessionLogoutRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            await SendApiAsync("SessionLogout", body, Empty.Parser, options);
+            await SendSocketApiAsync("SessionLogout", body, Empty.Parser, options);
         }
 
         public override Task<UploadAttachmentBatch> UploadBatchAttachmentFileAsync(UploadBatchAttachmentRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("UploadBatchAttachmentFile", body, UploadAttachmentBatch.Parser, options);
+            return SendSocketApiAsync("UploadBatchAttachmentFile", body, UploadAttachmentBatch.Parser, options);
         }
 
         #endregion
-
     }
 }

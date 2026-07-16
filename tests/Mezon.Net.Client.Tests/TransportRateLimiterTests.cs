@@ -1,3 +1,4 @@
+using Mezon.Net.Core;
 using Mezon.Net.Queue;
 
 namespace Mezon.Net.Client.Tests;
@@ -15,6 +16,7 @@ public sealed class SlidingWindowRateLimiterTests
         }
 
         Assert.True((DateTimeOffset.UtcNow - started).TotalMilliseconds < 200);
+        Assert.Equal(3, limiter.CurrentCount);
     }
 
     [Fact]
@@ -25,6 +27,34 @@ public sealed class SlidingWindowRateLimiterTests
         var started = DateTimeOffset.UtcNow;
         await limiter.WaitAsync();
         Assert.True((DateTimeOffset.UtcNow - started).TotalMilliseconds >= 900);
+        Assert.Equal(1, limiter.CurrentCount);
+    }
+
+    [Fact]
+    public async Task After_wait_slot_is_acquired()
+    {
+        var limiter = new SlidingWindowRateLimiter(maxCount: 1, windowSeconds: 1);
+        await limiter.WaitAsync();
+        Assert.Equal(1, limiter.CurrentCount);
+        Assert.False(limiter.TryAcquire());
+
+        await limiter.WaitAsync();
+        Assert.Equal(1, limiter.CurrentCount);
+        Assert.False(limiter.TryAcquire());
+    }
+
+    [Fact]
+    public async Task Parallel_stampede_does_not_exceed_capacity()
+    {
+        var limiter = new SlidingWindowRateLimiter(maxCount: 3, windowSeconds: 2);
+        var tasks = new Task[12];
+        for (var i = 0; i < tasks.Length; i++)
+        {
+            tasks[i] = limiter.WaitAsync().AsTask();
+        }
+
+        await Task.WhenAll(tasks);
+        Assert.True(limiter.CurrentCount <= 3);
     }
 
     [Fact]
@@ -62,5 +92,37 @@ public sealed class TransportRateLimiterTests
         var started = DateTimeOffset.UtcNow;
         await limiter.EnterAsync();
         Assert.True((DateTimeOffset.UtcNow - started).TotalMilliseconds < 200);
+    }
+
+    [Fact]
+    public async Task Ratelimit_callback_is_invoked_when_delayed()
+    {
+        var limiter = new TransportRateLimiter(maxRequestsPerSecond: 1, maxRequestsPerMinute: 200, maxConnectRequestsPerSecond: 10);
+        IRateLimitInfo? seen = null;
+        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await limiter.EnterAsync();
+        await limiter.EnterAsync(default, info =>
+        {
+            seen = info;
+            tcs.TrySetResult(true);
+            return Task.CompletedTask;
+        });
+
+        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.NotNull(seen);
+        Assert.Equal(RateLimitBuckets.TransportPerSecond, seen!.Bucket);
+        Assert.True(seen.IsGlobal);
+        Assert.Equal(1, seen.Limit);
+        Assert.Equal(0, seen.Remaining);
+        Assert.True(seen.ResetAfter > TimeSpan.Zero);
+    }
+
+    [Fact]
+    public void Configure_updates_limits_in_place()
+    {
+        var limiter = new TransportRateLimiter(maxRequestsPerSecond: 1, maxRequestsPerMinute: 10, maxConnectRequestsPerSecond: 1);
+        limiter.Configure(60, 500, 2);
+        Assert.True(limiter.EnterAsync().IsCompletedSuccessfully);
     }
 }

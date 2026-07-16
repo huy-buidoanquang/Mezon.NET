@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Mezon.Net.Core;
@@ -9,9 +10,9 @@ namespace Mezon.Net.Queue
     /// </summary>
     internal sealed class TransportRateLimiter
     {
-        private readonly SlidingWindowRateLimiter _perSecond;
-        private readonly SlidingWindowRateLimiter _perMinute;
-        private readonly SlidingWindowRateLimiter _connectPerSecond;
+        private SlidingWindowRateLimiter _perSecond;
+        private SlidingWindowRateLimiter _perMinute;
+        private SlidingWindowRateLimiter _connectPerSecond;
         private int _connectPhase;
 
         public TransportRateLimiter(
@@ -24,19 +25,51 @@ namespace Mezon.Net.Queue
             _connectPerSecond = new SlidingWindowRateLimiter(maxConnectRequestsPerSecond, 1);
         }
 
+        /// <summary>
+        ///     Updates limit capacities in place without replacing this instance.
+        /// </summary>
+        public void Configure(
+            int maxRequestsPerSecond,
+            int maxRequestsPerMinute,
+            int maxConnectRequestsPerSecond)
+        {
+            _perSecond = new SlidingWindowRateLimiter(maxRequestsPerSecond, 1);
+            _perMinute = new SlidingWindowRateLimiter(maxRequestsPerMinute, 60);
+            _connectPerSecond = new SlidingWindowRateLimiter(maxConnectRequestsPerSecond, 1);
+            EndConnectPhase();
+        }
+
         public void BeginConnectPhase() => Volatile.Write(ref _connectPhase, 1);
 
         public void EndConnectPhase() => Volatile.Write(ref _connectPhase, 0);
 
-        public async ValueTask EnterAsync(CancellationToken cancellationToken = default)
+        public async ValueTask EnterAsync(
+            CancellationToken cancellationToken = default,
+            Func<IRateLimitInfo, Task>? ratelimitCallback = null)
         {
             if (Volatile.Read(ref _connectPhase) != 0)
             {
-                await _connectPerSecond.WaitAsync(cancellationToken).ConfigureAwait(false);
+                await WaitBucketAsync(
+                    _connectPerSecond,
+                    RateLimitBuckets.TransportConnect,
+                    isGlobal: false,
+                    cancellationToken,
+                    ratelimitCallback).ConfigureAwait(false);
             }
 
-            await _perSecond.WaitAsync(cancellationToken).ConfigureAwait(false);
-            await _perMinute.WaitAsync(cancellationToken).ConfigureAwait(false);
+            await WaitBucketAsync(
+                _perSecond,
+                RateLimitBuckets.TransportPerSecond,
+                isGlobal: true,
+                cancellationToken,
+                ratelimitCallback).ConfigureAwait(false);
+
+            await WaitBucketAsync(
+                _perMinute,
+                RateLimitBuckets.TransportPerMinute,
+                isGlobal: true,
+                cancellationToken,
+                ratelimitCallback).ConfigureAwait(false);
         }
 
         public void Reset()
@@ -45,6 +78,45 @@ namespace Mezon.Net.Queue
             _perMinute.Reset();
             _connectPerSecond.Reset();
             EndConnectPhase();
+        }
+
+        private static async ValueTask WaitBucketAsync(
+            SlidingWindowRateLimiter limiter,
+            string bucket,
+            bool isGlobal,
+            CancellationToken cancellationToken,
+            Func<IRateLimitInfo, Task>? ratelimitCallback)
+        {
+            Action<int>? onDelayed = null;
+            if (ratelimitCallback != null)
+            {
+                onDelayed = delayMs =>
+                {
+                    var info = new RateLimitInfo
+                    {
+                        IsGlobal = isGlobal,
+                        Limit = limiter.MaxCount,
+                        Remaining = 0,
+                        ResetAfter = TimeSpan.FromMilliseconds(delayMs),
+                        Bucket = bucket
+                    };
+                    _ = InvokeCallbackAsync(ratelimitCallback, info);
+                };
+            }
+
+            await limiter.WaitAsync(cancellationToken, onDelayed).ConfigureAwait(false);
+        }
+
+        private static async Task InvokeCallbackAsync(Func<IRateLimitInfo, Task> callback, IRateLimitInfo info)
+        {
+            try
+            {
+                await callback(info).ConfigureAwait(false);
+            }
+            catch
+            {
+                // Callbacks must not break the send path.
+            }
         }
     }
 }
