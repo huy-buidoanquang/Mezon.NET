@@ -10,7 +10,7 @@ namespace Mezon.Net.Transport.Internal
 {
     internal static class MezonTransportFrameCodec
     {
-        public const byte PongPrefix = 0x00;
+        public const byte PingPongPrefix = 0x00;
         public const byte ApiPrefix = 0xff;
         public const byte AbridgedExtendedPrefix = 0x7f;
         public const int FinishFlag = 0xff;
@@ -40,7 +40,7 @@ namespace Mezon.Net.Transport.Internal
 
             switch (prefix)
             {
-                case PongPrefix:
+                case PingPongPrefix:
                     if (TryReadPongFrame(ref reader, out cid))
                     {
                         code = 0;
@@ -134,7 +134,7 @@ namespace Mezon.Net.Transport.Internal
         {
             byte[] buffer = ArrayPool<byte>.Shared.Rent(3);
             Span<byte> span = buffer.AsSpan(0, 3);
-            span[0] = PongPrefix;
+            span[0] = PingPongPrefix;
             BinaryPrimitives.WriteUInt16BigEndian(span.Slice(1), cid);
             if (!writer.TryWrite(buffer.AsMemory(0, 3)))
             {

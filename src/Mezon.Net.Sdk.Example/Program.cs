@@ -67,10 +67,12 @@ internal class Program
         try
         {
             var channel = await client.GetChannelAsync(TargetChannelId);
-            for (int i = 0; i < 20; i++)
-            {
-                var ack = await channel.SendAsync("{\"t\":\"Lorem ctus commodo augue.\"}").ConfigureAwait(false);
-            }
+            var ack = await channel.SendAsync("{\"t\":\"Lorem ctus commodo augue.\"}").ConfigureAwait(false);
+
+            //for (int i = 0; i < 20; i++)
+            //{
+            //    var ack = await channel.SendAsync("{\"t\":\"Lorem ctus commodo augue.\"}").ConfigureAwait(false);
+            //}
         }
         catch (Exception ex)
         {

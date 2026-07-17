@@ -20,6 +20,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Mezon.Net.Client\Mezon.Net.Client.csproj" />
-    <ProjectReference Include="..\Mezon.Net.Mmn\Mezon.Net.Mmn.csproj" />
+    <ProjectReference Include="..\Mezon.Net.Mmn\Mezon.Net.Mmn.csproj" Condition="'$(TargetFramework)' != 'netstandard2.1'" />
   </ItemGroup>
 </Project>
