@@ -4,7 +4,7 @@ Four-layer .NET SDK for the Mezon platform:
 
 ```
 Mezon.Net.Sdk          → Bot/App facade (MezonClient, entities, DI, MMN/SSE)
-Mezon.Net.Mmn          → MMN/ZK HTTP clients
+Mezon.Net.Mmn          → MMN gRPC node client + ZK prove HTTP client
 Mezon.Net.Client       → Socket engine (cid map, Envelope, api-over-socket, events)
 Mezon.Net.Transport    → TCP (primary) + WebSocket (browser)
 Mezon.Net.Core         → Protobuf, contracts, options, protocol maps

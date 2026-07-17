@@ -10,7 +10,7 @@
 | **Mezon.Net.Client** | UI / full engine access | `dotnet add package Mezon.Net.Client` |
 | Mezon.Net.Core | Shared contracts & options | transitive |
 | Mezon.Net.Transport | TCP / WebSocket transport | transitive |
-| Mezon.Net.Mmn | MMN / ZK HTTP clients | transitive via Sdk |
+| Mezon.Net.Mmn | MMN gRPC + ZK prove HTTP | not published; bundled in Sdk (net6.0+) |
 
 ## Quickstart (Sdk)
 
@@ -28,6 +28,19 @@ await client.LoginAsync();
 var channel = await client.GetChannelAsync(channelId);
 await channel.SendAsync("Hello from Mezon.Net");
 ```
+
+## MMN (Mezon Mainnet)
+
+Configure gRPC node and ZK prove endpoints on `MezonClientOptions`:
+
+```csharp
+options.MMNApiUrl = "https://your-mmn-grpc-endpoint"; // gRPC, not REST
+options.ZkApiUrl = "https://your-zk-prove-service";   // POST /prove
+```
+
+After `LoginAsync`, the SDK initializes `KeyGen`, `AddressMmn`, and `ZkProofs`. Send tokens with `SendTransferAsync(recipient, amount)`.
+
+**Breaking change:** MMN no longer uses REST `/sendTransaction` or JSON-RPC nonce. Use `client.Mmn.NodeClient` for low-level gRPC access and `CryptoHelper` for signing.
 
 ## Rate limits
 

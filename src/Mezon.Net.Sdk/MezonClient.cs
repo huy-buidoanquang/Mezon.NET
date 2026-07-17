@@ -4,8 +4,6 @@ using System.Threading.Tasks;
 using Mezon.Net.Sdk.Managers;
 using Mezon.Net.Core;
 using Mezon.Net.Logging;
-using Mezon.Net.Mmn;
-using Mezon.Net.Mmn.Models;
 using Mezon.Net.Models;
 using Mezon.Net.Sdk.Agent;
 using Mezon.Net.Sdk.Caching;
@@ -22,9 +20,6 @@ namespace Mezon.Net.Sdk
         private readonly DmChannelManager _dmChannels = new DmChannelManager();
         private readonly ChannelSendQueue _sendQueue = new ChannelSendQueue();
         private bool _cacheListenersBound;
-        private Task? _mmnInitTask;
-        private MmnClient? _mmnClient;
-        private ZkClient? _zkClient;
         private AgentSseManager? _agentManager;
         internal readonly Logger _logger;
 
@@ -57,10 +52,6 @@ namespace Mezon.Net.Sdk
         public long BotId => Options.BotId;
         public ConnectionState ConnectionState => _engine.ConnectionState;
         public long Latency => _engine.Latency;
-
-        public EphemeralKeyPair? KeyGen { get; private set; }
-        public string? AddressMmn { get; private set; }
-        public ZkProofResult? ZkProofs { get; private set; }
 
         public event Func<Task>? Ready;
 
@@ -136,17 +127,8 @@ namespace Mezon.Net.Sdk
         {
             await _dmChannels.InitializeAsync(_engine).ConfigureAwait(false);
             await SeedClanCacheAsync(cancellationToken).ConfigureAwait(false);
-            //await RejoinCachedChannelsAsync().ConfigureAwait(false);
             BindCacheListeners();
             await InitializeMmnAsync(cancellationToken).ConfigureAwait(false);
-        }
-
-        private async Task RejoinCachedChannelsAsync()
-        {
-            foreach (var channel in Channels.Values)
-            {
-                await channel.JoinAsync().ConfigureAwait(false);
-            }
         }
 
         public Task ConnectAgentSseAsync(CancellationToken cancellationToken = default)
@@ -184,37 +166,6 @@ namespace Mezon.Net.Sdk
 
         public async Task DeleteQuickMenuAccessAsync(QuickMenuAccessParams body, RequestOptions? options = null)
             => await _engine.DeleteQuickMenuAccessAsync(body, options).ConfigureAwait(false);
-
-        public EphemeralKeyPair GetEphemeralKeyPair()
-        {
-            EnsureMmnClient();
-            return _mmnClient!.GenerateEphemeralKeyPair();
-        }
-
-        public string GetAddress(long userId)
-        {
-            EnsureMmnClient();
-            return _mmnClient!.GetAddressFromUserId(userId);
-        }
-
-        public Task<ZkProofResult> GetZkProofsAsync(ZkProofRequest request, CancellationToken cancellationToken = default)
-        {
-            EnsureZkClient();
-            return _zkClient!.GetZkProofsAsync(request, cancellationToken);
-        }
-
-        public Task<NonceResult> GetCurrentNonceAsync(long userId, string tag = "pending", CancellationToken cancellationToken = default)
-        {
-            EnsureMmnClient();
-            var address = GetAddress(userId);
-            return _mmnClient!.GetCurrentNonceAsync(address, tag, cancellationToken);
-        }
-
-        public async Task<SendTransactionResult> SendTokenAsync(SendTransactionRequest request, CancellationToken cancellationToken = default)
-        {
-            EnsureMmnClient();
-            return await _mmnClient!.SendTransactionAsync(request, cancellationToken).ConfigureAwait(false);
-        }
 
         public ValueTask<Clan> GetClanAsync(long clanId, CancellationToken cancellationToken = default)
             => Clans.GetOrFetchAsync(clanId, FetchClanAsync, cancellationToken);
@@ -266,69 +217,12 @@ namespace Mezon.Net.Sdk
             }
         }
 
-        private async Task InitializeMmnAsync(CancellationToken cancellationToken)
-        {
-            if (string.IsNullOrWhiteSpace(Options.MMNApiUrl))
-            {
-                return;
-            }
-
-            if (KeyGen != null && AddressMmn != null && ZkProofs != null)
-            {
-                return;
-            }
-
-            if (_mmnInitTask != null)
-            {
-                await _mmnInitTask.ConfigureAwait(false);
-                return;
-            }
-
-            _mmnInitTask = InitializeMmnCoreAsync(cancellationToken);
-            await _mmnInitTask.ConfigureAwait(false);
-        }
-
-        private async Task InitializeMmnCoreAsync(CancellationToken cancellationToken)
-        {
-            try
-            {
-                EnsureMmnClient();
-                var mmn = _mmnClient!;
-                KeyGen ??= mmn.GenerateEphemeralKeyPair();
-                AddressMmn ??= mmn.GetAddressFromUserId(Options.BotId);
-
-                var session = _engine.CurrentSession;
-                var idToken = session.IdToken;
-                if (!string.IsNullOrEmpty(idToken) && !string.IsNullOrEmpty(Options.ZkApiUrl))
-                {
-                    EnsureZkClient();
-                    ZkProofs ??= await _zkClient!.GetZkProofsAsync(new ZkProofRequest
-                    {
-                        UserId = Options.BotId,
-                        Jwt = idToken,
-                        Address = AddressMmn,
-                        EphemeralPublicKey = KeyGen.PublicKey,
-                    }, cancellationToken).ConfigureAwait(false);
-                }
-            }
-            catch
-            {
-                _mmnInitTask = null;
-                throw;
-            }
-        }
-
-        private void EnsureMmnClient()
-            => _mmnClient ??= new MmnClient(Options.MMNApiUrl, Options.ApiTimeoutInMilliseconds);
-
-        private void EnsureZkClient()
-            => _zkClient ??= new ZkClient(Options.ZkApiUrl, Options.ApiTimeoutInMilliseconds);
+        partial void DisposeMmn();
 
         public async ValueTask DisposeAsync()
         {
             _agentManager?.Dispose();
-            _mmnClient?.Dispose();
-            _zkClient?.Dispose();
+            DisposeMmn();
             await _engine.DisposeAsync().ConfigureAwait(false);
         }
     }

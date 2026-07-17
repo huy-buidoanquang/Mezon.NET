@@ -26,14 +26,14 @@ namespace Mezon.Net.Core
         public const int DefaultSocketTimeoutInMilliseconds = 7000;
 
         /// <summary>
-        ///     Default Mezon Mainnet (MMN) API base URL.
+        ///     Default Mezon Mainnet (MMN) gRPC node endpoint. Empty disables automatic MMN initialization.
         /// </summary>
-        public const string DefaultMMNApi = "https://dong.mezon.ai/mmn-api/";
+        public const string DefaultMMNApi = "";
 
         /// <summary>
-        ///     Default Zero-Knowledge (ZK) API base URL.
+        ///     Default Zero-Knowledge (ZK) prove service base URL.
         /// </summary>
-        public const string DefaultZKApi = "https://dong.mezon.ai/zk-api/";
+        public const string DefaultZKApi = "https://dong.mezon.ai/zk-api";
 
         /// <summary>
         ///     Default server key used for authentication bootstrap.
@@ -96,19 +96,13 @@ namespace Mezon.Net.Core
         public string GatewayBasePath => $"{(UseSSL ? "https" : "http")}://{Host}:{Port}";
 
         /// <summary>
-        ///     Gets or sets the base MMN Api Url.
+        ///     Gets or sets the MMN gRPC node endpoint. When empty, MMN initialization is skipped.
         /// </summary>
-        /// <returns>
-        ///     The base Mezon Mainnet Api Url.
-        /// </returns>
         public string MMNApiUrl { get; set; } = DefaultMMNApi;
 
         /// <summary>
-        ///     Gets or sets the base Zk Api Url.
+        ///     Gets or sets the ZK prove service base URL (requests are sent to <c>/prove</c>).
         /// </summary>
-        /// <returns>
-        ///     The base Zero-Knowledge Api Url.
-        /// </returns>
         public string ZkApiUrl { get; set; } = DefaultZKApi;
 
         /// <summary>
