@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Mezon.Net.Models
 {
     public readonly struct UpdateMessageParams
@@ -10,6 +12,8 @@ namespace Mezon.Net.Models
         public bool IsPublic { get; }
         public long? TopicId { get; }
         public bool HideEdited { get; }
+        public IEnumerable<MessageMentionParams>? Mentions { get; }
+        public IEnumerable<MessageAttachmentParams>? Attachments { get; }
 
         public UpdateMessageParams(
             long clanId,
@@ -19,7 +23,9 @@ namespace Mezon.Net.Models
             int mode,
             bool isPublic,
             long? topicId = null,
-            bool hideEdited = false)
+            bool hideEdited = false,
+            IEnumerable<MessageMentionParams>? mentions = null,
+            IEnumerable<MessageAttachmentParams>? attachments = null)
         {
             ClanId = clanId;
             ChannelId = channelId;
@@ -29,6 +35,8 @@ namespace Mezon.Net.Models
             IsPublic = isPublic;
             TopicId = topicId;
             HideEdited = hideEdited;
+            Mentions = mentions;
+            Attachments = attachments;
         }
     }
 }

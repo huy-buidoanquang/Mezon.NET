@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Mezon.Net.Models
 {
     public readonly struct ReplyMessageParams
@@ -16,6 +18,8 @@ namespace Mezon.Net.Models
         public int Code { get; }
         public bool MentionEveryone { get; }
         public bool AnonymousMessage { get; }
+        public IEnumerable<MessageMentionParams>? Mentions { get; }
+        public IEnumerable<MessageAttachmentParams>? Attachments { get; }
 
         public ReplyMessageParams(
             long clanId,
@@ -31,7 +35,9 @@ namespace Mezon.Net.Models
             long? topicId = null,
             int code = 0,
             bool mentionEveryone = false,
-            bool anonymousMessage = false)
+            bool anonymousMessage = false,
+            IEnumerable<MessageMentionParams>? mentions = null,
+            IEnumerable<MessageAttachmentParams>? attachments = null)
         {
             ClanId = clanId;
             ChannelId = channelId;
@@ -47,6 +53,8 @@ namespace Mezon.Net.Models
             Code = code;
             MentionEveryone = mentionEveryone;
             AnonymousMessage = anonymousMessage;
+            Mentions = mentions;
+            Attachments = attachments;
         }
     }
 }

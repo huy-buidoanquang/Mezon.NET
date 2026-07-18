@@ -39,7 +39,9 @@ namespace Mezon.Net.Client
                             await TimedInvokeAsync(_channelLeftEvent, nameof(ChannelLeftEvent), new ChannelLeaveEventData(new ChannelLeaveResponse(envelope.ChannelLeave))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.ChannelMessage:
-                            await TimedInvokeAsync(_channelMessageReceivedEvent, nameof(ChannelMessageReceivedEvent), new ChannelMessageEventData(new Mezon.Net.Models.ChannelMessageResponse(envelope.ChannelMessage))).ConfigureAwait(false);
+                            // Decode nested mentions/attachments/references/reactions once at the engine boundary.
+                            var channelMessage = ChannelMessageResponse.Decode(envelope.ChannelMessage);
+                            await TimedInvokeAsync(_channelMessageReceivedEvent, nameof(ChannelMessageReceivedEvent), new ChannelMessageEventData(channelMessage)).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.ChannelMessageAck:
                             await TimedInvokeAsync(_channelMessageAckReceivedEvent, nameof(ChannelMessageAckReceivedEvent), new ChannelMessageAckEventData(new ChannelMessageAckResponse(envelope.ChannelMessageAck))).ConfigureAwait(false);

@@ -1,86 +1,88 @@
-using Mezon.Net.Models;
-using Mezon.Net.Sdk;
+using Mezon.Net.Sdk.Example;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
+using MsLogLevel = Microsoft.Extensions.Logging.LogLevel;
 
-internal class Program
+internal static class Program
 {
-    private const long TargetClanId = 2050100607154393088L;
-    private const long TargetChannelId = 2050100608064557056L;
-
-    private static async Task Main(string[] args)
+    private static async Task<int> Main(string[] args)
     {
-        using ILoggerFactory factory = LoggerFactory.Create(builder => { builder.AddConsole(); builder.SetMinimumLevel(LogLevel.Trace); });
-        ILogger logger = factory.CreateLogger("Program");
-
-        var botId = 2061341035941859328;
-        var token = "cEZ9WYdcS0qaIcb7";
-        static void WireClientLog(MezonClient client, ILogger logger)
+        BotOptions options;
+        try
         {
-            client.Log += message =>
-            {
-                var text = message.ToString(prependTimestamp: true, timestampKind: DateTimeKind.Utc);
-                switch (message.Level)
-                {
-                    case Mezon.Net.Logging.LogLevel.Trace:
-                        logger.LogDebug("{MezonLog}", text);
-                        break;
-                    case Mezon.Net.Logging.LogLevel.Debug:
-                        logger.LogDebug("{MezonLog}", text);
-                        break;
-                    case Mezon.Net.Logging.LogLevel.Warning:
-                        logger.LogWarning("{MezonLog}", text);
-                        break;
-                    case Mezon.Net.Logging.LogLevel.Error:
-                    case Mezon.Net.Logging.LogLevel.Critical:
-                        logger.LogError("{MezonLog}", text);
-                        break;
-                    default:
-                        logger.LogInformation("{MezonLog}", text);
-                        break;
-                }
-
-                return Task.CompletedTask;
-            };
+            options = BotOptions.Parse(args);
+        }
+        catch (ArgumentException ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            BotOptions.PrintHelp();
+            return 2;
         }
 
-        var options = new MezonClientOptions(botId, token);
-        options.DefaultRatelimitCallback += async (x) => Console.WriteLine(JsonConvert.SerializeObject(x));
-        options.MaxTransportRequestsPerSecond = 5;
-        options.MaxTransportRequestsPerMinute = 10;
-        options.LogLevel = Mezon.Net.Logging.LogLevel.Trace;
-        await using var client = new MezonClient(options);
-        WireClientLog(client, logger);
-        client.ChannelMessageReceived += evt =>
+        if (options.ShowHelp)
         {
-            var message = (ChannelMessageResponse)evt;
-            Console.WriteLine($"[{message.ChannelId}] {message.Username}: {message.Content}");
-            return Task.CompletedTask;
-        };
-
-        if (!await client.LoginAsync())
-        {
-            Console.WriteLine("Login failed.");
-            return;
+            BotOptions.PrintHelp();
+            return 0;
         }
 
         try
         {
-            var channel = await client.GetChannelAsync(TargetChannelId);
-            var ack = await channel.SendAsync("{\"t\":\"Lorem ctus commodo augue.\"}").ConfigureAwait(false);
+            options.Validate();
+        }
+        catch (ArgumentException ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            BotOptions.PrintHelp();
+            return 2;
+        }
 
-            //for (int i = 0; i < 20; i++)
-            //{
-            //    var ack = await channel.SendAsync("{\"t\":\"Lorem ctus commodo augue.\"}").ConfigureAwait(false);
-            //}
+        using var loggerFactory = LoggerFactory.Create(builder =>
+        {
+            builder.SetMinimumLevel(ToMsLogLevel(options.LogLevel));
+            builder.AddSimpleConsole(console =>
+            {
+                console.TimestampFormat = "HH:mm:ss ";
+                console.SingleLine = true;
+            });
+        });
+
+        var logger = loggerFactory.CreateLogger("Mezon.Net.Sdk.Example");
+
+        using var cts = new CancellationTokenSource();
+        Console.CancelKeyPress += (_, e) =>
+        {
+            e.Cancel = true;
+            if (!cts.IsCancellationRequested)
+            {
+                logger.LogInformation("Ctrl+C received.");
+                cts.Cancel();
+            }
+        };
+
+        try
+        {
+            var bot = new MezonBot(options, logger);
+            return await bot.RunAsync(cts.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
+        {
+            return 0;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Send failed: {ex.Message}");
-            logger.LogError(ex, "Failed to send message to channel {ChannelId}", TargetChannelId);
+            logger.LogCritical(ex, "Bot terminated unexpectedly.");
+            return 1;
         }
-
-        Console.WriteLine("Bot connected. Press Ctrl+C to exit.");
-        await Task.Delay(Timeout.Infinite);
     }
+
+    private static MsLogLevel ToMsLogLevel(Mezon.Net.Logging.LogLevel level)
+        => level switch
+        {
+            Mezon.Net.Logging.LogLevel.Trace => MsLogLevel.Trace,
+            Mezon.Net.Logging.LogLevel.Debug => MsLogLevel.Debug,
+            Mezon.Net.Logging.LogLevel.Information => MsLogLevel.Information,
+            Mezon.Net.Logging.LogLevel.Warning => MsLogLevel.Warning,
+            Mezon.Net.Logging.LogLevel.Error => MsLogLevel.Error,
+            Mezon.Net.Logging.LogLevel.Critical => MsLogLevel.Critical,
+            _ => MsLogLevel.Information,
+        };
 }

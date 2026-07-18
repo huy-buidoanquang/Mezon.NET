@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Mezon.Net.Client.Messaging;
 using Mezon.Net.Core;
@@ -29,7 +30,13 @@ namespace Mezon.Net.Sdk.Entities
 
         internal void SetDmChannelId(long channelId) => _dmChannelId = channelId;
 
-        public async Task<ChannelMessageAckResponse> SendDMAsync(string content, int code = 0, RequestOptions? options = null)
+        public async Task<ChannelMessageAckResponse> SendDMAsync(
+            string content,
+            int code = 0,
+            IEnumerable<MessageMentionParams>? mentions = null,
+            IEnumerable<MessageAttachmentParams>? attachments = null,
+            IEnumerable<MessageRefParams>? references = null,
+            RequestOptions? options = null)
         {
             if (_dmChannelId == 0)
             {
@@ -43,7 +50,16 @@ namespace Mezon.Net.Sdk.Entities
             }
 
             var mode = (int)ChannelStreamMode.Dm;
-            var parameters = new SendChannelMessageParams(0, _dmChannelId, content, isPublic: false, mode: mode, code: code);
+            var parameters = new SendChannelMessageParams(
+                0,
+                _dmChannelId,
+                content,
+                isPublic: false,
+                mode: mode,
+                code: code,
+                mentions: mentions,
+                attachments: attachments,
+                references: references);
             return await MessageSendHelper.SendAsync(_client.Engine, parameters, options).ConfigureAwait(false);
         }
     }

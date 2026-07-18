@@ -85,7 +85,7 @@ var channel = await client.GetChannelAsync(channelId);
 await channel.SendAsync("Hello");
 ```
 
-See `src/Mezon.Net.Sdk.Example` for a minimal bot host.
+See [`src/Mezon.Net.Sdk.Example`](src/Mezon.Net.Sdk.Example) for a sample bot host (env/CLI config, commands, graceful shutdown).
 
 ## Socket protocol
 

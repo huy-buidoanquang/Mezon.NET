@@ -1,4 +1,5 @@
 using System.Threading.Tasks;
+using Mezon.Net.Client.Models.Internal;
 using Mezon.Net.Core;
 using Mezon.Net.Internal.Api;
 using Mezon.Net.Internal.Realtime;
@@ -22,6 +23,40 @@ namespace Mezon.Net.Client.Messaging
             {
                 body.TopicId = message.TopicId.Value;
             }
+
+            if (message.Avatar is not null)
+            {
+                body.Avatar = message.Avatar;
+            }
+
+            if (message.Id.HasValue)
+            {
+                body.Id = message.Id.Value;
+            }
+
+            if (message.Mentions is not null)
+            {
+                foreach (var item in message.Mentions)
+                {
+                    body.Mentions.Add(MessageMentionParamsMapper.ToProto(item));
+                }
+            }
+
+            if (message.Attachments is not null)
+            {
+                foreach (var item in message.Attachments)
+                {
+                    body.Attachments.Add(MessageAttachmentParamsMapper.ToProto(item));
+                }
+            }
+
+            if (message.References is not null)
+            {
+                foreach (var item in message.References)
+                {
+                    body.References.Add(MessageRefParamsMapper.ToProto(item));
+                }
+            }
         }
 
         public static ChannelMessageSend ToChannelMessageSend(in SendChannelMessageParams message)
@@ -31,67 +66,47 @@ namespace Mezon.Net.Client.Messaging
             return body;
         }
 
-        public static ChannelMessageSend ToChannelMessageSend(in ReplyMessageParams message)
+        public static SendChannelMessageParams ToSendParams(in ReplyMessageParams message)
         {
             var mode = ChannelModeConverter.ToStreamMode(message.ChannelType);
-            var body = new ChannelMessageSend
-            {
-                ClanId = message.ClanId,
-                ChannelId = message.ChannelId,
-                Content = message.Content,
-                IsPublic = message.IsPublic,
-                Mode = mode,
-                MentionEveryone = message.MentionEveryone,
-                AnonymousMessage = message.AnonymousMessage,
-                Code = message.Code,
-            };
-            if (message.TopicId.HasValue)
-            {
-                body.TopicId = message.TopicId.Value;
-            }
+            var reference = new MessageRefParams(
+                messageRefId: message.ReplyToMessageId,
+                messageSenderId: message.ReplyToSenderId,
+                content: message.ReplyToContent,
+                refType: 0,
+                messageSenderUsername: message.ReplyToSenderUsername,
+                messageSenderAvatar: message.ReplyToSenderAvatar);
 
-            var reference = new MessageRef
-            {
-                MessageRefId = message.ReplyToMessageId,
-                MessageSenderId = message.ReplyToSenderId,
-                RefType = 0,
-            };
-            if (!string.IsNullOrEmpty(message.ReplyToSenderUsername))
-            {
-                reference.MessageSenderUsername = message.ReplyToSenderUsername;
-            }
-            if (!string.IsNullOrEmpty(message.ReplyToSenderAvatar))
-            {
-                reference.MessageSenderAvatar = message.ReplyToSenderAvatar;
-            }
-            if (!string.IsNullOrEmpty(message.ReplyToContent))
-            {
-                reference.Content = message.ReplyToContent;
-            }
-
-            body.References.Add(reference);
-            return body;
+            return new SendChannelMessageParams(
+                message.ClanId,
+                message.ChannelId,
+                message.Content,
+                message.TopicId,
+                message.IsPublic,
+                mode,
+                message.Code,
+                message.MentionEveryone,
+                message.AnonymousMessage,
+                mentions: message.Mentions,
+                attachments: message.Attachments,
+                references: new[] { reference });
         }
+
+        public static ChannelMessageSend ToChannelMessageSend(in ReplyMessageParams message)
+            => ToChannelMessageSend(ToSendParams(message));
 
         public static ChannelMessageUpdate ToChannelMessageUpdate(in UpdateMessageParams message)
-        {
-            var body = new ChannelMessageUpdate
-            {
-                ClanId = message.ClanId,
-                ChannelId = message.ChannelId,
-                MessageId = message.MessageId,
-                Content = message.Content,
-                Mode = message.Mode,
-                IsPublic = message.IsPublic,
-                HideEditted = message.HideEdited,
-            };
-            if (message.TopicId.HasValue)
-            {
-                body.TopicId = message.TopicId.Value;
-            }
-
-            return body;
-        }
+            => ChannelMessageUpdateParamsMapper.ToProto(new ChannelMessageUpdateParams(
+                message.ClanId,
+                message.ChannelId,
+                message.MessageId,
+                message.Content,
+                message.Mentions,
+                message.Attachments,
+                message.Mode,
+                message.IsPublic,
+                message.HideEdited,
+                message.TopicId));
 
         public static ChannelMessageRemove ToChannelMessageRemove(in DeleteMessageParams message)
         {
@@ -182,14 +197,7 @@ namespace Mezon.Net.Client.Messaging
             => client.SendChatMessageRtAsync(message, options);
 
         internal static Task<ChannelMessageAckResponse> SendReplyAsync(MezonClient client, in ReplyMessageParams message, RequestOptions? options = null)
-            => client.SendChatMessageRtAsync(new SendChannelMessageParams(
-                message.ClanId,
-                message.ChannelId,
-                message.Content,
-                message.TopicId,
-                message.IsPublic,
-                code: message.Code,
-                mentionEveryone: message.MentionEveryone), options);
+            => client.SendChatMessageRtAsync(ToSendParams(message), options);
 
         internal static Task UpdateAsync(MezonClient client, in UpdateMessageParams message, RequestOptions? options = null)
             => client.UpdateChatMessageRtAsync(message, options);
