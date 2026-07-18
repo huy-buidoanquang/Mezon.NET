@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Mezon.Net.Models
 {
     /// <summary>
@@ -14,6 +16,11 @@ namespace Mezon.Net.Models
         public int Code { get; }
         public bool MentionEveryone { get; }
         public bool AnonymousMessage { get; }
+        public IEnumerable<MessageMentionParams>? Mentions { get; }
+        public IEnumerable<MessageAttachmentParams>? Attachments { get; }
+        public IEnumerable<MessageRefParams>? References { get; }
+        public string? Avatar { get; }
+        public long? Id { get; }
 
         public SendChannelMessageParams(
             long clanId,
@@ -24,7 +31,12 @@ namespace Mezon.Net.Models
             int mode = 0,
             int code = 0,
             bool mentionEveryone = false,
-            bool anonymousMessage = false)
+            bool anonymousMessage = false,
+            IEnumerable<MessageMentionParams>? mentions = null,
+            IEnumerable<MessageAttachmentParams>? attachments = null,
+            IEnumerable<MessageRefParams>? references = null,
+            string? avatar = null,
+            long? id = null)
         {
             ClanId = clanId;
             ChannelId = channelId;
@@ -35,6 +47,11 @@ namespace Mezon.Net.Models
             Code = code;
             MentionEveryone = mentionEveryone;
             AnonymousMessage = anonymousMessage;
+            Mentions = mentions;
+            Attachments = attachments;
+            References = references;
+            Avatar = avatar;
+            Id = id;
         }
     }
 }

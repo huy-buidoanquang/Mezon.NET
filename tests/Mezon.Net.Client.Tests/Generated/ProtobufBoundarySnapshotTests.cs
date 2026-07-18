@@ -20,11 +20,13 @@ namespace Mezon.Net.Client.Tests.Generated
         public void Generated_models_include_channel_message_response_view()
         {
             var root = FindRepoRoot();
-            var data = File.ReadAllText(Path.Combine(root, "src", "Mezon.Net.Client", "Models", "Responses", "ChannelMessageResponse.g.cs"));
+            var data = File.ReadAllText(Path.Combine(root, "src", "Mezon.Net.Client", "Models", "Responses", "ChannelMessageResponse.cs"));
 
             Assert.Contains("namespace Mezon.Net.Models", data);
             Assert.Contains("public readonly struct ChannelMessageResponse", data);
             Assert.Contains("public long MessageId =>", data);
+            Assert.Contains("ChannelMessageResponse Decode(", data);
+            Assert.Contains("ProtoListView<MessageMentionResponse> Mentions", data);
         }
 
         [Fact]

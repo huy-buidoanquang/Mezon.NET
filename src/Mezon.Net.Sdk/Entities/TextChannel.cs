@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Mezon.Net.Client.Messaging;
 using Mezon.Net.Core;
@@ -40,10 +41,25 @@ namespace Mezon.Net.Sdk.Entities
             int code = 0,
             bool mentionEveryone = false,
             bool anonymousMessage = false,
+            IEnumerable<MessageMentionParams>? mentions = null,
+            IEnumerable<MessageAttachmentParams>? attachments = null,
+            IEnumerable<MessageRefParams>? references = null,
             RequestOptions? options = null)
         {
             var mode = ChannelModeConverter.ToStreamMode(Type);
-            var parameters = new SendChannelMessageParams(ClanId, Id, content, topicId, IsPublic, mode, code, mentionEveryone, anonymousMessage);
+            var parameters = new SendChannelMessageParams(
+                ClanId,
+                Id,
+                content,
+                topicId,
+                IsPublic,
+                mode,
+                code,
+                mentionEveryone,
+                anonymousMessage,
+                mentions,
+                attachments,
+                references);
             return _client.SendQueue.EnqueueAsync(Id, () =>
                 MessageSendHelper.SendAsync(_client.Engine, parameters, options));
         }
@@ -51,10 +67,21 @@ namespace Mezon.Net.Sdk.Entities
         public Task<ChannelMessageAckResponse> SendEphemeralAsync(
             string content,
             long receiverId,
+            IEnumerable<MessageMentionParams>? mentions = null,
+            IEnumerable<MessageAttachmentParams>? attachments = null,
+            IEnumerable<MessageRefParams>? references = null,
             RequestOptions? options = null)
         {
             var mode = ChannelModeConverter.ToStreamMode(Type);
-            var parameters = new SendChannelMessageParams(ClanId, Id, content, isPublic: IsPublic, mode: mode);
+            var parameters = new SendChannelMessageParams(
+                ClanId,
+                Id,
+                content,
+                isPublic: IsPublic,
+                mode: mode,
+                mentions: mentions,
+                attachments: attachments,
+                references: references);
             var body = new SendEphemeralMessageParams(new[] { receiverId }, parameters);
             return _client.SendQueue.EnqueueAsync(Id, async () =>
             {

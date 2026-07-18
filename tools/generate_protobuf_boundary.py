@@ -118,6 +118,11 @@ HAND_WRITTEN_PARAMS = {
     "QuickMenuDataEventParams",
 }
 
+# Hand-written response facades (decode nested bytes, custom caching, etc.).
+HAND_WRITTEN_RESPONSES = {
+    "ChannelMessage",
+}
+
 
 @dataclass
 class RealtimeMethod:
@@ -1483,6 +1488,8 @@ def main() -> int:
             continue
         file_stem = response_type_name(name)
         response_file_stems.add(file_stem)
+        if name in HAND_WRITTEN_RESPONSES:
+            continue
         write_file(OUT_RESPONSES / f"{file_stem}.g.cs", gen_data_struct(msg, api_messages, rt_messages))
         generated += 1
 

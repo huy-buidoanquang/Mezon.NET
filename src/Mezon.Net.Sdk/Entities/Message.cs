@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Mezon.Net.Client.Messaging;
 using Mezon.Net.Core;
@@ -43,6 +44,8 @@ namespace Mezon.Net.Sdk.Entities
             string content,
             long? topicId = null,
             int code = 0,
+            IEnumerable<MessageMentionParams>? mentions = null,
+            IEnumerable<MessageAttachmentParams>? attachments = null,
             RequestOptions? options = null)
         {
             var reply = new ReplyMessageParams(
@@ -57,15 +60,29 @@ namespace Mezon.Net.Sdk.Entities
                 Source?.Avatar,
                 Content,
                 topicId,
-                code);
+                code,
+                mentions: mentions,
+                attachments: attachments);
 
             return _client.SendQueue.EnqueueAsync(ChannelId, () => MessageSendHelper.SendReplyAsync(_client.Engine, reply, options));
         }
 
-        public Task UpdateAsync(string content, RequestOptions? options = null)
+        public Task UpdateAsync(
+            string content,
+            IEnumerable<MessageMentionParams>? mentions = null,
+            IEnumerable<MessageAttachmentParams>? attachments = null,
+            RequestOptions? options = null)
         {
             var mode = ChannelModeConverter.ToStreamMode(_channel.Type);
-            var update = new UpdateMessageParams(ClanId, ChannelId, Id, content, mode, _channel.IsPublic);
+            var update = new UpdateMessageParams(
+                ClanId,
+                ChannelId,
+                Id,
+                content,
+                mode,
+                _channel.IsPublic,
+                mentions: mentions,
+                attachments: attachments);
             return _client.SendQueue.EnqueueAsync(ChannelId, () =>
                 MessageSendHelper.UpdateAsync(_client.Engine, update, options));
         }
