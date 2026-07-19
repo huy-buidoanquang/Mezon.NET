@@ -9,15 +9,10 @@ using Mezon.Net.Logging;
 namespace Mezon.Net.Client
 {
     /// <summary>
-    /// Thread-safe session manager that ensures only one session exists throughout the application's lifecycle.
-    /// Uses lock-free reads for hot paths and coalesces concurrent refresh operations.
+    /// Thread-safe per-client session manager with coalesced refresh operations.
     /// </summary>
     internal sealed class SessionManager<TOptions> : ISessionManager<TOptions>, IAsyncDisposable where TOptions : MezonOptions
     {
-        private static SessionManager<TOptions>? _instance;
-        private static readonly object _instanceLock = new object();
-        private static volatile bool _isInitialized;
-
         private readonly SemaphoreSlim _sessionLock = new SemaphoreSlim(1, 1);
         private readonly IMezonApiClient _apiClient;
         private readonly MezonApiClientOptions _options;
@@ -33,51 +28,9 @@ namespace Mezon.Net.Client
         public event Func<ISession, Task>? SessionRefreshed;
 
         /// <summary>
-        /// Gets the singleton instance of SessionManager.
-        /// Must call GetOrCreate() before accessing this property.
-        /// </summary>
-        public static SessionManager<TOptions> Instance
-        {
-            get
-            {
-                if (!_isInitialized || _instance == null)
-                {
-                    throw new InvalidOperationException(
-                        "SessionManager has not been initialized. Call GetOrCreate() method first.");
-                }
-
-                return _instance;
-            }
-        }
-
-        /// <summary>
         /// Returns the current auth token without allocations on the hot path.
         /// </summary>
         public string GetToken() => _session.AuthToken;
-
-        /// <summary>
-        /// Gets the existing instance or creates a new one if not initialized.
-        /// Thread-safe double-checked locking pattern.
-        /// </summary>
-        public static SessionManager<TOptions> GetOrCreate(MezonApiClientOptions options, LogManager logManager)
-        {
-            if (_isInitialized && _instance != null)
-            {
-                return _instance;
-            }
-
-            lock (_instanceLock)
-            {
-                if (_isInitialized && _instance != null)
-                {
-                    return _instance;
-                }
-
-                _instance = new SessionManager<TOptions>(options, logManager);
-                _isInitialized = true;
-                return _instance;
-            }
-        }
 
         /// <summary>
         /// Returns the current token, refreshing the session if it is about to expire.
@@ -99,8 +52,6 @@ namespace Mezon.Net.Client
 
             return _session.AuthToken;
         }
-
-        public static bool IsInitialized => _isInitialized && _instance != null;
 
         internal SessionManager(MezonApiClientOptions options, LogManager logManager)
         {
