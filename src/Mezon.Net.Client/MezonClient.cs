@@ -191,15 +191,22 @@ namespace Mezon.Net.Client
             {
                 if (!HandlerTimeout.HasValue)
                 {
+                    await action().ConfigureAwait(false);
                     return;
                 }
 
-                var timeoutTask = Task.Delay(HandlerTimeout.Value);
+                using var timeoutCts = new CancellationTokenSource();
+                var timeoutTask = Task.Delay(HandlerTimeout.Value, timeoutCts.Token);
                 var handlersTask = action();
                 if (await Task.WhenAny(timeoutTask, handlersTask).ConfigureAwait(false) == timeoutTask)
                 {
                     await _logger.WarningAsync($"A {name} handler is blocking the socket task.").ConfigureAwait(false);
                 }
+                else
+                {
+                    timeoutCts.Cancel();
+                }
+
                 await handlersTask.ConfigureAwait(false);
             }
             catch (Exception ex)
@@ -279,6 +286,29 @@ namespace Mezon.Net.Client
         {
             _connection.ReconnectBaseDelayMs = delayMs;
             _connection.MaxReconnectDelayMs = delayMs;
+        }
+
+        internal override async ValueTask DisposeAsync(bool disposing)
+        {
+            if (disposing)
+            {
+                try
+                {
+                    if (ConnectionState != ConnectionState.Disconnected)
+                    {
+                        await DisconnectAsync().ConfigureAwait(false);
+                    }
+                }
+                catch
+                {
+                    // Best-effort disconnect before dispose.
+                }
+
+                _heartbeatTask = null;
+                _stateLock.Dispose();
+            }
+
+            await base.DisposeAsync(disposing).ConfigureAwait(false);
         }
     }
 }

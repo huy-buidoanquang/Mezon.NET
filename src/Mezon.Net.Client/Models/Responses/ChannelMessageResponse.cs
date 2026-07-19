@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Text;
 using Google.Protobuf;
 using Google.Protobuf.Collections;
 using Mezon.Net.Internal.Api;
@@ -9,7 +10,8 @@ namespace Mezon.Net.Models
     /// <summary>
     /// Public view over <see cref="ChannelMessage"/>. Nested <c>bytes</c> payloads
     /// (<c>mentions</c>/<c>attachments</c>/<c>references</c>/<c>reactions</c>) are decoded
-    /// once from protobuf <see cref="ByteString"/> (no intermediate <c>byte[]</c> copy).
+    /// once with protobuf-or-JSON fallback (TS <c>decodeMentions</c> parity). Malformed
+    /// metadata does not drop the message.
     /// </summary>
     public readonly struct ChannelMessageResponse
     {
@@ -21,6 +23,8 @@ namespace Mezon.Net.Models
             new ProtoListView<MessageRefResponse>(Array.Empty<MessageRefResponse>());
         private static readonly ProtoListView<MessageReactionResponse> EmptyReactions =
             new ProtoListView<MessageReactionResponse>(Array.Empty<MessageReactionResponse>());
+
+        private static readonly JsonParser JsonParser = new JsonParser(JsonParser.Settings.Default.WithIgnoreUnknownFields(true));
 
         private readonly ChannelMessage _proto;
         private readonly ProtoListView<MessageMentionResponse> _mentions;
@@ -73,47 +77,102 @@ namespace Mezon.Net.Models
         public long TopicId => _proto.TopicId;
 
         private static ProtoListView<MessageMentionResponse> DecodeMentions(ByteString bytes)
-        {
-            if (bytes.IsEmpty)
-            {
-                return EmptyMentions;
-            }
-
-            var list = MessageMentionList.Parser.ParseFrom(bytes);
-            return MapRepeated(list.Mentions, static x => new MessageMentionResponse(x), EmptyMentions);
-        }
+            => DecodeList(
+                bytes,
+                EmptyMentions,
+                static bytes => MessageMentionList.Parser.ParseFrom(bytes),
+                static json => JsonParser.Parse<MessageMentionList>(NormalizeListJson(json, "mentions")),
+                static list => MapRepeated(list.Mentions, static x => new MessageMentionResponse(x), EmptyMentions));
 
         private static ProtoListView<MessageAttachmentResponse> DecodeAttachments(ByteString bytes)
-        {
-            if (bytes.IsEmpty)
-            {
-                return EmptyAttachments;
-            }
-
-            var list = MessageAttachmentList.Parser.ParseFrom(bytes);
-            return MapRepeated(list.Attachments, static x => new MessageAttachmentResponse(x), EmptyAttachments);
-        }
+            => DecodeList(
+                bytes,
+                EmptyAttachments,
+                static bytes => MessageAttachmentList.Parser.ParseFrom(bytes),
+                static json => JsonParser.Parse<MessageAttachmentList>(NormalizeListJson(json, "attachments")),
+                static list => MapRepeated(list.Attachments, static x => new MessageAttachmentResponse(x), EmptyAttachments));
 
         private static ProtoListView<MessageRefResponse> DecodeReferences(ByteString bytes)
-        {
-            if (bytes.IsEmpty)
-            {
-                return EmptyReferences;
-            }
-
-            var list = MessageRefList.Parser.ParseFrom(bytes);
-            return MapRepeated(list.Refs, static x => new MessageRefResponse(x), EmptyReferences);
-        }
+            => DecodeList(
+                bytes,
+                EmptyReferences,
+                static bytes => MessageRefList.Parser.ParseFrom(bytes),
+                static json => JsonParser.Parse<MessageRefList>(NormalizeListJson(json, "refs")),
+                static list => MapRepeated(list.Refs, static x => new MessageRefResponse(x), EmptyReferences));
 
         private static ProtoListView<MessageReactionResponse> DecodeReactions(ByteString bytes)
+            => DecodeList(
+                bytes,
+                EmptyReactions,
+                static bytes => MessageReactionList.Parser.ParseFrom(bytes),
+                static json => JsonParser.Parse<MessageReactionList>(NormalizeListJson(json, "reactions")),
+                static list => MapRepeated(list.Reactions, static x => new MessageReactionResponse(x), EmptyReactions));
+
+        private static ProtoListView<TData> DecodeList<TList, TData>(
+            ByteString bytes,
+            ProtoListView<TData> empty,
+            Func<ByteString, TList> parseProto,
+            Func<string, TList> parseJson,
+            Func<TList, ProtoListView<TData>> map)
         {
             if (bytes.IsEmpty)
             {
-                return EmptyReactions;
+                return empty;
             }
 
-            var list = MessageReactionList.Parser.ParseFrom(bytes);
-            return MapRepeated(list.Reactions, static x => new MessageReactionResponse(x), EmptyReactions);
+            var span = bytes.Span;
+            try
+            {
+                if (LooksLikeJson(span))
+                {
+                    return map(parseJson(Encoding.UTF8.GetString(span)));
+                }
+
+                return map(parseProto(bytes));
+            }
+            catch
+            {
+                try
+                {
+                    return map(parseJson(Encoding.UTF8.GetString(span)));
+                }
+                catch
+                {
+                    // Malformed metadata must not drop the outer message.
+                    return empty;
+                }
+            }
+        }
+
+        private static bool LooksLikeJson(ReadOnlySpan<byte> span)
+        {
+            for (var i = 0; i < span.Length; i++)
+            {
+                var b = span[i];
+                if (b == (byte)' ' || b == (byte)'\t' || b == (byte)'\r' || b == (byte)'\n')
+                {
+                    continue;
+                }
+
+                // '[' or '{'
+                return b == 91 || b == 123;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Accepts either a bare JSON array or an object wrapping the repeated field.
+        /// </summary>
+        private static string NormalizeListJson(string json, string fieldName)
+        {
+            var trimmed = json.TrimStart();
+            if (trimmed.StartsWith("[", StringComparison.Ordinal))
+            {
+                return "{\"" + fieldName + "\":" + json + "}";
+            }
+
+            return json;
         }
 
         private static ProtoListView<TData> MapRepeated<TProto, TData>(

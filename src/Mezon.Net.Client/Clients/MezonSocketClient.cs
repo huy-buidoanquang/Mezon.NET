@@ -40,6 +40,11 @@ namespace Mezon.Net.Client
 
         internal IMezonNetworkTransporter NetworkTransporter { get; }
 
+        private Func<ISession>? _sessionAccessor;
+
+        internal void ConfigureSessionAccessor(Func<ISession> sessionAccessor)
+            => _sessionAccessor = sessionAccessor ?? throw new ArgumentNullException(nameof(sessionAccessor));
+
         public ConnectionState ConnectionState { get; private set; }
 
         public MezonSocketClient(RestClientProvider restClientProvider, MezonNetworkTransportProvider networkTransportProvider, MezonSocketClientOptions options)
@@ -212,7 +217,7 @@ namespace Mezon.Net.Client
 
         private (string host, int port, string token) GetTransportEndpoint()
         {
-            var session = SessionManager<MezonApiClientOptions>.Instance.CurrentSession();
+            var session = _sessionAccessor?.Invoke() ?? Session.NullSession();
             var connectToken = !string.IsNullOrEmpty(session.SessionId)
                 ? session.SessionId
                 : session.AuthToken ?? string.Empty;
@@ -306,7 +311,7 @@ namespace Mezon.Net.Client
                     }
 
                     _lastPongReceivedMs = now;
-                    var matched = _correlationHub.TryComplete(cid, code, ReadOnlyMemory<byte>.Empty);
+                    _ = _correlationHub.TryComplete(cid, code, ReadOnlyMemory<byte>.Empty);
                     LogTrace($"[SOCKET-RECEIVE] type={type} cid={cid} code={code} bytes={data.Length} pending={_correlationHub.PendingCount}");
                     return default;
                 }
@@ -318,7 +323,7 @@ namespace Mezon.Net.Client
                         return default;
                     }
 
-                    var matched = _correlationHub.TryComplete(cid, code, data);
+                    _ = _correlationHub.TryComplete(cid, code, data);
                     LogTrace($"[SOCKET-RECEIVE] type={type} cid={cid} code={code} bytes={data.Length} pending={_correlationHub.PendingCount}");
                     return default;
                 }
@@ -332,13 +337,13 @@ namespace Mezon.Net.Client
                         _correlationHub.TryComplete(envelope.Cid, code, SerializeEnvelop(envelope));
                     }
 
+                    LogTrace($"[SOCKET-RECEIVE] type={type} cid={envelope.Cid} code={code} bytes={data.Length} pending={_correlationHub.PendingCount} env={envelope.MessageCase}");
+
                     if (_messageReceived.HasSubscribers)
                     {
-                        _ = _messageReceived.InvokeAsync(type, cid, code, data, envelope);
+                        // Wrap Task so Transport can await it (wire order) without an async state machine here.
+                        return new ValueTask(_messageReceived.InvokeAsync(type, cid, code, data, envelope));
                     }
-
-                    LogTrace($"[SOCKET-RECEIVE] type={type} cid={envelope.Cid} code={code} bytes={data.Length} pending={_correlationHub.PendingCount} env={envelope.MessageCase}");
-                    return default;
                 }
             }
             catch (Exception ex)
@@ -346,11 +351,7 @@ namespace Mezon.Net.Client
                 LogTrace($"[SOCKET-RECEIVE] parse error type={type} cid={cid}: {ex.Message}");
             }
 
-#if NET6_0_OR_GREATER
-            return ValueTask.CompletedTask;
-#else
-            return new ValueTask();
-#endif
+            return default;
         }
 
         #endregion

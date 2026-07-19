@@ -59,7 +59,12 @@ namespace Mezon.Net.Client
 
             StateLock = new SemaphoreSlim(1, 1);
             _isFirstLogin = Options.DisplayInitialLog;
-            _sessionManager = SessionManager<MezonApiClientOptions>.GetOrCreate(options, LogManager);
+            _sessionManager = new SessionManager<MezonApiClientOptions>(options, LogManager);
+
+            if (apiClient is MezonSocketClient socketClient)
+            {
+                socketClient.ConfigureSessionAccessor(() => _sessionManager.CurrentSession());
+            }
 
             ApiClient.ApiSentRequestEvent += async (method, endpoint, millis) => await _logger.DebugAsync($"{method} {endpoint}: {millis} ms").ConfigureAwait(false);
             ApiClient.ApiSentRequestEvent += (method, endpoint, millis) => _apiSentRequestEvent.InvokeAsync(method, endpoint, millis);
@@ -183,6 +188,15 @@ namespace Mezon.Net.Client
         {
             if (!_isDisposed)
             {
+                if (_sessionManager is IAsyncDisposable asyncSessionManager)
+                {
+                    await asyncSessionManager.DisposeAsync().ConfigureAwait(false);
+                }
+                else
+                {
+                    _sessionManager.Dispose();
+                }
+
                 StateLock?.Dispose();
                 _isDisposed = true;
             }

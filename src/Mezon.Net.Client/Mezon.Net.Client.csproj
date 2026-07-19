@@ -32,6 +32,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Mezon.Net.Client.Tests" />
+    <InternalsVisibleTo Include="Mezon.Net.Client.Benchmarks" />
     <InternalsVisibleTo Include="Mezon.Net.Sdk" />
   </ItemGroup>
 </Project>

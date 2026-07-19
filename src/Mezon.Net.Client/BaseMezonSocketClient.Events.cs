@@ -174,13 +174,6 @@ namespace Mezon.Net.Client
         }
         internal readonly AsyncEvent<Func<Task>> _tokenSentEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> MessageButtonClickedEvent
-        {
-            add { _messageButtonClickedEvent.Add(value); }
-            remove { _messageButtonClickedEvent.Remove(value); }
-        }
-        internal readonly AsyncEvent<Func<Task>> _messageButtonClickedEvent = new AsyncEvent<Func<Task>>();
-
         public event Func<Task> UserUnmutedEvent
         {
             add { _userUnmutedEvent.Add(value); }
@@ -201,13 +194,6 @@ namespace Mezon.Net.Client
             remove { _activityListedEvent.Remove(value); }
         }
         internal readonly AsyncEvent<Func<Task>> _activityListedEvent = new AsyncEvent<Func<Task>>();
-
-        public event Func<Task> DropdownBoxSelectedEvent
-        {
-            add { _dropdownBoxSelectedEvent.Add(value); }
-            remove { _dropdownBoxSelectedEvent.Remove(value); }
-        }
-        internal readonly AsyncEvent<Func<Task>> _dropdownBoxSelectedEvent = new AsyncEvent<Func<Task>>();
 
         public event Func<Task> IncomingCallPushedEvent
         {

@@ -208,7 +208,7 @@ namespace Mezon.Net.Client
                             await TimedInvokeAsync(_tokenSentEvent, nameof(TokenSentEvent)).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.MessageButtonClicked:
-                            await TimedInvokeAsync(_messageButtonClickedEvent, nameof(MessageButtonClickedEvent)).ConfigureAwait(false);
+                            await TimedInvokeAsync(_messageButtonClickedEvent, nameof(MessageButtonClickedEvent), new MessageButtonClickedEventData(new MessageButtonClickedResponse(envelope.MessageButtonClicked))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.UnmuteEvent:
                             await TimedInvokeAsync(_userUnmutedEvent, nameof(UserUnmutedEvent)).ConfigureAwait(false);
@@ -220,7 +220,7 @@ namespace Mezon.Net.Client
                             await TimedInvokeAsync(_activityListedEvent, nameof(ActivityListedEvent)).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.DropdownBoxSelected:
-                            await TimedInvokeAsync(_dropdownBoxSelectedEvent, nameof(DropdownBoxSelectedEvent)).ConfigureAwait(false);
+                            await TimedInvokeAsync(_dropdownBoxSelectedEvent, nameof(DropdownBoxSelectedEvent), new DropdownBoxSelectedEventData(new DropdownBoxSelectedResponse(envelope.DropdownBoxSelected))).ConfigureAwait(false);
                             break;
                         case Envelope.MessageOneofCase.IncomingCallPush:
                             await TimedInvokeAsync(_incomingCallPushedEvent, nameof(IncomingCallPushedEvent)).ConfigureAwait(false);
