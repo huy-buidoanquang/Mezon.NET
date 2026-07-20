@@ -16,6 +16,9 @@ namespace Mezon.Net.Sdk
 
             _cacheListenersBound = true;
             _engine.ChannelMessageReceivedEvent += OnChannelMessageInternalAsync;
+            _engine.ChannelMessageUpdatedEvent += OnChannelMessageUpdatedInternalAsync;
+            _engine.ChannelMessageRemovedEvent += OnChannelMessageRemovedInternalAsync;
+            _engine.MessageReactionReceivedEvent += OnMessageReactionInternalAsync;
             _engine.ChannelCreatedEvent += OnChannelCreatedInternalAsync;
             _engine.ChannelUpdatedEvent += OnChannelUpdatedInternalAsync;
             _engine.ChannelDeletedEvent += OnChannelDeletedInternalAsync;
@@ -27,25 +30,80 @@ namespace Mezon.Net.Sdk
             var message = (ChannelMessageResponse)messageEvent;
             if (message.ChannelId != 0 && Channels.TryGet(message.ChannelId, out var channel))
             {
-                var entity = new Entities.Message(this, channel, message);
-                channel.Messages.Set(message.MessageId, entity);
-            }
-
-            if (message.SenderId != 0)
-            {
-                if (Users.TryGet(message.SenderId, out var user))
+                if (channel.Messages.TryGet(message.MessageId, out var existing))
                 {
-                    user.Username = message.Username;
-                    user.DisplayName = message.DisplayName;
-                    user.ClanNick = message.ClanNick;
+                    existing.UpdateFrom(message);
                 }
                 else
                 {
-                    Users.Set(message.SenderId, new Entities.User(this, message.SenderId, message.Username, message.DisplayName, message.ClanNick));
+                    channel.Messages.Set(message.MessageId, new Entities.Message(this, channel, message));
                 }
             }
 
+            UpdateUserFromMessage(message);
             return Task.CompletedTask;
+        }
+
+        private Task OnChannelMessageUpdatedInternalAsync(ChannelMessageUpdateEventData messageEvent)
+        {
+            var update = (ChannelMessageUpdateResponse)messageEvent;
+            if (update.ChannelId == 0 || !Channels.TryGet(update.ChannelId, out var channel))
+            {
+                return Task.CompletedTask;
+            }
+
+            if (channel.Messages.TryGet(update.MessageId, out var existing))
+            {
+                existing.UpdateFrom(update);
+            }
+
+            return Task.CompletedTask;
+        }
+
+        private Task OnChannelMessageRemovedInternalAsync(ChannelMessageRemoveEventData messageEvent)
+        {
+            var remove = (ChannelMessageRemoveResponse)messageEvent;
+            if (remove.ChannelId != 0 && Channels.TryGet(remove.ChannelId, out var channel))
+            {
+                channel.Messages.Remove(remove.MessageId);
+            }
+
+            return Task.CompletedTask;
+        }
+
+        private Task OnMessageReactionInternalAsync(MessageReactionEventData reactionEvent)
+        {
+            var reaction = (MessageReactionResponse)reactionEvent;
+            if (reaction.ChannelId == 0 || !Channels.TryGet(reaction.ChannelId, out var channel))
+            {
+                return Task.CompletedTask;
+            }
+
+            if (channel.Messages.TryGet(reaction.MessageId, out var existing))
+            {
+                existing.ApplyReaction(reaction);
+            }
+
+            return Task.CompletedTask;
+        }
+
+        private void UpdateUserFromMessage(ChannelMessageResponse message)
+        {
+            if (message.SenderId == 0)
+            {
+                return;
+            }
+
+            if (Users.TryGet(message.SenderId, out var user))
+            {
+                user.Username = message.Username;
+                user.DisplayName = message.DisplayName;
+                user.ClanNick = message.ClanNick;
+            }
+            else
+            {
+                Users.Set(message.SenderId, new Entities.User(this, message.SenderId, message.Username, message.DisplayName, message.ClanNick));
+            }
         }
 
         private Task OnChannelCreatedInternalAsync(ChannelCreatedEventEventData evt)
@@ -71,11 +129,6 @@ namespace Mezon.Net.Sdk
         {
             var data = (ChannelDeletedEventResponse)evt;
             Channels.Remove(data.ChannelId);
-            if (Clans.TryGet(data.ClanId, out _))
-            {
-                Channels.Remove(data.ChannelId);
-            }
-
             return Task.CompletedTask;
         }
 

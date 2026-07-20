@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Text;
 using System.Text.Json;
+
 namespace Mezon.Net.Sdk.Builders
 {
     public sealed class InteractiveBuilder
@@ -9,6 +10,7 @@ namespace Mezon.Net.Sdk.Builders
         private readonly Utf8JsonWriter _writer;
         private readonly MemoryStream _stream;
         private bool _built;
+        private bool _fieldsStarted;
 
         public InteractiveBuilder(string? title = null)
         {
@@ -19,22 +21,27 @@ namespace Mezon.Net.Sdk.Builders
             {
                 _writer.WriteString("title", title);
             }
-
-            _writer.WriteStartArray("fields");
         }
 
         public InteractiveBuilder SetDescription(string description)
         {
+            EnsureNotBuilt();
             _writer.WriteString("description", description);
             return this;
         }
 
         public InteractiveBuilder AddField(string name, string value, bool inline = false)
         {
+            EnsureNotBuilt();
+            EnsureFieldsArray();
             _writer.WriteStartObject();
             _writer.WriteString("name", name);
             _writer.WriteString("value", value);
-            _writer.WriteBoolean("inline", inline);
+            if (inline)
+            {
+                _writer.WriteBoolean("inline", inline);
+            }
+
             _writer.WriteEndObject();
             return this;
         }
@@ -46,11 +53,34 @@ namespace Mezon.Net.Sdk.Builders
                 throw new InvalidOperationException("Builder already built.");
             }
 
-            _writer.WriteEndArray();
+            if (_fieldsStarted)
+            {
+                _writer.WriteEndArray();
+            }
+
             _writer.WriteEndObject();
             _writer.Flush();
             _built = true;
             return Encoding.UTF8.GetString(_stream.ToArray());
+        }
+
+        private void EnsureFieldsArray()
+        {
+            if (_fieldsStarted)
+            {
+                return;
+            }
+
+            _writer.WriteStartArray("fields");
+            _fieldsStarted = true;
+        }
+
+        private void EnsureNotBuilt()
+        {
+            if (_built)
+            {
+                throw new InvalidOperationException("Builder already built.");
+            }
         }
     }
 }

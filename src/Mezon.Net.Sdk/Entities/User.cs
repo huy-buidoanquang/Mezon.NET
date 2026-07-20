@@ -1,9 +1,10 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Threading.Tasks;
 using Mezon.Net.Client.Messaging;
 using Mezon.Net.Core;
 using Mezon.Net.Core.Entities;
 using Mezon.Net.Models;
+using Mezon.Net.Client;
 
 namespace Mezon.Net.Sdk.Entities
 {
@@ -31,7 +32,7 @@ namespace Mezon.Net.Sdk.Entities
         internal void SetDmChannelId(long channelId) => _dmChannelId = channelId;
 
         public async Task<ChannelMessageAckResponse> SendDMAsync(
-            string content,
+            MessageContent content,
             int code = 0,
             IEnumerable<MessageMentionParams>? mentions = null,
             IEnumerable<MessageAttachmentParams>? attachments = null,
@@ -53,7 +54,7 @@ namespace Mezon.Net.Sdk.Entities
             var parameters = new SendChannelMessageParams(
                 0,
                 _dmChannelId,
-                content,
+                content.ToJson(),
                 isPublic: false,
                 mode: mode,
                 code: code,
@@ -62,5 +63,23 @@ namespace Mezon.Net.Sdk.Entities
                 references: references);
             return await MessageSendHelper.SendAsync(_client.Engine, parameters, options).ConfigureAwait(false);
         }
+
+        public Task<ChannelMessageAckResponse> SendDMAsync(
+            string content,
+            int code = 0,
+            IEnumerable<MessageMentionParams>? mentions = null,
+            IEnumerable<MessageAttachmentParams>? attachments = null,
+            IEnumerable<MessageRefParams>? references = null,
+            RequestOptions? options = null)
+            => SendDMAsync(MessageContent.Parse(content), code, mentions, attachments, references, options);
+
+        public Task<ChannelMessageAckResponse> SendDMTextAsync(
+            string text,
+            int code = 0,
+            IEnumerable<MessageMentionParams>? mentions = null,
+            IEnumerable<MessageAttachmentParams>? attachments = null,
+            IEnumerable<MessageRefParams>? references = null,
+            RequestOptions? options = null)
+            => SendDMAsync(MessageContent.CreateText(text), code, mentions, attachments, references, options);
     }
 }

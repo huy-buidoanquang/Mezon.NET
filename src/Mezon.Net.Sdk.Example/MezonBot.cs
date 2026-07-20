@@ -1,6 +1,5 @@
-using Mezon.Net.Core;
-using Mezon.Net.Models;
 using Mezon.Net.Sdk;
+using Mezon.Net.Sdk.Commands;
 using Microsoft.Extensions.Logging;
 using MezonLogLevel = Mezon.Net.Logging.LogLevel;
 
@@ -38,6 +37,17 @@ internal sealed class MezonBot
         await using var client = new MezonClient(clientOptions);
         WireClientLog(client, _logger);
 
+        var commands = new CommandService(_options.CommandPrefix)
+        {
+            ChannelFilter = _options.ChannelId,
+        };
+
+        commands.AddCommand("ping", HandlePingAsync)
+            .WithAlias("pong");
+        commands.AddCommand("help", HandleHelpAsync);
+
+        client.UseCommands(commands);
+
         client.Ready += () =>
         {
             _logger.LogInformation(
@@ -48,8 +58,6 @@ internal sealed class MezonBot
                 _options.ChannelId?.ToString() ?? "*");
             return Task.CompletedTask;
         };
-
-        client.ChannelMessageReceived += evt => OnChannelMessageReceivedAsync(client, evt);
 
         _logger.LogInformation("Logging in bot {BotId}…", _options.BotId);
         if (!await client.LoginAsync(cancellationToken).ConfigureAwait(false))
@@ -75,103 +83,16 @@ internal sealed class MezonBot
         return 0;
     }
 
-    private async Task OnChannelMessageReceivedAsync(MezonClient client, ChannelMessageEventData evt)
+    private static Task HandlePingAsync(ICommandContext ctx)
+        => ctx.ReplyTextAsync($"Pong! latency={ctx.Client.Latency}ms");
+
+    private async Task HandleHelpAsync(ICommandContext ctx)
     {
-        try
-        {
-            ChannelMessageResponse message = evt;
-
-            if (message.SenderId == client.BotId)
-            {
-                return;
-            }
-
-            if (_options.ChannelId is long allowedChannelId && message.ChannelId != allowedChannelId)
-            {
-                return;
-            }
-
-            var text = MessageContent.ExtractText(message.Content);
-            if (string.IsNullOrWhiteSpace(text) || !text.StartsWith(_options.CommandPrefix, StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            var withoutPrefix = text[_options.CommandPrefix.Length..].TrimStart();
-            var command = withoutPrefix.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-            if (command.Length == 0)
-            {
-                return;
-            }
-
-            var name = command[0].ToLowerInvariant();
-            _logger.LogInformation(
-                "Command {Command} from sender={SenderId} clan={ClanId} channel={ChannelId} message={MessageId} mentions={Mentions} attachments={Attachments} refs={References}",
-                name,
-                message.SenderId,
-                message.ClanId,
-                message.ChannelId,
-                message.MessageId,
-                message.Mentions.Count,
-                message.Attachments.Count,
-                message.References.Count);
-
-            switch (name)
-            {
-                case "ping":
-                    await HandlePingAsync(client, message).ConfigureAwait(false);
-                    break;
-                case "help":
-                    await HandleHelpAsync(client, message).ConfigureAwait(false);
-                    break;
-                default:
-                    _logger.LogDebug("Ignoring unknown command {Command}", name);
-                    break;
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed while handling ChannelMessageReceived.");
-        }
-    }
-
-    private async Task HandlePingAsync(MezonClient client, ChannelMessageResponse message)
-    {
-        var channel = await client.GetChannelAsync(message.ChannelId).ConfigureAwait(false);
-        var replyText =
-            $"Pong! latency={client.Latency}ms mentions={message.Mentions.Count} attachments={message.Attachments.Count} refs={message.References.Count}";
-
-        await channel.SendAsync(
-            MessageContent.BuildTextPayload(replyText),
-            references: new[]
-            {
-                new MessageRefParams(
-                    messageRefId: message.MessageId,
-                    messageSenderId: message.SenderId,
-                    content: message.Content,
-                    messageSenderUsername: message.Username,
-                    messageSenderAvatar: message.Avatar),
-            }).ConfigureAwait(false);
-    }
-
-    private async Task HandleHelpAsync(MezonClient client, ChannelMessageResponse message)
-    {
-        var channel = await client.GetChannelAsync(message.ChannelId).ConfigureAwait(false);
-        var prefix = _options.CommandPrefix;
+        var prefix = ctx.Prefix;
         var help =
-            $"Commands:\n{prefix}ping — latency + typed payload counts\n{prefix}help — show this message";
+            $"Commands:\n{prefix}ping — reply with bot latency\n{prefix}help — show this message";
 
-        await channel.SendAsync(
-            MessageContent.BuildTextPayload(help),
-            references: new[]
-            {
-                new MessageRefParams(
-                    messageRefId: message.MessageId,
-                    messageSenderId: message.SenderId,
-                    content: message.Content,
-                    messageSenderUsername: message.Username,
-                    messageSenderAvatar: message.Avatar),
-            }).ConfigureAwait(false);
+        await ctx.ReplyTextAsync(help).ConfigureAwait(false);
     }
 
     private static void WireClientLog(MezonClient client, ILogger logger)

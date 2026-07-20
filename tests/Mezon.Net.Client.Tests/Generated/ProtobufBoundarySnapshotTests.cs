@@ -30,6 +30,20 @@ namespace Mezon.Net.Client.Tests.Generated
         }
 
         [Fact]
+        public void Generated_responses_are_readonly_structs_and_hot_paths_are_hand_written()
+        {
+            var root = FindRepoRoot();
+            var responses = Path.Combine(root, "src", "Mezon.Net.Client", "Models", "Responses");
+            var generated = File.ReadAllText(Path.Combine(responses, "ClanDescResponse.g.cs"));
+            var update = File.ReadAllText(Path.Combine(responses, "ChannelMessageUpdateResponse.cs"));
+
+            Assert.Contains("public readonly struct ClanDescResponse", generated);
+            Assert.DoesNotContain("public sealed class ClanDescResponse", generated);
+            Assert.Contains("public readonly struct ChannelMessageUpdateResponse", update);
+            Assert.False(File.Exists(Path.Combine(responses, "ChannelMessageUpdateResponse.g.cs")));
+        }
+
+        [Fact]
         public void Generated_params_include_list_clan_desc_mapper()
         {
             var root = FindRepoRoot();
