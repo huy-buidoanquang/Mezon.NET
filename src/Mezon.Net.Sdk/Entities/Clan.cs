@@ -11,6 +11,7 @@ namespace Mezon.Net.Sdk.Entities
     {
         private readonly MezonClient _client;
         private ClanDesc _desc;
+        private EntityCacheView<TextChannel>? _channelsView;
 
         internal Clan(MezonClient client, ClanDesc desc)
         {
@@ -23,7 +24,8 @@ namespace Mezon.Net.Sdk.Entities
         public string? ClanName => _desc.ClanName;
         public long WelcomeChannelId => _desc.WelcomeChannelId;
 
-        public EntityCache<TextChannel> Channels => _client.Channels;
+        public EntityCacheView<TextChannel> Channels =>
+            _channelsView ??= new EntityCacheView<TextChannel>(_client.Channels, channel => channel.ClanId == Id);
 
         internal void UpdateFrom(ClanDesc desc) => _desc = desc;
 

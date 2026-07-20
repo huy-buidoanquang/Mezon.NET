@@ -97,7 +97,7 @@ namespace Mezon.Net.Sdk
             remove => _engine.ClanEventCreated -= value;
         }
 
-        public event Func<Task> MessageButtonClicked
+        public event Func<MessageButtonClickedEventData, Task> MessageButtonClicked
         {
             add => _engine.MessageButtonClickedEvent += value;
             remove => _engine.MessageButtonClickedEvent -= value;
@@ -115,7 +115,7 @@ namespace Mezon.Net.Sdk
             remove => _engine.StreamingLeavedEvent -= value;
         }
 
-        public event Func<Task> DropdownBoxSelected
+        public event Func<DropdownBoxSelectedEventData, Task> DropdownBoxSelected
         {
             add => _engine.DropdownBoxSelectedEvent += value;
             remove => _engine.DropdownBoxSelectedEvent -= value;

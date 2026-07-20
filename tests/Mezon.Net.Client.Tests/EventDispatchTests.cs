@@ -50,6 +50,80 @@ public sealed class EventDispatchTests
         Assert.Equal(99, ((TopicInMessageEventResponse)topic!.Value).MessageId);
     }
 
+    [Fact]
+    public async Task ProcessMessageAsync_dispatches_interaction_wire_payloads()
+    {
+        var client = new MezonClient();
+        MessageButtonClickedEventData? buttonClick = null;
+        DropdownBoxSelectedEventData? dropdown = null;
+
+        client.MessageButtonClickedEvent += payload =>
+        {
+            buttonClick = payload;
+            return Task.CompletedTask;
+        };
+        client.DropdownBoxSelectedEvent += payload =>
+        {
+            dropdown = payload;
+            return Task.CompletedTask;
+        };
+
+        var envelopes = new[]
+        {
+            new Envelope
+            {
+                MessageButtonClicked = new MessageButtonClicked
+                {
+                    MessageId = 1001,
+                    ChannelId = 2002,
+                    ButtonId = "btn-confirm",
+                    SenderId = 3003,
+                    UserId = 4004,
+                    ExtraData = "{\"key\":\"value\"}",
+                },
+            },
+            new Envelope
+            {
+                DropdownBoxSelected = new DropdownBoxSelected
+                {
+                    MessageId = 5005,
+                    ChannelId = 6006,
+                    SelectboxId = "select-priority",
+                    SenderId = 7007,
+                    UserId = 8008,
+                    Values = { "high", "urgent" },
+                },
+            },
+        };
+
+        var process = typeof(MezonClient).GetMethod("ProcessMessageAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        foreach (var envelope in envelopes)
+        {
+            var task = (Task)process.Invoke(client, new object?[] { MezonMessageType.Realtime, envelope.Cid, 0, (ReadOnlyMemory<byte>?)null, envelope })!;
+            await task;
+        }
+
+        Assert.True(buttonClick.HasValue);
+        var button = (MessageButtonClickedResponse)buttonClick!.Value;
+        Assert.Equal(1001L, button.MessageId);
+        Assert.Equal(2002L, button.ChannelId);
+        Assert.Equal("btn-confirm", button.ButtonId);
+        Assert.Equal(3003L, button.SenderId);
+        Assert.Equal(4004L, button.UserId);
+        Assert.Equal("{\"key\":\"value\"}", button.ExtraData);
+
+        Assert.True(dropdown.HasValue);
+        var select = (DropdownBoxSelectedResponse)dropdown!.Value;
+        Assert.Equal(5005L, select.MessageId);
+        Assert.Equal(6006L, select.ChannelId);
+        Assert.Equal("select-priority", select.SelectboxId);
+        Assert.Equal(7007L, select.SenderId);
+        Assert.Equal(8008L, select.UserId);
+        Assert.Equal(2, select.Values.Count);
+        Assert.Equal("high", select.Values[0]);
+        Assert.Equal("urgent", select.Values[1]);
+    }
+
     private static string CreateJwt()
     {
         const string header = "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0";

@@ -125,21 +125,22 @@ internal static class SocketTestDoubles
 {
     public static MezonSocketClientOptions CreateOptions(FakeNetworkTransporter transport, int heartbeatMs = 150, int connectionTimeoutMs = 5000)
     {
-        var options = new MezonSocketClientOptions
+        return new MezonSocketClientOptions
         {
             HeartbeatIntervalInMilliseconds = heartbeatMs,
             ConnectionTimeoutInMilliseconds = connectionTimeoutMs,
             TransportType = TransportType.Tcp,
             NetworkTransportProvider = _ => transport,
         };
-        SessionManager<MezonApiClientOptions>.GetOrCreate(options, new LogManager(LogLevel.Error));
-        return options;
     }
 
     public static async Task<MezonSocketClient> CreateLoggedInSocketClientAsync(MezonSocketClientOptions options, FakeNetworkTransporter transport)
     {
+        var logManager = new LogManager(LogLevel.Error);
+        var sessionManager = new SessionManager<MezonApiClientOptions>(options, logManager);
         var socketClient = new MezonSocketClient(options.RestClientProvider, _ => transport, options);
-        await SessionManager<MezonApiClientOptions>.Instance.LoginAsync(new TestSession("session-token", "127.0.0.1:9000")).ConfigureAwait(false);
+        socketClient.ConfigureSessionAccessor(() => sessionManager.CurrentSession());
+        await sessionManager.LoginAsync(new TestSession("session-token", "127.0.0.1:9000")).ConfigureAwait(false);
 
         typeof(MezonApiClient).GetProperty(nameof(MezonApiClient.LoginState))!
             .SetValue(socketClient, LoginState.LoggedIn);
@@ -147,35 +148,4 @@ internal static class SocketTestDoubles
     }
 
     public static void SetReconnectDelay(MezonClient client, int delayMs) => client.SetReconnectDelayForTests(delayMs);
-
-    private sealed class TestSession : Mezon.Net.Abstractions.ISession
-    {
-        public TestSession(string sessionId, string tcpUrl)
-        {
-            SessionId = sessionId;
-            AuthToken = sessionId;
-            TcpUrl = tcpUrl;
-            WsUrl = tcpUrl;
-        }
-
-        public string SessionId { get; }
-        public string AuthToken { get; }
-        public string RefreshToken => AuthToken;
-        public bool Created => true;
-        public long CreatedAt => DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        public long ExpiresAt => DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds();
-        public long RefreshExpiresAt => ExpiresAt;
-        public string? Username => "test";
-        public string? UserId => "1";
-        public bool IsRemember => false;
-        public string? ApiUrl => "http://127.0.0.1:8088";
-        public string? IdToken => null;
-        public string? WsUrl { get; }
-        public string? TcpUrl { get; }
-
-        public bool IsExpiredSoon(int seconds) => false;
-        public bool IsRefreshExpiredSoon(int seconds) => false;
-        public bool IsExpired() => false;
-        public bool IsRefreshExpired() => false;
-    }
 }

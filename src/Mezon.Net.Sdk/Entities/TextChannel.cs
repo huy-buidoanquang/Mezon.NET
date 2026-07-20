@@ -1,10 +1,11 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Threading.Tasks;
 using Mezon.Net.Client.Messaging;
 using Mezon.Net.Core;
 using Mezon.Net.Core.Entities;
 using Mezon.Net.Models;
 using Mezon.Net.Sdk.Caching;
+using Mezon.Net.Client;
 
 namespace Mezon.Net.Sdk.Entities
 {
@@ -36,7 +37,7 @@ namespace Mezon.Net.Sdk.Entities
         public Task JoinAsync() => _client.Engine.JoinChannelChatRtAsync(new ChannelJoinParams(ClanId, Id, Type, IsPublic));
 
         public Task<ChannelMessageAckResponse> SendAsync(
-            string content,
+            MessageContent content,
             long? topicId = null,
             int code = 0,
             bool mentionEveryone = false,
@@ -50,7 +51,7 @@ namespace Mezon.Net.Sdk.Entities
             var parameters = new SendChannelMessageParams(
                 ClanId,
                 Id,
-                content,
+                content.ToJson(),
                 topicId,
                 IsPublic,
                 mode,
@@ -64,8 +65,32 @@ namespace Mezon.Net.Sdk.Entities
                 MessageSendHelper.SendAsync(_client.Engine, parameters, options));
         }
 
-        public Task<ChannelMessageAckResponse> SendEphemeralAsync(
+        public Task<ChannelMessageAckResponse> SendAsync(
             string content,
+            long? topicId = null,
+            int code = 0,
+            bool mentionEveryone = false,
+            bool anonymousMessage = false,
+            IEnumerable<MessageMentionParams>? mentions = null,
+            IEnumerable<MessageAttachmentParams>? attachments = null,
+            IEnumerable<MessageRefParams>? references = null,
+            RequestOptions? options = null)
+            => SendAsync(MessageContent.Parse(content), topicId, code, mentionEveryone, anonymousMessage, mentions, attachments, references, options);
+
+        public Task<ChannelMessageAckResponse> SendTextAsync(
+            string text,
+            long? topicId = null,
+            int code = 0,
+            bool mentionEveryone = false,
+            bool anonymousMessage = false,
+            IEnumerable<MessageMentionParams>? mentions = null,
+            IEnumerable<MessageAttachmentParams>? attachments = null,
+            IEnumerable<MessageRefParams>? references = null,
+            RequestOptions? options = null)
+            => SendAsync(MessageContent.CreateText(text), topicId, code, mentionEveryone, anonymousMessage, mentions, attachments, references, options);
+
+        public Task<ChannelMessageAckResponse> SendEphemeralAsync(
+            MessageContent content,
             long receiverId,
             IEnumerable<MessageMentionParams>? mentions = null,
             IEnumerable<MessageAttachmentParams>? attachments = null,
@@ -76,7 +101,7 @@ namespace Mezon.Net.Sdk.Entities
             var parameters = new SendChannelMessageParams(
                 ClanId,
                 Id,
-                content,
+                content.ToJson(),
                 isPublic: IsPublic,
                 mode: mode,
                 mentions: mentions,
@@ -88,5 +113,23 @@ namespace Mezon.Net.Sdk.Entities
                 return await _client.Engine.SendEphemeralMessageRtAsync(body, options).ConfigureAwait(false);
             });
         }
+
+        public Task<ChannelMessageAckResponse> SendEphemeralAsync(
+            string content,
+            long receiverId,
+            IEnumerable<MessageMentionParams>? mentions = null,
+            IEnumerable<MessageAttachmentParams>? attachments = null,
+            IEnumerable<MessageRefParams>? references = null,
+            RequestOptions? options = null)
+            => SendEphemeralAsync(MessageContent.Parse(content), receiverId, mentions, attachments, references, options);
+
+        public Task<ChannelMessageAckResponse> SendEphemeralTextAsync(
+            string text,
+            long receiverId,
+            IEnumerable<MessageMentionParams>? mentions = null,
+            IEnumerable<MessageAttachmentParams>? attachments = null,
+            IEnumerable<MessageRefParams>? references = null,
+            RequestOptions? options = null)
+            => SendEphemeralAsync(MessageContent.CreateText(text), receiverId, mentions, attachments, references, options);
     }
 }

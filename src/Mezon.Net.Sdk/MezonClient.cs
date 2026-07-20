@@ -53,7 +53,13 @@ namespace Mezon.Net.Sdk
         public ConnectionState ConnectionState => _engine.ConnectionState;
         public long Latency => _engine.Latency;
 
-        public event Func<Task>? Ready;
+        public event Func<Task> Ready
+        {
+            add { _readyEvent.Add(value); }
+            remove { _readyEvent.Remove(value); }
+        }
+
+        private readonly AsyncEvent<Func<Task>> _readyEvent = new AsyncEvent<Func<Task>>();
 
         public async Task<bool> LoginAsync(CancellationToken cancellationToken = default)
         {
@@ -116,9 +122,9 @@ namespace Mezon.Net.Sdk
             if (!_readyInvoked)
             {
                 _readyInvoked = true;
-                if (Ready != null)
+                if (_readyEvent.HasSubscribers)
                 {
-                    await Ready.Invoke().ConfigureAwait(false);
+                    await _readyEvent.InvokeAsync().ConfigureAwait(false);
                 }
             }
         }
@@ -223,7 +229,23 @@ namespace Mezon.Net.Sdk
         {
             _agentManager?.Dispose();
             DisposeMmn();
+            try
+            {
+                if (_engine.ConnectionState != ConnectionState.Disconnected)
+                {
+                    await _engine.DisconnectAsync().ConfigureAwait(false);
+                }
+            }
+            catch
+            {
+                // Best-effort disconnect before dispose.
+            }
+
             await _engine.DisposeAsync().ConfigureAwait(false);
+            _initializeGate.Dispose();
+            Clans.Clear();
+            Channels.Clear();
+            Users.Clear();
         }
     }
 }
