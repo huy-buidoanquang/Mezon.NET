@@ -10,6 +10,7 @@ namespace Mezon.Net.Models
         internal ApiRequestEventResponse(global::Mezon.Net.Internal.Realtime.ApiRequestEvent proto) => _proto = proto;
         internal global::Mezon.Net.Internal.Realtime.ApiRequestEvent Proto => _proto;
 
+        public int ApiIndex => _proto.ApiIndex;
         public string ApiName => _proto.ApiName;
         public byte[] Body => _proto.Body.ToByteArray();
     }

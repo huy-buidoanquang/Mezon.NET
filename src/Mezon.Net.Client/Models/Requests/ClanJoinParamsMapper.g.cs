@@ -14,6 +14,8 @@ namespace Mezon.Net.Client.Models.Internal
             var proto = new global::Mezon.Net.Internal.Realtime.ClanJoin();
             if (p.ClanId.HasValue)
                 proto.ClanId = p.ClanId.Value;
+            if (p.IsLastField.HasValue)
+                proto.IsLastField = p.IsLastField.Value;
             return proto;
         }
     }
