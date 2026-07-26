@@ -82,7 +82,7 @@ namespace Mezon.Net.Client
             {
                 _autoRefreshSession = autoRefreshSession;
                 var session = await _apiClient.AuthenticateAppAsync(
-                    basicAuthUsername: clientSecret,
+                    basicAuthUsername: _options.ServerKey,
                     basicAuthPassword: string.Empty,
                     body: new AppAuthenticationRequest(new AppAccountRequest
                     {

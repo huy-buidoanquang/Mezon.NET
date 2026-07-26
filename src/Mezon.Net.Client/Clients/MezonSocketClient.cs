@@ -221,26 +221,36 @@ namespace Mezon.Net.Client
             var connectToken = !string.IsNullOrEmpty(session.SessionId)
                 ? session.SessionId
                 : session.AuthToken ?? string.Empty;
-            var endpointUrl = _transportType == TransportType.Tcp || _transportType == TransportType.Auto ? session.TcpUrl : session.WsUrl;
 
-            if (endpointUrl == null)
+            string? endpointUrl = _transportType switch
             {
-                return (string.Empty, 0, connectToken);
+                TransportType.WebSocket => FirstNonEmpty(session.WsUrl, session.TcpUrl),
+                TransportType.Tcp => FirstNonEmpty(session.TcpUrl, session.WsUrl),
+                _ => FirstNonEmpty(session.TcpUrl, session.WsUrl),
+            };
+
+            if (!string.IsNullOrWhiteSpace(endpointUrl))
+            {
+                var parts = endpointUrl.Split(':');
+                if (parts.Length >= 2 && int.TryParse(parts[^1], out var sessionPort))
+                {
+                    return (parts[0], sessionPort, connectToken);
+                }
+
+                if (parts.Length == 1 && !string.IsNullOrWhiteSpace(parts[0]))
+                {
+                    var fallbackPort = int.TryParse(MezonOptions.Port, out var p) ? p : 443;
+                    return (parts[0], fallbackPort, connectToken);
+                }
             }
 
-            var parts = endpointUrl.Split(':');
-            if (parts == null)
-            {
-                return (string.Empty, 0, connectToken);
-            }
-
-            if (parts.Length >= 2 && int.TryParse(parts[^1], out var port))
-            {
-                return (parts[0], port, connectToken);
-            }
-
-            return (string.Empty, 0, connectToken);
+            var host = MezonOptions.Host ?? string.Empty;
+            var port = int.TryParse(MezonOptions.Port, out var parsedPort) ? parsedPort : 443;
+            return (host, port, connectToken);
         }
+
+        private static string? FirstNonEmpty(string? a, string? b)
+            => !string.IsNullOrWhiteSpace(a) ? a : (!string.IsNullOrWhiteSpace(b) ? b : null);
 
         #region Event Handlers
         private Task NetworkTransporter_Opened()
@@ -334,15 +344,15 @@ namespace Mezon.Net.Client
                     if (envelope.Cid > 0)
                     {
                         cid = envelope.Cid;
-                        _correlationHub.TryComplete(envelope.Cid, code, SerializeEnvelop(envelope));
+                        _ = _correlationHub.TryComplete(envelope.Cid, code, SerializeEnvelop(envelope));
                     }
 
                     LogTrace($"[SOCKET-RECEIVE] type={type} cid={envelope.Cid} code={code} bytes={data.Length} pending={_correlationHub.PendingCount} env={envelope.MessageCase}");
 
                     if (_messageReceived.HasSubscribers)
                     {
-                        // Wrap Task so Transport can await it (wire order) without an async state machine here.
-                        return new ValueTask(_messageReceived.InvokeAsync(type, cid, code, data, envelope));
+                        _ = _messageReceived.InvokeAsync(type, cid, code, data, envelope);
+                        return default;
                     }
                 }
             }

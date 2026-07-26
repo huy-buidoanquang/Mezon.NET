@@ -27,6 +27,8 @@ namespace Mezon.Net.Sdk.Entities
         public int Type => _desc.Type;
         public bool IsPrivate => _desc.ChannelPrivate != 0;
         public string? Name => _desc.ChannelLabel;
+        /// <summary>LiveKit / meet room name for voice channels (used by STN playMedia).</summary>
+        public string MeetingCode => _desc.MeetingCode;
         public Clan Clan { get; }
         public EntityCache<Message> Messages { get; }
 
