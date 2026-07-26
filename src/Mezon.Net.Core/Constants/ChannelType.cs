@@ -38,5 +38,18 @@ namespace Mezon.Net.Core
                 _ => 0,
             };
         }
+
+        /// <summary>Maps inbound message <c>mode</c> (stream mode) back to <see cref="ChannelType"/>.</summary>
+        public static int FromStreamMode(int streamMode)
+        {
+            return streamMode switch
+            {
+                (int)ChannelStreamMode.Dm => (int)ChannelType.Dm,
+                (int)ChannelStreamMode.Group => (int)ChannelType.Group,
+                (int)ChannelStreamMode.Channel => (int)ChannelType.Channel,
+                (int)ChannelStreamMode.Thread => (int)ChannelType.Thread,
+                _ => (int)ChannelType.Channel,
+            };
+        }
     }
 }
