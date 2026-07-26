@@ -127,9 +127,6 @@ internal static class ListChannelDescsDiagnostic
             requestBytes.Length,
             envelopeBytes.Length,
             Convert.ToHexString(requestBytes));
-        logger.LogInformation(
-            "HasApiIndex={Has} (optional proto should serialize api_index=0 when set)",
-            envelope.ApiRequestEvent.HasApiIndex);
     }
 
     private static async Task RunCase(ILogger logger, string name, int delayMs, Func<Task> action)

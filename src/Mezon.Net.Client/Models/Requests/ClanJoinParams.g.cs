@@ -7,9 +7,11 @@ namespace Mezon.Net.Models
     public readonly struct ClanJoinParams
     {
         public readonly long? ClanId;
-        public ClanJoinParams(long? clanId = null)
+        public readonly bool? IsLastField;
+        public ClanJoinParams(long? clanId = null, bool? isLastField = null)
         {
             ClanId = clanId;
+            IsLastField = isLastField;
         }
     }
 }

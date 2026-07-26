@@ -11,5 +11,6 @@ namespace Mezon.Net.Models
         internal global::Mezon.Net.Internal.Realtime.ClanJoin Proto => _proto;
 
         public long ClanId => _proto.ClanId;
+        public bool IsLastField => _proto.IsLastField;
     }
 }
