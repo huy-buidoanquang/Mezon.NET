@@ -2,7 +2,6 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using Mezon.Net.Client;
 using Mezon.Net.Core;
-using Mezon.Net.Core;
 using Mezon.Net.Internal.Realtime;
 using Mezon.Net.Models;
 
@@ -11,7 +10,7 @@ namespace Mezon.Net.Client.Tests;
 public sealed class EventDispatchTests
 {
     [Fact]
-    public async Task ProcessMessageAsync_dispatches_new_realtime_oneof_events()
+    public async Task SocketMessageHandlerAsync_dispatches_new_realtime_oneof_events()
     {
         var client = new MezonClient();
         ApiRequestEventEventData? apiRequest = null;
@@ -35,23 +34,18 @@ public sealed class EventDispatchTests
             new Envelope { TopicInMessageEvent = new TopicInMessageEvent { MessageId = 99, TpId = "topic" } },
         };
 
-        var process = typeof(MezonClient).GetMethod("ProcessMessageAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        foreach (var envelope in envelopes)
-        {
-            var task = (Task)process.Invoke(client, new object?[] { MezonMessageType.Realtime, envelope.Cid, 0, (ReadOnlyMemory<byte>?)null, envelope })!;
-            await task;
-        }
+        await DispatchAllAsync(client, envelopes);
+        await WaitUntilAsync(() => apiRequest.HasValue && banned.HasValue && session != null && archive.HasValue && topic.HasValue);
 
         Assert.Equal("Healthcheck", ((ApiRequestEventResponse)apiRequest!.Value).ApiName);
-        Assert.True(banned.HasValue);
-        Assert.Equal(42L, ((ListChannelUsersBannedEventResponse)banned.Value).BannedUserIds[0]);
+        Assert.Equal(42L, ((ListChannelUsersBannedEventResponse)banned!.Value).BannedUserIds[0]);
         Assert.Equal(CreateJwt(), session?.AuthToken);
         Assert.Equal(7, ((ChannelArchiveEventResponse)archive!.Value).ChannelId);
         Assert.Equal(99, ((TopicInMessageEventResponse)topic!.Value).MessageId);
     }
 
     [Fact]
-    public async Task ProcessMessageAsync_dispatches_interaction_wire_payloads()
+    public async Task SocketMessageHandlerAsync_dispatches_interaction_wire_payloads()
     {
         var client = new MezonClient();
         MessageButtonClickedEventData? buttonClick = null;
@@ -96,14 +90,9 @@ public sealed class EventDispatchTests
             },
         };
 
-        var process = typeof(MezonClient).GetMethod("ProcessMessageAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        foreach (var envelope in envelopes)
-        {
-            var task = (Task)process.Invoke(client, new object?[] { MezonMessageType.Realtime, envelope.Cid, 0, (ReadOnlyMemory<byte>?)null, envelope })!;
-            await task;
-        }
+        await DispatchAllAsync(client, envelopes);
+        await WaitUntilAsync(() => buttonClick.HasValue && dropdown.HasValue);
 
-        Assert.True(buttonClick.HasValue);
         var button = (MessageButtonClickedResponse)buttonClick!.Value;
         Assert.Equal(1001L, button.MessageId);
         Assert.Equal(2002L, button.ChannelId);
@@ -112,7 +101,6 @@ public sealed class EventDispatchTests
         Assert.Equal(4004L, button.UserId);
         Assert.Equal("{\"key\":\"value\"}", button.ExtraData);
 
-        Assert.True(dropdown.HasValue);
         var select = (DropdownBoxSelectedResponse)dropdown!.Value;
         Assert.Equal(5005L, select.MessageId);
         Assert.Equal(6006L, select.ChannelId);
@@ -122,6 +110,32 @@ public sealed class EventDispatchTests
         Assert.Equal(2, select.Values.Count);
         Assert.Equal("high", select.Values[0]);
         Assert.Equal("urgent", select.Values[1]);
+    }
+
+    private static async Task DispatchAllAsync(MezonClient client, Envelope[] envelopes)
+    {
+        var process = typeof(MezonClient).GetMethod("SocketMessageHandlerAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        foreach (var envelope in envelopes)
+        {
+            var task = (Task)process.Invoke(client, new object?[] { MezonMessageType.Realtime, envelope.Cid, 0, (ReadOnlyMemory<byte>?)null, envelope })!;
+            await task;
+        }
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition, int timeoutMs = 2000)
+    {
+        var deadline = Environment.TickCount64 + timeoutMs;
+        while (Environment.TickCount64 < deadline)
+        {
+            if (condition())
+            {
+                return;
+            }
+
+            await Task.Delay(10);
+        }
+
+        Assert.Fail("Timed out waiting for event dispatch.");
     }
 
     private static string CreateJwt()

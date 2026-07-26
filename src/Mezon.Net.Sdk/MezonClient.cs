@@ -53,6 +53,15 @@ namespace Mezon.Net.Sdk
         public ConnectionState ConnectionState => _engine.ConnectionState;
         public long Latency => _engine.Latency;
 
+        /// <summary>Session auth token after login (used for STN WebSocket / playMedia).</summary>
+        public string AuthToken => _engine.CurrentSession.AuthToken;
+
+        /// <summary>Session username after login (used for STN WebSocket query).</summary>
+        public string? Username => _engine.CurrentSession.Username;
+
+        /// <summary>Fresh session JWT (auto-refresh when near expiry).</summary>
+        public Task<string> GetAuthTokenAsync() => _engine.GetOrRefreshAuthTokenAsync();
+
         public event Func<Task> Ready
         {
             add { _readyEvent.Add(value); }
@@ -99,7 +108,15 @@ namespace Mezon.Net.Sdk
             }
         }
 
-        private async Task OnEngineConnectedAsync()
+        private Task OnEngineConnectedAsync()
+        {
+            // Must not await socket RPCs on the Connected event path — that blocks the
+            // receive loop and causes ListChannelDescs / seed timeouts.
+            _ = Task.Run(ContinueInitializeAfterConnectedAsync);
+            return Task.CompletedTask;
+        }
+
+        private async Task ContinueInitializeAfterConnectedAsync()
         {
             await _initializeGate.WaitAsync(_connectCancellationToken).ConfigureAwait(false);
             try
@@ -131,10 +148,62 @@ namespace Mezon.Net.Sdk
 
         private async Task InitializeAfterConnectedAsync(CancellationToken cancellationToken)
         {
-            await _dmChannels.InitializeAsync(_engine).ConfigureAwait(false);
-            await SeedClanCacheAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await _dmChannels.InitializeAsync(_engine).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                await _logger.WarningAsync("DM channel seed failed; continuing without DM cache.", ex).ConfigureAwait(false);
+            }
+
+            try
+            {
+                await SeedClanCacheAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                await _logger.WarningAsync("Clan cache seed failed; continuing. Invite the bot to a clan and restart if commands never arrive.", ex).ConfigureAwait(false);
+            }
+
             BindCacheListeners();
             await InitializeMmnAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        private async Task SeedClanCacheAsync(CancellationToken cancellationToken)
+        {
+            Exception? last = null;
+            for (var attempt = 1; attempt <= 3; attempt++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    var options = new RequestOptions
+                    {
+                        SocketSendTimeout = Math.Max(Options.SocketTimeoutInMilliseconds, 30_000),
+                    };
+                    var list = await _engine.ListClanDescsAsync(new ListClanDescParams(), options).ConfigureAwait(false);
+                    for (var i = 0; i < list.Clandesc.Count; i++)
+                    {
+                        var clanDesc = list.Clandesc[i].Proto;
+                        Clans.Set(clanDesc.ClanId, new Clan(this, clanDesc));
+                        await _engine.JoinClanChatRtAsync(new ClanJoinParams(clanDesc.ClanId)).ConfigureAwait(false);
+                    }
+
+                    return;
+                }
+                catch (Exception ex) when (attempt < 3)
+                {
+                    last = ex;
+                    await _logger.WarningAsync($"ListClanDescs attempt {attempt}/3 failed; retrying…", ex).ConfigureAwait(false);
+                    await Task.Delay(TimeSpan.FromSeconds(attempt), cancellationToken).ConfigureAwait(false);
+                }
+            }
+
+            if (last is not null)
+            {
+                throw last;
+            }
         }
 
         public Task ConnectAgentSseAsync(CancellationToken cancellationToken = default)
@@ -210,17 +279,6 @@ namespace Mezon.Net.Sdk
         {
             _dmChannels.TryGetDmChannelId(userId, out var dmChannelId);
             return new ValueTask<Entities.User>(new Entities.User(this, userId, dmChannelId: dmChannelId));
-        }
-
-        private async Task SeedClanCacheAsync(CancellationToken cancellationToken)
-        {
-            var list = await _engine.ListClanDescsAsync(new ListClanDescParams()).ConfigureAwait(false);
-            for (var i = 0; i < list.Clandesc.Count; i++)
-            {
-                var clanDesc = list.Clandesc[i].Proto;
-                Clans.Set(clanDesc.ClanId, new Clan(this, clanDesc));
-                await _engine.JoinClanChatRtAsync(new ClanJoinParams(clanDesc.ClanId)).ConfigureAwait(false);
-            }
         }
 
         partial void DisposeMmn();

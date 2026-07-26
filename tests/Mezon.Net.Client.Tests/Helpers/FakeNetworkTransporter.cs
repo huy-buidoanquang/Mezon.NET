@@ -134,7 +134,7 @@ internal static class SocketTestDoubles
         };
     }
 
-    public static async Task<MezonSocketClient> CreateLoggedInSocketClientAsync(MezonSocketClientOptions options, FakeNetworkTransporter transport)
+    public static async Task<MezonSocketClient> CreateLoggedInSocketClientAsync(MezonSocketClientOptions options, IMezonNetworkTransporter transport)
     {
         var logManager = new LogManager(LogLevel.Error);
         var sessionManager = new SessionManager<MezonApiClientOptions>(options, logManager);

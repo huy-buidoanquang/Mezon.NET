@@ -19,6 +19,9 @@ namespace Mezon.Net.Client
         internal int? HandlerTimeout { get; private set; }
         public ISession CurrentSession => SessionManager.CurrentSession();
 
+        /// <summary>Returns a non-expired session JWT, refreshing when needed.</summary>
+        public Task<string> GetOrRefreshAuthTokenAsync() => SessionManager.GetOrRefreshAsync();
+
         /// <inheritdoc />
         public override long Latency { get; protected set; }
         /// <inheritdoc />
@@ -52,11 +55,12 @@ namespace Mezon.Net.Client
                OnConnectingAsync,
                OnDisconnectingAsync,
                x => ApiClient.SocketDisconnected += x);
-            _connection.Connected += OnSocketConnectedAsync;
-            _connection.Disconnected += ex => TimedInvokeAsync(_disconnectedEvent, nameof(Disconnected), ex);
-            _connection.Reconnecting += ex => TimedInvokeAsync(_reconnectingEvent, nameof(Reconnecting), ex);
+            _connection.Connected += SocketConnectedHandlerAsync;
+            _connection.Disconnected += SocketDisconnectedHandlerAsync;
+            _connection.Reconnecting += SocketReconnectingHandlerAsync;
+            ApiClient.MessageReceived += SocketMessageHandlerAsync;
+            // TODO: Add socket send logging
             ApiClient.SocketMessageSent += async msg => await _logger.DebugAsync(msg).ConfigureAwait(false);
-            ApiClient.MessageReceived += ProcessMessageAsync;
         }
 
         private static MezonSocketClient CreateSocketClient(MezonSocketClientOptions options)
@@ -106,7 +110,7 @@ namespace Mezon.Net.Client
             await _logger.DebugAsync("Disconnected MezonSocket").ConfigureAwait(false);
         }
 
-        private async Task OnSocketConnectedAsync()
+        private async Task SocketConnectedHandlerAsync()
         {
             if (_heartbeatTask is { IsCompleted: false })
             {
@@ -115,6 +119,16 @@ namespace Mezon.Net.Client
 
             _heartbeatTask = RunHeartbeatAsync(_connection.CancelToken);
             await TimedInvokeAsync(_connectedEvent, nameof(Connected)).ConfigureAwait(false);
+        }
+
+        private async Task SocketDisconnectedHandlerAsync(Exception ex)
+        {
+            await TimedInvokeAsync(_disconnectedEvent, nameof(Disconnected), ex).ConfigureAwait(false);
+        }
+
+        private async Task SocketReconnectingHandlerAsync(Exception ex)
+        {
+            await TimedInvokeAsync(_disconnectedEvent, nameof(Disconnected), ex).ConfigureAwait(false);
         }
 
         private async Task RunHeartbeatAsync(CancellationToken cancelToken)
@@ -200,7 +214,7 @@ namespace Mezon.Net.Client
                 var handlersTask = action();
                 if (await Task.WhenAny(timeoutTask, handlersTask).ConfigureAwait(false) == timeoutTask)
                 {
-                    await _logger.WarningAsync($"A {name} handler is blocking the socket task.").ConfigureAwait(false);
+                    await _logger.WarningAsync($"A {name} handler is taking longer than {HandlerTimeout.Value}ms.").ConfigureAwait(false);
                 }
                 else
                 {
