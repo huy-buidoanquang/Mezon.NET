@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -183,8 +183,17 @@ namespace Mezon.Net.Sdk.Commands
             {
                 throw;
             }
-            catch
+            catch (Exception ex)
             {
+                try
+                {
+                    await context.ReplyTextAsync("Command error: " + ex.Message).ConfigureAwait(false);
+                }
+                catch
+                {
+                    // ignore notify failures
+                }
+
                 return CommandExecutionResult.Failed;
             }
         }
@@ -209,7 +218,7 @@ namespace Mezon.Net.Sdk.Commands
             IReadOnlyList<string> args,
             CancellationToken cancellationToken)
         {
-            var channel = await client.GetChannelAsync(message.ChannelId, cancellationToken).ConfigureAwait(false);
+            var channel = await client.GetOrCreateChannelFromMessageAsync(message, cancellationToken).ConfigureAwait(false);
             if (!channel.Messages.TryGet(message.MessageId, out var messageEntity))
             {
                 messageEntity = new Message(client, channel, message);
@@ -220,9 +229,21 @@ namespace Mezon.Net.Sdk.Commands
             Clan? clan = null;
             if (message.ClanId != 0)
             {
-                clan = client.Clans.TryGet(message.ClanId, out var cachedClan)
-                    ? cachedClan
-                    : await client.GetClanAsync(message.ClanId, cancellationToken).ConfigureAwait(false);
+                if (client.Clans.TryGet(message.ClanId, out var cachedClan))
+                {
+                    clan = cachedClan;
+                }
+                else
+                {
+                    try
+                    {
+                        clan = await client.GetClanAsync(message.ClanId, cancellationToken).ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                        // Commands can still run using Channel.ClanId when clan cache seed failed.
+                    }
+                }
             }
 
             return new CommandContext(

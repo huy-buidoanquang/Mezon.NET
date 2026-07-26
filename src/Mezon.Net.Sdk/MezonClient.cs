@@ -1,13 +1,13 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Mezon.Net.Sdk.Managers;
 using Mezon.Net.Core;
 using Mezon.Net.Logging;
 using Mezon.Net.Models;
 using Mezon.Net.Sdk.Agent;
 using Mezon.Net.Sdk.Caching;
 using Mezon.Net.Sdk.Entities;
+using Mezon.Net.Sdk.Managers;
 
 namespace Mezon.Net.Sdk
 {
@@ -33,7 +33,7 @@ namespace Mezon.Net.Sdk
             Options = options ?? throw new ArgumentNullException(nameof(options));
             _engine = new Client.MezonClient(options);
             _engine.Log += async msg => await _logEvent.InvokeAsync(msg).ConfigureAwait(false);
-            _engine.Connected += OnEngineConnectedAsync;
+            _engine.Connected += EngineConnectedHandlerAsync;
             _logger = _engine.LogManager.CreateLogger("MezonSdkClient");
             Clans = new EntityCache<Clan>(options.CacheCapacity);
             Channels = new EntityCache<TextChannel>(options.CacheCapacity);
@@ -108,15 +108,7 @@ namespace Mezon.Net.Sdk
             }
         }
 
-        private Task OnEngineConnectedAsync()
-        {
-            // Must not await socket RPCs on the Connected event path — that blocks the
-            // receive loop and causes ListChannelDescs / seed timeouts.
-            _ = Task.Run(ContinueInitializeAfterConnectedAsync);
-            return Task.CompletedTask;
-        }
-
-        private async Task ContinueInitializeAfterConnectedAsync()
+        private async Task EngineConnectedHandlerAsync()
         {
             await _initializeGate.WaitAsync(_connectCancellationToken).ConfigureAwait(false);
             try
@@ -242,11 +234,84 @@ namespace Mezon.Net.Sdk
         public async Task DeleteQuickMenuAccessAsync(QuickMenuAccessParams body, RequestOptions? options = null)
             => await _engine.DeleteQuickMenuAccessAsync(body, options).ConfigureAwait(false);
 
+        public Task<UploadAttachmentResponse> UploadAttachmentFileAsync(UploadAttachmentParams body, RequestOptions? options = null)
+            => _engine.UploadAttachmentFileAsync(body, options);
+
+        /// <summary>
+        /// Kick a LiveKit meet/voice participant (used to stop STN <c>playMedia</c> ingress publishers).
+        /// Requires Manage Channel (or clan owner).
+        /// </summary>
+        public Task RemoveMeetParticipantAsync(
+            string username,
+            string roomName,
+            long channelId,
+            long clanId,
+            RequestOptions? options = null)
+            => _engine.RemoveParticipantMezonMeetAsync(
+                new Mezon.Net.Models.MeetParticipantParams(username, roomName, channelId, clanId),
+                options);
+
+        /// <summary>Re-list clans and JoinClanChat (safe to call after Ready if seed failed).</summary>
+        public Task RefreshClanMembershipAsync(CancellationToken cancellationToken = default)
+            => SeedClanCacheAsync(cancellationToken);
+
+
         public ValueTask<Clan> GetClanAsync(long clanId, CancellationToken cancellationToken = default)
             => Clans.GetOrFetchAsync(clanId, FetchClanAsync, cancellationToken);
 
         public ValueTask<TextChannel> GetChannelAsync(long channelId, CancellationToken cancellationToken = default)
             => Channels.GetOrFetchAsync(channelId, FetchChannelAsync, cancellationToken);
+
+        /// <summary>
+        /// Resolve a channel for an inbound message without blocking on GetChannelDetail.
+        /// </summary>
+        public async ValueTask<TextChannel> GetOrCreateChannelFromMessageAsync(
+            ChannelMessageResponse message,
+            CancellationToken cancellationToken = default)
+        {
+            if (message.ChannelId != 0 && Channels.TryGet(message.ChannelId, out var cached))
+            {
+                return cached;
+            }
+
+            Clan clan;
+            if (message.ClanId != 0 && Clans.TryGet(message.ClanId, out var cachedClan))
+            {
+                clan = cachedClan;
+            }
+            else if (message.ClanId != 0)
+            {
+                try
+                {
+                    clan = await GetClanAsync(message.ClanId, cancellationToken).ConfigureAwait(false);
+                }
+                catch
+                {
+                    clan = new Clan(this, new global::Mezon.Net.Internal.Api.ClanDesc { ClanId = message.ClanId });
+                    Clans.Set(message.ClanId, clan);
+                }
+            }
+            else
+            {
+                clan = new Clan(this, new global::Mezon.Net.Internal.Api.ClanDesc());
+            }
+
+            var desc = new global::Mezon.Net.Internal.Api.ChannelDescription
+            {
+                ChannelId = message.ChannelId,
+                ClanId = message.ClanId,
+                // Wire `mode` is stream mode; ChannelDescription.Type is ChannelType.
+                Type = ChannelModeConverter.FromStreamMode(message.Mode),
+                ChannelPrivate = message.IsPublic ? 0 : 1,
+            };
+            var channel = new TextChannel(this, desc, clan);
+            if (message.ChannelId != 0)
+            {
+                Channels.Set(message.ChannelId, channel);
+            }
+
+            return channel;
+        }
 
         public ValueTask<Entities.User> GetUserAsync(long userId, CancellationToken cancellationToken = default)
             => Users.GetOrFetchAsync(userId, FetchUserAsync, cancellationToken);
@@ -270,9 +335,7 @@ namespace Mezon.Net.Sdk
         {
             var detail = await _engine.GetChannelDetailAsync(channelId).ConfigureAwait(false);
             var clan = await GetClanAsync(detail.ClanId, cancellationToken).ConfigureAwait(false);
-            var channel = new TextChannel(this, detail.Proto, clan);
-            await channel.JoinAsync().ConfigureAwait(false);
-            return channel;
+            return new TextChannel(this, detail.Proto, clan);
         }
 
         private ValueTask<Entities.User> FetchUserAsync(long userId, CancellationToken cancellationToken)

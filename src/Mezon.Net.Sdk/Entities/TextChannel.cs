@@ -36,6 +36,10 @@ namespace Mezon.Net.Sdk.Entities
 
         public bool IsPublic => !IsPrivate;
 
+        /// <summary>
+        /// Explicit channel presence join. Not required for public clan channels after <c>JoinClanChat</c>
+        /// (server maps public sends onto the clan stream). Useful for DM/group/private/thread edge cases.
+        /// </summary>
         public Task JoinAsync() => _client.Engine.JoinChannelChatRtAsync(new ChannelJoinParams(ClanId, Id, Type, IsPublic));
 
         public Task<ChannelMessageAckResponse> SendAsync(

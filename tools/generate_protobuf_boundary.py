@@ -1266,6 +1266,7 @@ SOCKET_EVENT_MANIFEST: List[Tuple[str, str, str]] = [
     ("SessionRefreshedEvent", "Session", API_NS),
     ("ChannelArchivedEvent", "ChannelArchiveEvent", RT_NS),
     ("TopicInMessageReceivedEvent", "TopicInMessageEvent", RT_NS),
+    ("ScreenShareReceivedEvent", "ScreenShareEvent", RT_NS),
     ("MessageButtonClickedEvent", "MessageButtonClicked", RT_NS),
     ("DropdownBoxSelectedEvent", "DropdownBoxSelected", RT_NS),
 ]

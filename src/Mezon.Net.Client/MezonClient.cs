@@ -118,17 +118,17 @@ namespace Mezon.Net.Client
             }
 
             _heartbeatTask = RunHeartbeatAsync(_connection.CancelToken);
-            await TimedInvokeAsync(_connectedEvent, nameof(Connected)).ConfigureAwait(false);
+            _ = TimedInvokeAsync(_connectedEvent, nameof(Connected)).ConfigureAwait(false);
         }
 
         private async Task SocketDisconnectedHandlerAsync(Exception ex)
         {
-            await TimedInvokeAsync(_disconnectedEvent, nameof(Disconnected), ex).ConfigureAwait(false);
+            _ = TimedInvokeAsync(_disconnectedEvent, nameof(Disconnected), ex).ConfigureAwait(false);
         }
 
         private async Task SocketReconnectingHandlerAsync(Exception ex)
         {
-            await TimedInvokeAsync(_disconnectedEvent, nameof(Disconnected), ex).ConfigureAwait(false);
+            _ = TimedInvokeAsync(_reconnectingEvent, nameof(Reconnecting), ex).ConfigureAwait(false);
         }
 
         private async Task RunHeartbeatAsync(CancellationToken cancelToken)

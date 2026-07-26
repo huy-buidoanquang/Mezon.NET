@@ -18,7 +18,7 @@ namespace Mezon.Net.Client
 
             // Do not await user/event handlers here — they may call socket APIs and would
             // stall the MessageReceived chain (and historically the receive loop).
-            _ = ProcessRealtimeEnvelopeAsync(envelope);
+            _ = ProcessRealtimeEnvelopeAsync(envelope).ConfigureAwait(false);
             return Task.CompletedTask;
         }
 
