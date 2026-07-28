@@ -207,21 +207,21 @@ namespace Mezon.Net.Transport
                 {
                     ReadResult result = await reader.ReadAsync(cancellationToken).ConfigureAwait(false);
                     ReadOnlySequence<byte> buffer = result.Buffer;
-                    if (MessageReceived != null)
+                    while (!buffer.IsEmpty)
                     {
-                        while (!buffer.IsEmpty)
+                        var frameStart = buffer.Start;
+                        if (!MezonTransportFrameCodec.TryReadFrame(ref buffer, _apiChunkBuffers, out var type, out var cid, out var code, out var frame))
                         {
-                            var frameStart = buffer.Start;
-                            if (!MezonTransportFrameCodec.TryReadFrame(ref buffer, _apiChunkBuffers, out var type, out var cid, out var code, out var frame))
+                            if (frameStart.Equals(buffer.Start))
                             {
-                                if (frameStart.Equals(buffer.Start))
-                                {
-                                    break;
-                                }
-
-                                continue;
+                                break;
                             }
 
+                            continue;
+                        }
+
+                        if (MessageReceived != null)
+                        {
                             var payload = type == MezonMessageType.Realtime
                                 ? MezonTransportFrameCodec.TrimRealtimePadding(frame)
                                 : frame;
@@ -294,9 +294,17 @@ namespace Mezon.Net.Transport
                         : new ValueTask(Task.FromException(new InvalidOperationException("Cannot queue ping.")));
                 case MezonMessageType.Api:
                 case MezonMessageType.Realtime:
-                    return MezonTransportFrameCodec.TryQueueRealtimeFrame(_sendChannel.Writer, data)
-                        ? default
-                        : new ValueTask(Task.FromException(new InvalidOperationException("Cannot queue message for sending.")));
+                    try
+                    {
+                        return MezonTransportFrameCodec.TryQueueRealtimeFrame(_sendChannel.Writer, data)
+                            ? default
+                            : new ValueTask(Task.FromException(new InvalidOperationException("Cannot queue message for sending.")));
+                    }
+                    catch (NetworkTransportPayloadTooLargeException ex)
+                    {
+                        // Oversized send fails this request only; connection and receive loop stay open.
+                        return new ValueTask(Task.FromException(ex));
+                    }
                 default:
                     return new ValueTask(Task.FromException(new InvalidOperationException($"Unsupported TCP message type '{type}'.")));
             }

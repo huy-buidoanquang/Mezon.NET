@@ -1,9 +1,7 @@
 using System.Buffers;
 using System.Buffers.Binary;
-using System.Net.Sockets;
-using System.Net.WebSockets;
+using System.IO;
 using Mezon.Net.Core;
-using Mezon.Net.Core.Abstractions;
 using Mezon.Net.Transport.Internal;
 using Mezon.Net.Transport.Tests.Helpers;
 
@@ -26,6 +24,37 @@ public class MezonTransportFrameCodecTests
         Assert.Equal(MezonMessageType.Heartbeat, type);
         Assert.Equal(99, cid);
         Assert.Equal(0, code);
+    }
+
+    [Fact]
+    public void TryReadFrame_Pong_HighBitCid_IsUnsigned()
+    {
+        var bytes = MezonTransportFrameBuilder.BuildPongFrame(0x8001);
+        var buffer = new ReadOnlySequence<byte>(bytes);
+        Assert.True(MezonTransportFrameCodec.TryReadFrame(
+            ref buffer,
+            new System.Collections.Concurrent.ConcurrentDictionary<int, ArrayBufferWriter<byte>>(),
+            out _,
+            out var cid,
+            out _,
+            out _));
+        Assert.Equal(0x8001, cid);
+    }
+
+    [Fact]
+    public void TryReadFrame_Api_HighBitCid_IsUnsigned()
+    {
+        var bytes = MezonTransportFrameBuilder.BuildApiFrame(0x8001, 200, finish: true, [1, 2, 3, 4]);
+        var buffer = new ReadOnlySequence<byte>(bytes);
+        Assert.True(MezonTransportFrameCodec.TryReadFrame(
+            ref buffer,
+            new System.Collections.Concurrent.ConcurrentDictionary<int, ArrayBufferWriter<byte>>(),
+            out var type,
+            out var cid,
+            out _,
+            out _));
+        Assert.Equal(MezonMessageType.Api, type);
+        Assert.Equal(0x8001, cid);
     }
 
     [Fact]
@@ -66,11 +95,39 @@ public class MezonTransportFrameCodecTests
     }
 
     [Fact]
-    public void TrimPadding_RemovesUpToThreeTrailingZeros()
+    public void TrimPadding_StripsAllTrailingZeros()
     {
         var frame = new ReadOnlyMemory<byte>([0x0A, 0x0B, 0x0C, 0x00]);
         var trimmed = MezonTransportFrameCodec.TrimRealtimePadding(frame);
         Assert.Equal([0x0A, 0x0B, 0x0C], trimmed.ToArray());
+    }
+
+    [Fact]
+    public void TrimPadding_StripsMoreThanThreeTrailingZeros()
+    {
+        var frame = new ReadOnlyMemory<byte>([0x01, 0x00, 0x00, 0x00, 0x00]);
+        var trimmed = MezonTransportFrameCodec.TrimRealtimePadding(frame);
+        Assert.Equal([0x01], trimmed.ToArray());
+    }
+
+    [Fact]
+    public void TryReadFrame_UnexpectedLeadByte_Throws()
+    {
+        var buffer = new ReadOnlySequence<byte>(new byte[] { 0x80, 0x00, 0x00, 0x00 });
+        var apiChunkBuffers = new System.Collections.Concurrent.ConcurrentDictionary<int, ArrayBufferWriter<byte>>();
+        Assert.Throws<InvalidDataException>(() =>
+            MezonTransportFrameCodec.TryReadFrame(ref buffer, apiChunkBuffers, out _, out _, out _, out _));
+    }
+
+    [Fact]
+    public void TryReadFrame_OversizedAbridged_Throws()
+    {
+        // Extended header claiming payload larger than MaxAbridgedReceiveFrameLen.
+        var header = new byte[] { 0x7f, 0x00, 0x08, 0x00 }; // lenDiv4 = 0x800 → payload = 8192, total = 8196
+        var buffer = new ReadOnlySequence<byte>(header);
+        var apiChunkBuffers = new System.Collections.Concurrent.ConcurrentDictionary<int, ArrayBufferWriter<byte>>();
+        Assert.Throws<InvalidDataException>(() =>
+            MezonTransportFrameCodec.TryReadFrame(ref buffer, apiChunkBuffers, out _, out _, out _, out _));
     }
 
     [Theory]
@@ -89,6 +146,32 @@ public class MezonTransportFrameCodecTests
         int lenDiv4 = totalPayload / 4;
         Assert.Equal(lenDiv4 < 127 ? 1 : 4, frame.Length - totalPayload);
         MezonTransportFrameCodec.ReturnPooledSendBuffer(frame);
+    }
+
+    [Fact]
+    public void TryQueueRealtimeFrame_ExactMaxSize_Succeeds()
+    {
+        // Extended header (4) + payload → total 4096 ⇒ payloadWithPadding = 4092 ⇒ payload = 4092.
+        var payload = new byte[4092];
+        payload.AsSpan().Fill(0xAB);
+        var channel = System.Threading.Channels.Channel.CreateUnbounded<ReadOnlyMemory<byte>>();
+        Assert.True(MezonTransportFrameCodec.TryQueueRealtimeFrame(channel.Writer, payload));
+        Assert.True(channel.Reader.TryRead(out var frame));
+        Assert.Equal(MezonTransportFrameCodec.MaxAbridgedSendFrameLen, frame.Length);
+        MezonTransportFrameCodec.ReturnPooledSendBuffer(frame);
+    }
+
+    [Fact]
+    public void TryQueueRealtimeFrame_OverMaxSize_Throws()
+    {
+        var payload = new byte[4093];
+        payload.AsSpan().Fill(0xAB);
+        var channel = System.Threading.Channels.Channel.CreateUnbounded<ReadOnlyMemory<byte>>();
+        var ex = Assert.Throws<NetworkTransportPayloadTooLargeException>(() =>
+            MezonTransportFrameCodec.TryQueueRealtimeFrame(channel.Writer, payload));
+        Assert.True(ex.FrameSize > MezonTransportFrameCodec.MaxAbridgedSendFrameLen);
+        Assert.Equal(MezonTransportFrameCodec.MaxAbridgedSendFrameLen, ex.MaxFrameSize);
+        Assert.False(channel.Reader.TryRead(out _));
     }
 
     [Fact]

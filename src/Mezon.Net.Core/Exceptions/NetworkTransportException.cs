@@ -30,4 +30,21 @@ namespace Mezon.Net.Core
         {
         }
     }
+
+    /// <summary>
+    /// Thrown when an outbound abridged frame exceeds the client send size limit.
+    /// Does not indicate a broken connection — only that send was rejected.
+    /// </summary>
+    public class NetworkTransportPayloadTooLargeException : NetworkTransportException
+    {
+        public int FrameSize { get; }
+        public int MaxFrameSize { get; }
+
+        public NetworkTransportPayloadTooLargeException(int frameSize, int maxFrameSize)
+            : base($"Abridged frame size {frameSize} exceeds client send limit {maxFrameSize}.")
+        {
+            FrameSize = frameSize;
+            MaxFrameSize = maxFrameSize;
+        }
+    }
 }
