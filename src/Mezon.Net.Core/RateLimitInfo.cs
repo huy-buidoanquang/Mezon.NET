@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 
 namespace Mezon.Net.Core
 {
@@ -21,5 +22,8 @@ namespace Mezon.Net.Core
 
         /// <inheritdoc />
         public string Bucket { get; set; } = string.Empty;
+
+        /// <inheritdoc />
+        public Func<long, long, string, Task>? SendBypassMessageAsync { get; set; }
     }
 }

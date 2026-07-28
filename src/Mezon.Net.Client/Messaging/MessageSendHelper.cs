@@ -106,7 +106,9 @@ namespace Mezon.Net.Client.Messaging
                 message.Mode,
                 message.IsPublic,
                 message.HideEdited,
-                message.TopicId));
+                message.TopicId,
+                message.IsUpdateMsgTopic,
+                message.CreateTimeSeconds));
 
         public static ChannelMessageRemove ToChannelMessageRemove(in DeleteMessageParams message)
         {
@@ -199,8 +201,24 @@ namespace Mezon.Net.Client.Messaging
         internal static Task<ChannelMessageAckResponse> SendReplyAsync(MezonClient client, in ReplyMessageParams message, RequestOptions? options = null)
             => client.SendChatMessageRtAsync(ToSendParams(message), options);
 
+        /// <summary>
+        /// Updates a message via socket API <c>UpdateChannelMessage</c> (same path as mezon-sdk bots).
+        /// The realtime envelope <c>channel_message_update</c> may ack without UI clients receiving <c>ChatUpdate</c>.
+        /// </summary>
         internal static Task UpdateAsync(MezonClient client, in UpdateMessageParams message, RequestOptions? options = null)
-            => client.UpdateChatMessageRtAsync(message, options);
+            => client.UpdateChannelMessageAsync(new ChannelMessageUpdateParams(
+                message.ClanId,
+                message.ChannelId,
+                message.MessageId,
+                message.Content,
+                message.Mentions,
+                message.Attachments,
+                message.Mode,
+                message.IsPublic,
+                message.HideEdited,
+                message.TopicId,
+                message.IsUpdateMsgTopic,
+                message.CreateTimeSeconds), options);
 
         internal static Task DeleteAsync(MezonClient client, in DeleteMessageParams message, RequestOptions? options = null)
             => client.RemoveChatMessageRtAsync(message, options);

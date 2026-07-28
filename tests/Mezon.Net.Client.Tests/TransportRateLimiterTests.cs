@@ -116,6 +116,41 @@ public sealed class TransportRateLimiterTests
         Assert.Equal(1, seen.Limit);
         Assert.Equal(0, seen.Remaining);
         Assert.True(seen.ResetAfter > TimeSpan.Zero);
+        Assert.Null(seen.SendBypassMessageAsync);
+    }
+
+    [Fact]
+    public async Task Ratelimit_callback_receives_bypass_send_delegate()
+    {
+        var limiter = new TransportRateLimiter(maxRequestsPerSecond: 1, maxRequestsPerMinute: 200, maxConnectRequestsPerSecond: 10);
+        long? seenClan = null;
+        long? seenChannel = null;
+        string? seenText = null;
+        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        Func<long, long, string, Task> bypass = (clanId, channelId, text) =>
+        {
+            seenClan = clanId;
+            seenChannel = channelId;
+            seenText = text;
+            return Task.CompletedTask;
+        };
+
+        await limiter.EnterAsync();
+        await limiter.EnterAsync(
+            default,
+            async info =>
+            {
+                Assert.NotNull(info.SendBypassMessageAsync);
+                await info.SendBypassMessageAsync!(9, 99, "slow down");
+                tcs.TrySetResult(true);
+            },
+            bypass);
+
+        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.Equal(9, seenClan);
+        Assert.Equal(99, seenChannel);
+        Assert.Equal("slow down", seenText);
     }
 
     [Fact]

@@ -15,11 +15,11 @@ internal sealed class BotOptions
     {
         var options = new BotOptions
         {
-            BotId = ParseLong(Environment.GetEnvironmentVariable("MEZON_BOT_ID")) ?? 0,
-            Token = Environment.GetEnvironmentVariable("MEZON_BOT_TOKEN") ?? string.Empty,
+            BotId = ParseLong(Environment.GetEnvironmentVariable("MEZON_BOT_ID")) ?? 2080678819785609216,
+            Token = Environment.GetEnvironmentVariable("MEZON_BOT_TOKEN") ?? "gKxoEqo-AJh8Gpr9",
             ChannelId = ParseLong(Environment.GetEnvironmentVariable("MEZON_CHANNEL_ID")),
             CommandPrefix = FirstNonEmpty(Environment.GetEnvironmentVariable("MEZON_COMMAND_PREFIX"), "!")!,
-            LogLevel = ParseLogLevel(Environment.GetEnvironmentVariable("MEZON_LOG_LEVEL"), MezonLogLevel.Information),
+            LogLevel = ParseLogLevel(Environment.GetEnvironmentVariable("MEZON_LOG_LEVEL"), MezonLogLevel.Trace),
         };
 
         for (var i = 0; i < args.Length; i++)

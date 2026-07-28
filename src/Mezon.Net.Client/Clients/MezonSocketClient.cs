@@ -500,7 +500,7 @@ namespace Mezon.Net.Client
 
         private async Task SendSocketInternalAsync(MezonMessageType type, int cid, ReadOnlyMemory<byte> data, RequestOptions options, bool bypassRateLimiter = false)
         {
-            if (!bypassRateLimiter)
+            if (!bypassRateLimiter && !options.BypassRateLimiter)
             {
                 await RequestQueue.EnterTransportAsync(options).ConfigureAwait(false);
             }

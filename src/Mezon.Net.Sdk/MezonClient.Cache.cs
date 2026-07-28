@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Tasks;
 using Mezon.Net.Core;
 using Mezon.Net.Internal.Api;
@@ -118,7 +119,10 @@ namespace Mezon.Net.Sdk
             var data = (ChannelUpdatedEventResponse)evt;
             if (data.ChannelType == (int)ChannelType.Thread && data.Status == 1)
             {
-                return _engine.JoinChannelChatRtAsync(new ChannelJoinParams(data.ClanId, data.ChannelId, data.ChannelType, !data.ChannelPrivate));
+                ScheduleBackground(
+                    _engine.JoinChannelChatRtAsync(new ChannelJoinParams(data.ClanId, data.ChannelId, data.ChannelType, !data.ChannelPrivate)),
+                    "JoinChannelChat (thread update)");
+                return Task.CompletedTask;
             }
 
             UpdateChannelCache(data.ClanId, data.ChannelId, data.ChannelLabel, data.ChannelType, !data.ChannelPrivate);
@@ -132,13 +136,13 @@ namespace Mezon.Net.Sdk
             return Task.CompletedTask;
         }
 
-        private async Task OnUserChannelAddedInternalAsync(UserChannelAddedEventData channelEvent)
+        private Task OnUserChannelAddedInternalAsync(UserChannelAddedEventData channelEvent)
         {
             var data = (UserChannelAddedResponse)channelEvent;
             var channelDesc = data.ChannelDesc;
             if (channelDesc.ChannelId == 0)
             {
-                return;
+                return Task.CompletedTask;
             }
 
             for (var i = 0; i < data.Users.Count; i++)
@@ -146,9 +150,30 @@ namespace Mezon.Net.Sdk
                 var user = data.Users[i];
                 if (user.UserId == Options.BotId)
                 {
-                    await _engine.JoinChannelChatRtAsync(new ChannelJoinParams(data.ClanId, channelDesc.ChannelId, channelDesc.Type, channelDesc.ChannelPrivate == 0)).ConfigureAwait(false);
+                    ScheduleBackground(
+                        _engine.JoinChannelChatRtAsync(new ChannelJoinParams(data.ClanId, channelDesc.ChannelId, channelDesc.Type, channelDesc.ChannelPrivate == 0)),
+                        "JoinChannelChat (user channel added)");
                     break;
                 }
+            }
+
+            return Task.CompletedTask;
+        }
+
+        private void ScheduleBackground(Task task, string name)
+        {
+            _ = ObserveFaultAsync(task, name);
+        }
+
+        private async Task ObserveFaultAsync(Task task, string name)
+        {
+            try
+            {
+                await task.ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                await _logger.WarningAsync($"Background {name} failed.", ex).ConfigureAwait(false);
             }
         }
 
