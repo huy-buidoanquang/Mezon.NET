@@ -143,4 +143,70 @@ public class MezonTcpTransporterReceiveTests
         Assert.Contains((MezonMessageType.Heartbeat, 2), list);
         await transporter.DisconnectAsync().ConfigureAwait(false);
     }
+
+    [Fact]
+    public async Task Receive_UnexpectedLeadByte_FiresErrorAndDisconnects()
+    {
+        await using var server = new TcpLoopbackServer();
+        var error = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        server.ClientHandler = async (stream, ct) =>
+        {
+            await MezonTransportFrameBuilder.ReadHandshakeAsync(stream, ct).ConfigureAwait(false);
+            await stream.WriteAsync(new byte[] { 0x80, 0x00, 0x00, 0x00 }, ct).ConfigureAwait(false);
+            await stream.FlushAsync(ct).ConfigureAwait(false);
+            await Task.Delay(Timeout.Infinite, ct).ConfigureAwait(false);
+        };
+        server.Start();
+
+        var transporter = new MezonNetworkTcpTransporter();
+        transporter.ErrorOccurred = ex =>
+        {
+            error.TrySetResult(ex);
+            return Task.CompletedTask;
+        };
+        transporter.Closed = _ =>
+        {
+            closed.TrySetResult();
+            return Task.CompletedTask;
+        };
+
+        await transporter.ConnectAsync("127.0.0.1", server.Port, "test-token", useSsl: false).ConfigureAwait(false);
+        var ex = await error.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        Assert.IsType<InvalidDataException>(ex);
+        await closed.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+    }
+
+    [Fact]
+    public async Task Receive_Pong_HighBitCid_IsUnsigned()
+    {
+        await using var server = new TcpLoopbackServer();
+        var received = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        server.ClientHandler = async (stream, ct) =>
+        {
+            await MezonTransportFrameBuilder.ReadHandshakeAsync(stream, ct).ConfigureAwait(false);
+            await stream.WriteAsync(MezonTransportFrameBuilder.BuildPongFrame(0x8001), ct).ConfigureAwait(false);
+            await stream.FlushAsync(ct).ConfigureAwait(false);
+            await Task.Delay(Timeout.Infinite, ct).ConfigureAwait(false);
+        };
+        server.Start();
+
+        var transporter = new MezonNetworkTcpTransporter();
+        transporter.MessageReceived = (type, cid, _, _) =>
+        {
+            if (type == MezonMessageType.Heartbeat)
+            {
+                received.TrySetResult(cid);
+            }
+
+            return default;
+        };
+
+        await transporter.ConnectAsync("127.0.0.1", server.Port, "test-token", useSsl: false).ConfigureAwait(false);
+        var cid = await received.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        Assert.Equal(0x8001, cid);
+        await transporter.DisconnectAsync().ConfigureAwait(false);
+    }
 }

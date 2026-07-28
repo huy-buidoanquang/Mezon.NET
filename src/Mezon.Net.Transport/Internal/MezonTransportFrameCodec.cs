@@ -2,6 +2,7 @@ using System;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading.Channels;
 using Mezon.Net.Core;
@@ -14,6 +15,12 @@ namespace Mezon.Net.Transport.Internal
         public const byte ApiPrefix = 0xff;
         public const byte AbridgedExtendedPrefix = 0x7f;
         public const int FinishFlag = 0xff;
+
+        /// <summary>Client outbound abridged wire cap: header + protobuf + padding.</summary>
+        public const int MaxAbridgedSendFrameLen = 4096;
+
+        /// <summary>Defensive inbound reassembly ceiling aligned with server scratchpad (MAX_BUF_SIZE * 2).</summary>
+        public const int MaxAbridgedReceiveFrameLen = 8192;
 
         public static bool TryReadFrame(
             ref ReadOnlySequence<byte> buffer,
@@ -80,18 +87,19 @@ namespace Mezon.Net.Transport.Internal
             }
         }
 
+        /// <summary>
+        /// Strip trailing 0x00 bytes to match mezon-proto-server pipeline.c (non-WebSocket path).
+        /// </summary>
         public static ReadOnlyMemory<byte> TrimRealtimePadding(ReadOnlyMemory<byte> frame)
         {
             var span = frame.Span;
             int len = span.Length;
-            int maxPadding = len < 3 ? len : 3;
-            int trimmed = 0;
-            while (trimmed < maxPadding && span[len - 1 - trimmed] == 0x00)
+            while (len > 0 && span[len - 1] == 0x00)
             {
-                trimmed++;
+                len--;
             }
 
-            return trimmed == 0 ? frame : frame.Slice(0, len - trimmed);
+            return len == frame.Length ? frame : frame.Slice(0, len);
         }
 
         public static bool TryQueueRealtimeFrame(ChannelWriter<ReadOnlyMemory<byte>> writer, ReadOnlyMemory<byte> data)
@@ -101,6 +109,11 @@ namespace Mezon.Net.Transport.Internal
             int lenDiv4 = payloadWithPadding / 4;
             int headerSize = lenDiv4 < 127 ? 1 : 4;
             int totalSize = headerSize + payloadWithPadding;
+            if (totalSize > MaxAbridgedSendFrameLen)
+            {
+                throw new NetworkTransportPayloadTooLargeException(totalSize, MaxAbridgedSendFrameLen);
+            }
+
             byte[] buffer = ArrayPool<byte>.Shared.Rent(totalSize);
             Span<byte> span = buffer.AsSpan(0, totalSize);
             if (headerSize == 1)
@@ -153,15 +166,34 @@ namespace Mezon.Net.Transport.Internal
             }
         }
 
-        private static bool TryReadPongFrame(ref SequenceReader<byte> reader, out int cid)
+        private static bool TryReadUInt16BigEndian(ref SequenceReader<byte> reader, out ushort value)
         {
-            cid = -1;
-            if (reader.Remaining < 2 || !reader.TryReadBigEndian(out short cidS))
+            value = 0;
+            if (reader.Remaining < 2)
             {
                 return false;
             }
 
-            cid = cidS;
+            Span<byte> tmp = stackalloc byte[2];
+            if (!reader.TryCopyTo(tmp))
+            {
+                return false;
+            }
+
+            reader.Advance(2);
+            value = BinaryPrimitives.ReadUInt16BigEndian(tmp);
+            return true;
+        }
+
+        private static bool TryReadPongFrame(ref SequenceReader<byte> reader, out int cid)
+        {
+            cid = -1;
+            if (!TryReadUInt16BigEndian(ref reader, out ushort cidU16))
+            {
+                return false;
+            }
+
+            cid = cidU16;
             return true;
         }
 
@@ -186,13 +218,22 @@ namespace Mezon.Net.Transport.Internal
             peek.TryReadBigEndian(out short _);
             peek.TryReadBigEndian(out int _);
             peek.TryReadBigEndian(out int payloadLen);
+            if (payloadLen < 0)
+            {
+                throw new InvalidDataException($"API frame length is negative ({payloadLen}).");
+            }
+
             if (reader.Remaining < headerSize + payloadLen)
             {
                 return false;
             }
 
-            reader.TryReadBigEndian(out short cidFrame);
-            cid = cidFrame;
+            if (!TryReadUInt16BigEndian(ref reader, out ushort cidU16))
+            {
+                return false;
+            }
+
+            cid = cidU16;
             reader.TryReadBigEndian(out int codeFrame);
             reader.TryReadBigEndian(out payloadLen);
 
@@ -223,8 +264,10 @@ namespace Mezon.Net.Transport.Internal
         {
             frame = ReadOnlyMemory<byte>.Empty;
             int payloadLen;
+            int headerSize;
             if (prefix < AbridgedExtendedPrefix)
             {
+                headerSize = 1;
                 payloadLen = prefix * 4;
             }
             else if (prefix == AbridgedExtendedPrefix)
@@ -234,6 +277,7 @@ namespace Mezon.Net.Transport.Internal
                     return false;
                 }
 
+                headerSize = 4;
                 reader.TryRead(out byte l1);
                 reader.TryRead(out byte l2);
                 reader.TryRead(out byte l3);
@@ -241,7 +285,13 @@ namespace Mezon.Net.Transport.Internal
             }
             else
             {
-                return false;
+                throw new InvalidDataException($"Unexpected abridged lead byte 0x{prefix:x2}.");
+            }
+
+            if (headerSize + payloadLen > MaxAbridgedReceiveFrameLen)
+            {
+                throw new InvalidDataException(
+                    $"Abridged frame size {headerSize + payloadLen} exceeds receive limit {MaxAbridgedReceiveFrameLen}.");
             }
 
             if (reader.Remaining < payloadLen)

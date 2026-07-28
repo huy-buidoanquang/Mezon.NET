@@ -1,4 +1,5 @@
 using Mezon.Net.Core;
+using Mezon.Net.Transport.Internal;
 using Mezon.Net.Transport.Tests.Helpers;
 
 namespace Mezon.Net.Transport.Tests.Tcp;
@@ -60,6 +61,49 @@ public class MezonTcpTransporterSendTests
         Assert.Equal(0xAD, frame[2]);
         Assert.Equal(0xBE, frame[3]);
         Assert.Equal(0xEF, frame[4]);
+        await transporter.DisconnectAsync().ConfigureAwait(false);
+    }
+
+    [Fact]
+    public async Task Send_OversizedAbridged_ThrowsWithoutDisconnecting()
+    {
+        await using var server = new TcpLoopbackServer();
+        var smallReceived = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        server.ClientHandler = async (stream, ct) =>
+        {
+            await MezonTransportFrameBuilder.ReadHandshakeAsync(stream, ct).ConfigureAwait(false);
+            var header = new byte[1];
+            await stream.ReadExactlyAsync(header, ct).ConfigureAwait(false);
+            Assert.Equal(1, header[0]);
+            var payload = new byte[4];
+            await stream.ReadExactlyAsync(payload, ct).ConfigureAwait(false);
+            smallReceived.TrySetResult(header.Concat(payload).ToArray());
+            await Task.Delay(Timeout.Infinite, ct).ConfigureAwait(false);
+        };
+        server.Start();
+
+        var transporter = new MezonNetworkTcpTransporter();
+        var errorFired = false;
+        transporter.ErrorOccurred = _ =>
+        {
+            errorFired = true;
+            return Task.CompletedTask;
+        };
+
+        await transporter.ConnectAsync("127.0.0.1", server.Port, "test-token", useSsl: false).ConfigureAwait(false);
+
+        var oversized = new byte[4093];
+        oversized.AsSpan().Fill(0xAB);
+        var ex = await Assert.ThrowsAsync<NetworkTransportPayloadTooLargeException>(async () =>
+            await transporter.SendAsync(MezonMessageType.Realtime, 0, oversized).ConfigureAwait(false)).ConfigureAwait(false);
+        Assert.Equal(MezonTransportFrameCodec.MaxAbridgedSendFrameLen, ex.MaxFrameSize);
+        Assert.True(ex.FrameSize > ex.MaxFrameSize);
+        Assert.False(errorFired);
+
+        await transporter.SendAsync(MezonMessageType.Realtime, 0, new byte[] { 0xDE, 0xAD, 0xBE, 0xEF }).ConfigureAwait(false);
+        var frame = await smallReceived.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        Assert.Equal(0x01, frame[0]);
         await transporter.DisconnectAsync().ConfigureAwait(false);
     }
 }
