@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Mezon.Net.Models;
 using Mezon.Net.Client;
+using Mezon.Net.Models;
 using Mezon.Net.Sdk.Entities;
 
 namespace Mezon.Net.Sdk.Commands
@@ -85,9 +85,25 @@ namespace Mezon.Net.Sdk.Commands
             }
 
             _client = client;
-            _handler = evt => HandleMessageAsync(client, evt);
+            _handler = evt =>
+            {
+                _ = ObserveFaultAsync(HandleMessageAsync(client, evt));
+                return Task.CompletedTask;
+            };
             client.ChannelMessageReceived += _handler;
             return client;
+        }
+
+        private static async Task ObserveFaultAsync(Task task)
+        {
+            try
+            {
+                await task.ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                // Handled inside HandleMessageAsync; avoid unobserved-task crashes.
+            }
         }
 
         public void Detach()
@@ -183,17 +199,10 @@ namespace Mezon.Net.Sdk.Commands
             {
                 throw;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                try
-                {
-                    await context.ReplyTextAsync("Command error: " + ex.Message).ConfigureAwait(false);
-                }
-                catch
-                {
-                    // ignore notify failures
-                }
 
+                // ignore notify failures
                 return CommandExecutionResult.Failed;
             }
         }
@@ -227,23 +236,9 @@ namespace Mezon.Net.Sdk.Commands
 
             var author = await client.GetUserAsync(message.SenderId, cancellationToken).ConfigureAwait(false);
             Clan? clan = null;
-            if (message.ClanId != 0)
+            if (message.ClanId != 0 && client.Clans.TryGet(message.ClanId, out var cachedClan))
             {
-                if (client.Clans.TryGet(message.ClanId, out var cachedClan))
-                {
-                    clan = cachedClan;
-                }
-                else
-                {
-                    try
-                    {
-                        clan = await client.GetClanAsync(message.ClanId, cancellationToken).ConfigureAwait(false);
-                    }
-                    catch
-                    {
-                        // Commands can still run using Channel.ClanId when clan cache seed failed.
-                    }
-                }
+                clan = cachedClan;
             }
 
             return new CommandContext(

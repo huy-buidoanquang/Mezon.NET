@@ -94,9 +94,13 @@ namespace Mezon.Net.Sdk.Entities
             MessageContent content,
             IEnumerable<MessageMentionParams>? mentions = null,
             IEnumerable<MessageAttachmentParams>? attachments = null,
-            RequestOptions? options = null)
+            RequestOptions? options = null,
+            bool hideEdited = true)
         {
             var mode = ChannelModeConverter.ToStreamMode(_channel.Type);
+            var createTime = Source?.CreateTimeSeconds is uint s and > 0
+                ? s
+                : Ack?.CreateTimeSeconds is uint a and > 0 ? a : (uint?)null;
             var update = new UpdateMessageParams(
                 ClanId,
                 ChannelId,
@@ -104,8 +108,10 @@ namespace Mezon.Net.Sdk.Entities
                 content.ToJson(),
                 mode,
                 _channel.IsPublic,
+                hideEdited: hideEdited,
                 mentions: mentions,
-                attachments: attachments);
+                attachments: attachments,
+                createTimeSeconds: createTime);
             return _client.SendQueue.EnqueueAsync(ChannelId, () =>
                 MessageSendHelper.UpdateAsync(_client.Engine, update, options));
         }

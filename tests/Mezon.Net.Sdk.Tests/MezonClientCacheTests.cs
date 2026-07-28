@@ -163,6 +163,64 @@ namespace Mezon.Net.Sdk.Tests
         private static MessageReactionResponse CreateReactionResponse(MessageReaction proto)
             => InvokeInternalFactory<MessageReactionResponse>(typeof(MessageReactionResponse), proto);
 
+        [Fact]
+        public async Task ChannelUpdated_thread_join_returns_without_awaiting_socket()
+        {
+            var (client, _) = CreateFixture(clanId: 1, channelId: 10);
+            BindCacheListeners(client);
+
+            var updateEvent = (ChannelUpdatedEventEventData)CreateChannelUpdatedResponse(new ChannelUpdatedEvent
+            {
+                ClanId = 1,
+                ChannelId = 99,
+                ChannelLabel = "thread",
+                ChannelType = 7,
+                ChannelPrivate = false,
+                Status = 1,
+            });
+
+            var handler = typeof(MezonClient).GetMethod("OnChannelUpdatedInternalAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
+            var task = (Task)handler.Invoke(client, new object[] { updateEvent })!;
+
+            // Must complete without waiting for JoinChannelChat (no connected socket).
+            var completed = await Task.WhenAny(task, Task.Delay(500)).ConfigureAwait(false);
+            Assert.Same(task, completed);
+            await task.ConfigureAwait(false);
+        }
+
+        [Fact]
+        public async Task UserChannelAdded_join_returns_without_awaiting_socket()
+        {
+            var (client, _) = CreateFixture(clanId: 1, channelId: 10);
+            BindCacheListeners(client);
+
+            var added = new UserChannelAdded
+            {
+                ClanId = 1,
+            };
+            added.ChannelDesc = new global::Mezon.Net.Internal.Api.ChannelDescription
+            {
+                ChannelId = 55,
+                Type = 1,
+                ChannelPrivate = 0,
+            };
+            added.Users.Add(new UserProfileRedis { UserId = 1 });
+
+            var addedEvent = (UserChannelAddedEventData)CreateUserChannelAddedResponse(added);
+            var handler = typeof(MezonClient).GetMethod("OnUserChannelAddedInternalAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
+            var task = (Task)handler.Invoke(client, new object[] { addedEvent })!;
+
+            var completed = await Task.WhenAny(task, Task.Delay(500)).ConfigureAwait(false);
+            Assert.Same(task, completed);
+            await task.ConfigureAwait(false);
+        }
+
+        private static ChannelUpdatedEventResponse CreateChannelUpdatedResponse(ChannelUpdatedEvent proto)
+            => InvokeInternalFactory<ChannelUpdatedEventResponse>(typeof(ChannelUpdatedEventResponse), proto);
+
+        private static UserChannelAddedResponse CreateUserChannelAddedResponse(UserChannelAdded proto)
+            => InvokeInternalFactory<UserChannelAddedResponse>(typeof(UserChannelAddedResponse), proto);
+
         private static ChannelMessageResponse CreateMessageResponse(ChannelMessage proto)
             => InvokeInternalFactory<ChannelMessageResponse>(typeof(ChannelMessageResponse), proto);
 

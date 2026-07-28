@@ -1,6 +1,8 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Mezon.Net.Client;
+using Mezon.Net.Client.Messaging;
 using Mezon.Net.Core;
 using Mezon.Net.Logging;
 using Mezon.Net.Models;
@@ -38,6 +40,7 @@ namespace Mezon.Net.Sdk
             Clans = new EntityCache<Clan>(options.CacheCapacity);
             Channels = new EntityCache<TextChannel>(options.CacheCapacity);
             Users = new EntityCache<Entities.User>(options.CacheCapacity);
+            ApiClient.RequestQueue.SetRateLimitBypassMessage(SendRateLimitBypassMessageAsync);
         }
 
         public MezonClientOptions Options { get; }
@@ -263,39 +266,20 @@ namespace Mezon.Net.Sdk
             => Channels.GetOrFetchAsync(channelId, FetchChannelAsync, cancellationToken);
 
         /// <summary>
-        /// Resolve a channel for an inbound message without blocking on GetChannelDetail.
+        /// Resolve a channel for an inbound message without calling GetChannelDetail / ListClanDescs.
+        /// Safe to use on the event path.
         /// </summary>
-        public async ValueTask<TextChannel> GetOrCreateChannelFromMessageAsync(
+        public ValueTask<TextChannel> GetOrCreateChannelFromMessageAsync(
             ChannelMessageResponse message,
             CancellationToken cancellationToken = default)
         {
+            _ = cancellationToken;
             if (message.ChannelId != 0 && Channels.TryGet(message.ChannelId, out var cached))
             {
-                return cached;
+                return new ValueTask<TextChannel>(cached);
             }
 
-            Clan clan;
-            if (message.ClanId != 0 && Clans.TryGet(message.ClanId, out var cachedClan))
-            {
-                clan = cachedClan;
-            }
-            else if (message.ClanId != 0)
-            {
-                try
-                {
-                    clan = await GetClanAsync(message.ClanId, cancellationToken).ConfigureAwait(false);
-                }
-                catch
-                {
-                    clan = new Clan(this, new global::Mezon.Net.Internal.Api.ClanDesc { ClanId = message.ClanId });
-                    Clans.Set(message.ClanId, clan);
-                }
-            }
-            else
-            {
-                clan = new Clan(this, new global::Mezon.Net.Internal.Api.ClanDesc());
-            }
-
+            var clan = ResolveClanLocal(message.ClanId);
             var desc = new global::Mezon.Net.Internal.Api.ChannelDescription
             {
                 ChannelId = message.ChannelId,
@@ -310,7 +294,58 @@ namespace Mezon.Net.Sdk
                 Channels.Set(message.ChannelId, channel);
             }
 
-            return channel;
+            return new ValueTask<TextChannel>(channel);
+        }
+
+        /// <summary>
+        /// Resolve a channel for an inbound interaction without calling GetChannelDetail.
+        /// Safe to use on the event path.
+        /// </summary>
+        public ValueTask<TextChannel> GetOrCreateChannelFromInteractionAsync(
+            long channelId,
+            long clanId = 0,
+            int channelType = (int)ChannelType.Channel,
+            bool isPublic = true,
+            CancellationToken cancellationToken = default)
+        {
+            _ = cancellationToken;
+            if (channelId != 0 && Channels.TryGet(channelId, out var cached))
+            {
+                return new ValueTask<TextChannel>(cached);
+            }
+
+            var clan = ResolveClanLocal(clanId);
+            var desc = new global::Mezon.Net.Internal.Api.ChannelDescription
+            {
+                ChannelId = channelId,
+                ClanId = clanId != 0 ? clanId : clan.Id,
+                Type = channelType,
+                ChannelPrivate = isPublic ? 0 : 1,
+            };
+            var channel = new TextChannel(this, desc, clan);
+            if (channelId != 0)
+            {
+                Channels.Set(channelId, channel);
+            }
+
+            return new ValueTask<TextChannel>(channel);
+        }
+
+        private Clan ResolveClanLocal(long clanId)
+        {
+            if (clanId != 0 && Clans.TryGet(clanId, out var cachedClan))
+            {
+                return cachedClan;
+            }
+
+            if (clanId == 0)
+            {
+                return new Clan(this, new global::Mezon.Net.Internal.Api.ClanDesc());
+            }
+
+            var stub = new Clan(this, new global::Mezon.Net.Internal.Api.ClanDesc { ClanId = clanId });
+            Clans.Set(clanId, stub);
+            return stub;
         }
 
         public ValueTask<Entities.User> GetUserAsync(long userId, CancellationToken cancellationToken = default)
@@ -345,6 +380,48 @@ namespace Mezon.Net.Sdk
         }
 
         partial void DisposeMmn();
+
+        /// <summary>
+        ///     Sends a channel message without entering the transport rate limiter or channel send queue.
+        ///     Wired onto <see cref="IRateLimitInfo.SendBypassMessageAsync"/> for rate-limit warning callbacks.
+        ///     <paramref name="text"/> may be plain text or full message-content JSON (e.g. an embed payload).
+        /// </summary>
+        private Task SendRateLimitBypassMessageAsync(long clanId, long channelId, string text)
+        {
+            var isPublic = true;
+            var channelType = (int)ChannelType.Channel;
+            if (Channels.TryGet(channelId, out var channel))
+            {
+                clanId = channel.ClanId;
+                isPublic = channel.IsPublic;
+                channelType = channel.Type;
+            }
+
+            var contentJson = LooksLikeMessageContentJson(text)
+                ? MessageContent.Parse(text).ToJson()
+                : MessageContent.CreateText(text).ToJson();
+
+            var parameters = new SendChannelMessageParams(
+                clanId,
+                channelId,
+                contentJson,
+                isPublic: isPublic,
+                mode: ChannelModeConverter.ToStreamMode(channelType));
+
+            var options = new RequestOptions { BypassRateLimiter = true };
+            return MessageSendHelper.SendAsync(_engine, parameters, options);
+        }
+
+        private static bool LooksLikeMessageContentJson(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return false;
+            }
+
+            var trimmed = text.AsSpan().TrimStart();
+            return trimmed.Length > 0 && trimmed[0] == '{';
+        }
 
         public async ValueTask DisposeAsync()
         {

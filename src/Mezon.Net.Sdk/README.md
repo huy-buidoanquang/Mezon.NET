@@ -33,6 +33,7 @@ await channel.SendAsync(MessageContent.CreateText("hi"));
 ## Architecture notes
 
 - **Hot path**: ordered realtime dispatch, opt-in handler timeout, cached nested `ProtoListView`, LRU `EntityCache` with single-flight fetch.
+- **No API in events**: engine/SDK event subscribers must not `await` socket or HTTP APIs on the dispatch path. Cache listeners only mutate local state (joins are fire-and-forget). `CommandService` / `InteractionRouter` schedule work in the background so `ChannelMessageReceived` / button events return immediately — `Reply` / `Send` inside handlers remain supported. Prefer `GetOrCreateChannelFromMessageAsync` / `GetOrCreateChannelFromInteractionAsync` over `GetChannelAsync` from event code. Clan join / channel list belong in connect init (`LoginAsync` / `Ready`), not in message handlers.
 - **Content**: `Mezon.Net.Client.MessageContent` (opt-in parse; raw wire string unchanged) — never hand-build `{"t":...}` in app code.
 - **Cache**: process-local L1 identity map (mutate in-place). Redis/SQLite hold DTO snapshots / history only — not live entities or sessions.
 - **Commands / interactions**: first-class in .NET (not present in the TypeScript SDK). Button/select events carry full wire payloads.

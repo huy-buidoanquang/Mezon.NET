@@ -60,4 +60,54 @@ public sealed class ReceiveDispatchDeadlockTests
 
         await client.DisconnectAsync();
     }
+
+    [Fact]
+    public async Task VoiceJoined_handler_does_not_block_receive_loop_from_reading_heartbeat_pong()
+    {
+        var transport = new LoopbackNetworkTransporter();
+        var options = new MezonSocketClientOptions
+        {
+            HeartbeatIntervalInMilliseconds = 60_000,
+            ConnectionTimeoutInMilliseconds = 5_000,
+            SocketTimeoutInMilliseconds = 2_000,
+            SocketHandlerTimeoutInMilliseconds = 500,
+            TransportType = TransportType.Tcp,
+            NetworkTransportProvider = _ => transport,
+        };
+
+        var socketClient = await SocketTestDoubles.CreateLoggedInSocketClientAsync(options, transport);
+        var client = new MezonClient(options, socketClient);
+
+        var handlerEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseHandler = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        client.VoiceJoinedEvent += async _ =>
+        {
+            handlerEntered.TrySetResult();
+            await releaseHandler.Task.ConfigureAwait(false);
+        };
+
+        await client.ConnectAsync();
+
+        transport.InjectRealtime(new Envelope
+        {
+            VoiceJoinedEvent = new VoiceJoinedEvent
+            {
+                ClanId = 1,
+                VoiceChannelId = 2,
+                UserId = 3,
+            }
+        });
+
+        await handlerEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        // While the voice handler is still blocked, a heartbeat pong must still be completable
+        // (receive loop must not be stuck awaiting TimedInvoke on the voice event).
+        var heartbeat = socketClient.Heartbeat(new RequestOptions { SocketSendTimeout = 2_000 });
+        var completed = await Task.WhenAny(heartbeat, Task.Delay(3_000));
+        Assert.Same(heartbeat, completed);
+        await heartbeat;
+
+        releaseHandler.TrySetResult();
+        await client.DisconnectAsync();
+    }
 }

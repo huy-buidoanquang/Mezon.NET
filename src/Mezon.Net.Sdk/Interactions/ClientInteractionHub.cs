@@ -76,12 +76,36 @@ namespace Mezon.Net.Sdk.Interactions
             }
 
             _attached = true;
-            _buttonHandler = OnButtonClickedAsync;
-            _selectHandler = OnDropdownSelectedAsync;
-            _messageHandler = OnChannelMessageAsync;
+            _buttonHandler = evt =>
+            {
+                _ = ObserveFaultAsync(OnButtonClickedAsync(evt));
+                return Task.CompletedTask;
+            };
+            _selectHandler = evt =>
+            {
+                _ = ObserveFaultAsync(OnDropdownSelectedAsync(evt));
+                return Task.CompletedTask;
+            };
+            _messageHandler = evt =>
+            {
+                _ = ObserveFaultAsync(OnChannelMessageAsync(evt));
+                return Task.CompletedTask;
+            };
             _client.MessageButtonClicked += _buttonHandler;
             _client.DropdownBoxSelected += _selectHandler;
             _client.ChannelMessageReceived += _messageHandler;
+        }
+
+        private static async Task ObserveFaultAsync(Task task)
+        {
+            try
+            {
+                await task.ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                // Avoid unobserved-task crashes; handler failures are returned as Failed where applicable.
+            }
         }
 
         private async Task OnButtonClickedAsync(MessageButtonClickedEventData eventData)

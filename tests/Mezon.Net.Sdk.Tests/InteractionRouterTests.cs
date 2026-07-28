@@ -144,6 +144,29 @@ namespace Mezon.Net.Sdk.Tests
         }
 
         [Fact]
+        public async Task HandleButtonAsync_creates_channel_stub_without_cache_hit()
+        {
+            var router = new InteractionRouter();
+            long? seenChannelId = null;
+            router.OnButton("confirm", ctx =>
+            {
+                seenChannelId = ctx.Channel.Id;
+                return Task.CompletedTask;
+            });
+
+            // Client has no channel 20 cached — must not call GetChannelDetail.
+            var client = new MezonClient(new MezonClientOptions(1, "token"));
+            client.Users.Set(40, new Entities.User(client, 40, username: "tester"));
+
+            var result = await router.HandleButtonAsync(client, CreateButtonEvent("confirm"), CancellationToken.None)
+                .ConfigureAwait(false);
+
+            Assert.Equal(InteractionExecutionResult.Handled, result);
+            Assert.Equal(20, seenChannelId);
+            Assert.True(client.Channels.TryGet(20, out _));
+        }
+
+        [Fact]
         public async Task HandleSelectAsync_delivers_values()
         {
             var router = new InteractionRouter();

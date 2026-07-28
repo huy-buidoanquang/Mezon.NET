@@ -24,6 +24,7 @@ namespace Mezon.Net.Queue
         private CancellationToken _requestCancelToken = CancellationToken.None;
         private readonly TransportRateLimiter _transportLimiter = new TransportRateLimiter();
         private Func<IRateLimitInfo, Task>? _defaultRatelimitCallback;
+        private Func<long, long, string, Task>? _sendBypassMessageAsync;
 
         /// <summary>
         ///     Updates transport rate-limit capacities without replacing the limiter instance.
@@ -47,10 +48,18 @@ namespace Mezon.Net.Queue
             _defaultRatelimitCallback = callback;
         }
 
+        /// <summary>
+        ///     Sets the bypass send used by <see cref="IRateLimitInfo.SendBypassMessageAsync"/> in rate-limit callbacks.
+        /// </summary>
+        internal void SetRateLimitBypassMessage(Func<long, long, string, Task>? sendBypassMessageAsync)
+        {
+            _sendBypassMessageAsync = sendBypassMessageAsync;
+        }
+
         internal ValueTask EnterTransportAsync(RequestOptions options)
         {
             options.ApplyDefaultRatelimitCallback(_defaultRatelimitCallback);
-            return _transportLimiter.EnterAsync(options.CancelToken, options.RatelimitCallback);
+            return _transportLimiter.EnterAsync(options.CancelToken, options.RatelimitCallback, _sendBypassMessageAsync);
         }
 
         internal void BeginConnectPhase() => _transportLimiter.BeginConnectPhase();

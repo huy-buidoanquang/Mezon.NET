@@ -137,5 +137,34 @@ namespace Mezon.Net.Sdk.Entities
             IEnumerable<MessageRefParams>? references = null,
             RequestOptions? options = null)
             => SendEphemeralAsync(MessageContent.CreateText(text), receiverId, mentions, attachments, references, options);
+
+        /// <summary>Update an existing message in this channel by id (e.g. after a successful send ack).</summary>
+        public Task UpdateMessageAsync(
+            long messageId,
+            MessageContent content,
+            IEnumerable<MessageMentionParams>? mentions = null,
+            IEnumerable<MessageAttachmentParams>? attachments = null,
+            RequestOptions? options = null,
+            bool hideEdited = true,
+            uint? createTimeSeconds = null,
+            long? topicId = null)
+        {
+            var mode = ChannelModeConverter.ToStreamMode(Type);
+            var update = new UpdateMessageParams(
+                ClanId,
+                Id,
+                messageId,
+                content.ToJson(),
+                mode,
+                IsPublic,
+                topicId: topicId,
+                hideEdited: hideEdited,
+                mentions: mentions,
+                attachments: attachments,
+                isUpdateMsgTopic: topicId is > 0,
+                createTimeSeconds: createTimeSeconds);
+            return _client.SendQueue.EnqueueAsync(Id, () =>
+                MessageSendHelper.UpdateAsync(_client.Engine, update, options));
+        }
     }
 }

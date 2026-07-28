@@ -69,6 +69,15 @@ namespace Mezon.Net.Core
         /// </remarks>
         public Func<IRateLimitInfo, Task>? RatelimitCallback { get; set; }
 
+        /// <summary>
+        ///     Gets or sets whether this request should skip the client-side transport rate limiter.
+        /// </summary>
+        /// <remarks>
+        ///     Prefer <see cref="IRateLimitInfo.SendBypassMessageAsync"/> for rate-limit warnings. Setting this on
+        ///     ordinary traffic defeats client throttling and can trigger server-side limits.
+        /// </remarks>
+        public bool BypassRateLimiter { get; set; }
+
         internal bool IgnoreState { get; set; }
 
         /// <summary>

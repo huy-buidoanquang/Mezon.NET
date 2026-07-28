@@ -21,7 +21,7 @@ internal sealed class MezonBot
         var clientOptions = new MezonClientOptions(_options.BotId, _options.Token)
         {
             LogLevel = _options.LogLevel,
-            DefaultRatelimitCallback = info =>
+            DefaultRatelimitCallback = async info =>
             {
                 _logger.LogWarning(
                     "Rate limit bucket={Bucket} global={IsGlobal} limit={Limit} remaining={Remaining} resetAfter={ResetAfter}ms",
@@ -30,7 +30,10 @@ internal sealed class MezonBot
                     info.Limit,
                     info.Remaining,
                     info.ResetAfter.TotalMilliseconds);
-                return Task.CompletedTask;
+
+                // Optional warning that skips the transport limiter (SDK wires SendBypassMessageAsync):
+                // if (info.SendBypassMessageAsync != null)
+                //     await info.SendBypassMessageAsync(clanId, channelId, $"Rate limited. Retry in {info.ResetAfter.TotalSeconds:0.#}s");
             },
         };
 

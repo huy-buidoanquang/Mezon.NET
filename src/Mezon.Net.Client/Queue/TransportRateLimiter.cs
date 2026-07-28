@@ -45,7 +45,8 @@ namespace Mezon.Net.Queue
 
         public async ValueTask EnterAsync(
             CancellationToken cancellationToken = default,
-            Func<IRateLimitInfo, Task>? ratelimitCallback = null)
+            Func<IRateLimitInfo, Task>? ratelimitCallback = null,
+            Func<long, long, string, Task>? sendBypassMessageAsync = null)
         {
             if (Volatile.Read(ref _connectPhase) != 0)
             {
@@ -54,7 +55,8 @@ namespace Mezon.Net.Queue
                     RateLimitBuckets.TransportConnect,
                     isGlobal: false,
                     cancellationToken,
-                    ratelimitCallback).ConfigureAwait(false);
+                    ratelimitCallback,
+                    sendBypassMessageAsync).ConfigureAwait(false);
             }
 
             await WaitBucketAsync(
@@ -62,14 +64,16 @@ namespace Mezon.Net.Queue
                 RateLimitBuckets.TransportPerSecond,
                 isGlobal: true,
                 cancellationToken,
-                ratelimitCallback).ConfigureAwait(false);
+                ratelimitCallback,
+                sendBypassMessageAsync).ConfigureAwait(false);
 
             await WaitBucketAsync(
                 _perMinute,
                 RateLimitBuckets.TransportPerMinute,
                 isGlobal: true,
                 cancellationToken,
-                ratelimitCallback).ConfigureAwait(false);
+                ratelimitCallback,
+                sendBypassMessageAsync).ConfigureAwait(false);
         }
 
         public void Reset()
@@ -85,7 +89,8 @@ namespace Mezon.Net.Queue
             string bucket,
             bool isGlobal,
             CancellationToken cancellationToken,
-            Func<IRateLimitInfo, Task>? ratelimitCallback)
+            Func<IRateLimitInfo, Task>? ratelimitCallback,
+            Func<long, long, string, Task>? sendBypassMessageAsync)
         {
             Action<int>? onDelayed = null;
             if (ratelimitCallback != null)
@@ -98,7 +103,8 @@ namespace Mezon.Net.Queue
                         Limit = limiter.MaxCount,
                         Remaining = 0,
                         ResetAfter = TimeSpan.FromMilliseconds(delayMs),
-                        Bucket = bucket
+                        Bucket = bucket,
+                        SendBypassMessageAsync = sendBypassMessageAsync
                     };
                     _ = InvokeCallbackAsync(ratelimitCallback, info);
                 };

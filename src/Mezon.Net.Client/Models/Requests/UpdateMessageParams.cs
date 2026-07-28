@@ -12,6 +12,8 @@ namespace Mezon.Net.Models
         public bool IsPublic { get; }
         public long? TopicId { get; }
         public bool HideEdited { get; }
+        public bool? IsUpdateMsgTopic { get; }
+        public uint? CreateTimeSeconds { get; }
         public IEnumerable<MessageMentionParams>? Mentions { get; }
         public IEnumerable<MessageAttachmentParams>? Attachments { get; }
 
@@ -25,7 +27,9 @@ namespace Mezon.Net.Models
             long? topicId = null,
             bool hideEdited = false,
             IEnumerable<MessageMentionParams>? mentions = null,
-            IEnumerable<MessageAttachmentParams>? attachments = null)
+            IEnumerable<MessageAttachmentParams>? attachments = null,
+            bool? isUpdateMsgTopic = null,
+            uint? createTimeSeconds = null)
         {
             ClanId = clanId;
             ChannelId = channelId;
@@ -37,6 +41,8 @@ namespace Mezon.Net.Models
             HideEdited = hideEdited;
             Mentions = mentions;
             Attachments = attachments;
+            IsUpdateMsgTopic = isUpdateMsgTopic;
+            CreateTimeSeconds = createTimeSeconds;
         }
     }
 }

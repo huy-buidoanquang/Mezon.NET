@@ -47,12 +47,19 @@ After `LoginAsync`, the SDK initializes `KeyGen`, `AddressMmn`, and `ZkProofs`. 
 Socket traffic is throttled client-side (default 60/s, 500/min). Configure limits on `MezonSocketClientOptions`, and optionally handle delays:
 
 ```csharp
-options.DefaultRatelimitCallback = info =>
+options.DefaultRatelimitCallback = async info =>
 {
     Console.WriteLine($"Delayed by {info.Bucket} for {info.ResetAfter}");
-    return Task.CompletedTask;
+
+    // SDK wires SendBypassMessageAsync so warnings skip the transport limiter:
+    if (info.SendBypassMessageAsync != null)
+    {
+        await info.SendBypassMessageAsync(clanId, channelId, $"Slow down — retry in {info.ResetAfter.TotalSeconds:0.#}s");
+    }
 };
 ```
+
+`RequestOptions.BypassRateLimiter` skips client throttling for a single send; prefer `IRateLimitInfo.SendBypassMessageAsync` for warnings.
 
 ## Documentation
 

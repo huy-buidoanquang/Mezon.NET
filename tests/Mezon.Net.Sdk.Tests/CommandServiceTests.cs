@@ -164,6 +164,32 @@ namespace Mezon.Net.Sdk.Tests
         }
 
         [Fact]
+        public async Task Attach_subscriber_returns_immediately_and_runs_command()
+        {
+            var service = new CommandService("!");
+            var executed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            service.AddCommand("ping", _ =>
+            {
+                executed.TrySetResult(true);
+                return Task.CompletedTask;
+            });
+
+            var client = CreateClient(out _);
+            service.Attach(client);
+
+            var handlerField = typeof(CommandService).GetField("_handler", BindingFlags.Instance | BindingFlags.NonPublic)!;
+            var handler = (Func<ChannelMessageEventData, Task>)handlerField.GetValue(service)!;
+            var subscribeTask = handler(CreateMessage("!ping"));
+            var completed = await Task.WhenAny(subscribeTask, Task.Delay(200)).ConfigureAwait(false);
+            Assert.Same(subscribeTask, completed);
+            await subscribeTask.ConfigureAwait(false);
+
+            var ran = await Task.WhenAny(executed.Task, Task.Delay(2000)).ConfigureAwait(false);
+            Assert.Same(executed.Task, ran);
+            Assert.True(await executed.Task.ConfigureAwait(false));
+        }
+
+        [Fact]
         public async Task HandleMessageAsync_blocks_unauthorized_commands()
         {
             var service = new CommandService("!");
