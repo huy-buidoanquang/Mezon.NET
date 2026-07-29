@@ -1,11 +1,12 @@
-﻿using System.Collections.Generic;
+using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
+using Mezon.Net.Client;
 using Mezon.Net.Client.Messaging;
 using Mezon.Net.Core;
 using Mezon.Net.Core.Entities;
 using Mezon.Net.Internal.Realtime;
 using Mezon.Net.Models;
-using Mezon.Net.Client;
 
 namespace Mezon.Net.Sdk.Entities
 {
@@ -42,6 +43,15 @@ namespace Mezon.Net.Sdk.Entities
         public string RawContent => Content.RawJson;
         public int Code => Source?.Code ?? 0;
         public TextChannel Channel => _channel;
+
+        public IReadOnlyList<MessageReactionResponse> Reactions
+            => Source is { } source ? source.Reactions : Array.Empty<MessageReactionResponse>();
+
+        public IReadOnlyList<MessageMentionResponse> Mentions
+            => Source is { } source ? source.Mentions : Array.Empty<MessageMentionResponse>();
+
+        public IReadOnlyList<MessageAttachmentResponse> Attachments
+            => Source is { } source ? source.Attachments : Array.Empty<MessageAttachmentResponse>();
 
         string IMessage.Content => RawContent;
 
