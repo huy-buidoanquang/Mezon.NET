@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Mezon.Net.Client;
@@ -56,13 +57,13 @@ namespace Mezon.Net.Sdk
         public ConnectionState ConnectionState => _engine.ConnectionState;
         public long Latency => _engine.Latency;
 
-        /// <summary>Session auth token after login (used for STN WebSocket / playMedia).</summary>
+        /// <summary>Session auth token after login.</summary>
         public string AuthToken => _engine.CurrentSession.AuthToken;
 
-        /// <summary>Session username after login (used for STN WebSocket query).</summary>
+        /// <summary>Session username after login.</summary>
         public string? Username => _engine.CurrentSession.Username;
 
-        /// <summary>Fresh session JWT (auto-refresh when near expiry).</summary>
+        /// <summary>Returns a non-expired session JWT, refreshing when needed.</summary>
         public Task<string> GetAuthTokenAsync() => _engine.GetOrRefreshAuthTokenAsync();
 
         public event Func<Task> Ready
@@ -231,122 +232,78 @@ namespace Mezon.Net.Sdk
             return _agentManager.ConnectAsync(cancellationToken);
         }
 
-        public async Task AddQuickMenuAccessAsync(QuickMenuAccessParams body, RequestOptions? options = null)
-            => await _engine.AddQuickMenuAccessAsync(body, options).ConfigureAwait(false);
-
-        public async Task DeleteQuickMenuAccessAsync(QuickMenuAccessParams body, RequestOptions? options = null)
-            => await _engine.DeleteQuickMenuAccessAsync(body, options).ConfigureAwait(false);
-
-        public Task<UploadAttachmentResponse> UploadAttachmentFileAsync(UploadAttachmentParams body, RequestOptions? options = null)
-            => _engine.UploadAttachmentFileAsync(body, options);
-
-        /// <summary>
-        /// Kick a LiveKit meet/voice participant (used to stop STN <c>playMedia</c> ingress publishers).
-        /// Requires Manage Channel (or clan owner).
-        /// </summary>
-        public Task RemoveMeetParticipantAsync(
-            string username,
-            string roomName,
-            long channelId,
-            long clanId,
-            RequestOptions? options = null)
-            => _engine.RemoveParticipantMezonMeetAsync(
-                new Mezon.Net.Models.MeetParticipantParams(username, roomName, channelId, clanId),
-                options);
-
         /// <summary>Re-list clans and JoinClanChat (safe to call after Ready if seed failed).</summary>
         public Task RefreshClanMembershipAsync(CancellationToken cancellationToken = default)
             => SeedClanCacheAsync(cancellationToken);
 
+        public Task<UploadAttachmentResponse> UploadAttachmentFileAsync(UploadAttachmentParams body, RequestOptions? options = null)
+            => _engine.UploadAttachmentFileAsync(body, options);
+
+        public Task<ChannelDescListResponse> ListChannelDescsAsync(ListChannelDescsParams request, RequestOptions? options = null)
+            => _engine.ListChannelDescsAsync(request, options);
+
+        public Task<ChannelDescriptionResponse> GetChannelDetailAsync(long channelId, RequestOptions? options = null)
+            => _engine.GetChannelDetailAsync(channelId, options);
+
+        public Task<ClanDescListResponse> ListClanDescsAsync(ListClanDescParams body, RequestOptions? options = null)
+            => _engine.ListClanDescsAsync(body, options);
+
+        public Task<ChannelDescriptionResponse> CreateChannelDescAsync(CreateChannelDescParams body, RequestOptions? options = null)
+            => _engine.CreateChannelDescAsync(body, options);
+
+        public Task<VoiceChannelUserListResponse> ListChannelVoiceUsersAsync(long clanId, long channelId, int channelType, RequestOptions? options = null)
+            => _engine.ListChannelVoiceUsersAsync(clanId, channelId, channelType, options);
+
+        public Task<StreamHttpCallbackResponse> StreamingServerCallbackAsync(StreamHttpCallbackParams body, RequestOptions? options = null)
+            => _engine.StreamingServerCallbackAsync(body, options);
+
+        public Task<RoleListEventResponse> ListRolesAsync(RoleListEventParams request, RequestOptions? options = null)
+            => _engine.ListRolesAsync(request, options);
+
+        public Task<RoleUserListResponse> ListRoleUsersAsync(ListRoleUsersParams request, RequestOptions? options = null)
+            => _engine.ListRoleUsersAsync(request, options);
+
+        public Task<RoleResponse> CreateRoleAsync(CreateRoleParams body, RequestOptions? options = null)
+            => _engine.CreateRoleAsync(body, options);
+
+        public Task UpdateRoleAsync(UpdateRoleParams body, RequestOptions? options = null)
+            => _engine.UpdateRoleAsync(body, options);
+
+        public Task<RoleListResponse> GetRoleOfUserInTheClanAsync(long clanId, RequestOptions? options = null)
+            => _engine.GetRoleOfUserInTheClanAsync(clanId, options);
+
+        public Task<FriendListResponse> ListFriendsAsync(int? state = null, int? limit = null, string? cursor = null, RequestOptions? options = null)
+            => _engine.ListFriendsAsync(state, limit, cursor, options);
+
+        public Task<AddFriendsResponse> AddFriendsAsync(IEnumerable<long>? ids = null, IEnumerable<string>? usernames = null, RequestOptions? options = null)
+            => _engine.AddFriendsAsync(ids, usernames, options);
+
+        public Task AddQuickMenuAccessAsync(QuickMenuAccessParams body, RequestOptions? options = null)
+            => _engine.AddQuickMenuAccessAsync(body, options);
+
+        public Task UpdateQuickMenuAccessAsync(QuickMenuAccessParams body, RequestOptions? options = null)
+            => _engine.UpdateQuickMenuAccessAsync(body, options);
+
+        public Task DeleteQuickMenuAccessAsync(QuickMenuAccessParams body, RequestOptions? options = null)
+            => _engine.DeleteQuickMenuAccessAsync(body, options);
+
+        public Task<GenerateMeetTokenResponse> GenerateMeetTokenAsync(GenerateMeetTokenParams body, RequestOptions? options = null)
+            => _engine.GenerateMeetTokenAsync(body, options);
+
+        public Task<ChannelMessageAckResponse> SendChannelMessageAsync(SendChannelMessageParams message, RequestOptions? options = null)
+            => MessageSendHelper.SendAsync(_engine, message, options);
+
+        public Task UpdateChannelMessageAsync(ChannelMessageUpdateParams body, RequestOptions? options = null)
+            => _engine.UpdateChannelMessageAsync(body, options);
+
+        public Task DeleteChannelMessageAsync(ChannelMessageRemoveParams body, RequestOptions? options = null)
+            => _engine.DeleteChannelMessageAsync(body, options);
 
         public ValueTask<Clan> GetClanAsync(long clanId, CancellationToken cancellationToken = default)
             => Clans.GetOrFetchAsync(clanId, FetchClanAsync, cancellationToken);
 
         public ValueTask<TextChannel> GetChannelAsync(long channelId, CancellationToken cancellationToken = default)
             => Channels.GetOrFetchAsync(channelId, FetchChannelAsync, cancellationToken);
-
-        /// <summary>
-        /// Resolve a channel for an inbound message without calling GetChannelDetail / ListClanDescs.
-        /// Safe to use on the event path.
-        /// </summary>
-        public ValueTask<TextChannel> GetOrCreateChannelFromMessageAsync(
-            ChannelMessageResponse message,
-            CancellationToken cancellationToken = default)
-        {
-            _ = cancellationToken;
-            if (message.ChannelId != 0 && Channels.TryGet(message.ChannelId, out var cached))
-            {
-                return new ValueTask<TextChannel>(cached);
-            }
-
-            var clan = ResolveClanLocal(message.ClanId);
-            var desc = new global::Mezon.Net.Internal.Api.ChannelDescription
-            {
-                ChannelId = message.ChannelId,
-                ClanId = message.ClanId,
-                // Wire `mode` is stream mode; ChannelDescription.Type is ChannelType.
-                Type = ChannelModeConverter.FromStreamMode(message.Mode),
-                ChannelPrivate = message.IsPublic ? 0 : 1,
-            };
-            var channel = new TextChannel(this, desc, clan);
-            if (message.ChannelId != 0)
-            {
-                Channels.Set(message.ChannelId, channel);
-            }
-
-            return new ValueTask<TextChannel>(channel);
-        }
-
-        /// <summary>
-        /// Resolve a channel for an inbound interaction without calling GetChannelDetail.
-        /// Safe to use on the event path.
-        /// </summary>
-        public ValueTask<TextChannel> GetOrCreateChannelFromInteractionAsync(
-            long channelId,
-            long clanId = 0,
-            int channelType = (int)ChannelType.Channel,
-            bool isPublic = true,
-            CancellationToken cancellationToken = default)
-        {
-            _ = cancellationToken;
-            if (channelId != 0 && Channels.TryGet(channelId, out var cached))
-            {
-                return new ValueTask<TextChannel>(cached);
-            }
-
-            var clan = ResolveClanLocal(clanId);
-            var desc = new global::Mezon.Net.Internal.Api.ChannelDescription
-            {
-                ChannelId = channelId,
-                ClanId = clanId != 0 ? clanId : clan.Id,
-                Type = channelType,
-                ChannelPrivate = isPublic ? 0 : 1,
-            };
-            var channel = new TextChannel(this, desc, clan);
-            if (channelId != 0)
-            {
-                Channels.Set(channelId, channel);
-            }
-
-            return new ValueTask<TextChannel>(channel);
-        }
-
-        private Clan ResolveClanLocal(long clanId)
-        {
-            if (clanId != 0 && Clans.TryGet(clanId, out var cachedClan))
-            {
-                return cachedClan;
-            }
-
-            if (clanId == 0)
-            {
-                return new Clan(this, new global::Mezon.Net.Internal.Api.ClanDesc());
-            }
-
-            var stub = new Clan(this, new global::Mezon.Net.Internal.Api.ClanDesc { ClanId = clanId });
-            Clans.Set(clanId, stub);
-            return stub;
-        }
 
         public ValueTask<Entities.User> GetUserAsync(long userId, CancellationToken cancellationToken = default)
             => Users.GetOrFetchAsync(userId, FetchUserAsync, cancellationToken);

@@ -91,6 +91,12 @@ namespace Mezon.Net.Sdk
             remove => _engine.ClanUserAddedEvent -= value;
         }
 
+        public event Func<ClanJoinEventData, Task> ClanJoined
+        {
+            add => _engine.ClanJoinedEvent += value;
+            remove => _engine.ClanJoinedEvent -= value;
+        }
+
         public event Func<Task> ClanEventCreated
         {
             add => _engine.ClanEventCreated += value;

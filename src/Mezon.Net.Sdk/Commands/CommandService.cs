@@ -227,7 +227,7 @@ namespace Mezon.Net.Sdk.Commands
             IReadOnlyList<string> args,
             CancellationToken cancellationToken)
         {
-            var channel = await client.GetOrCreateChannelFromMessageAsync(message, cancellationToken).ConfigureAwait(false);
+            var channel = await client.GetChannelAsync(message.ChannelId, cancellationToken).ConfigureAwait(false);
             if (!channel.Messages.TryGet(message.MessageId, out var messageEntity))
             {
                 messageEntity = new Message(client, channel, message);

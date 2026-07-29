@@ -1,10 +1,10 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Threading.Tasks;
+using Mezon.Net.Client;
 using Mezon.Net.Client.Messaging;
 using Mezon.Net.Core;
 using Mezon.Net.Core.Entities;
 using Mezon.Net.Models;
-using Mezon.Net.Client;
 
 namespace Mezon.Net.Sdk.Entities
 {
