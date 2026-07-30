@@ -145,6 +145,47 @@ public class MezonTcpTransporterReceiveTests
     }
 
     [Fact]
+    public async Task Receive_WebSocketBinaryFrame_DeliversRealtimeWithoutDisconnect()
+    {
+        await using var server = new TcpLoopbackServer();
+        var received = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        server.ClientHandler = async (stream, ct) =>
+        {
+            await MezonTransportFrameBuilder.ReadHandshakeAsync(stream, ct).ConfigureAwait(false);
+            // 0x82 | len=3 | payload (envelope-ish bytes)
+            await stream.WriteAsync(new byte[] { 0x82, 0x03, 0x08, 0x01, 0x00 }, ct).ConfigureAwait(false);
+            await stream.FlushAsync(ct).ConfigureAwait(false);
+            await Task.Delay(Timeout.Infinite, ct).ConfigureAwait(false);
+        };
+        server.Start();
+
+        var transporter = new MezonNetworkTcpTransporter();
+        var errorFired = false;
+        transporter.ErrorOccurred = _ =>
+        {
+            errorFired = true;
+            return Task.CompletedTask;
+        };
+        transporter.MessageReceived = (type, _, _, data) =>
+        {
+            if (type == MezonMessageType.Realtime)
+            {
+                received.TrySetResult(data.ToArray());
+            }
+
+            return default;
+        };
+
+        await transporter.ConnectAsync("127.0.0.1", server.Port, "test-token", useSsl: false).ConfigureAwait(false);
+        var payload = await received.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+
+        Assert.Equal([0x08, 0x01, 0x00], payload);
+        Assert.False(errorFired);
+        await transporter.DisconnectAsync().ConfigureAwait(false);
+    }
+
+    [Fact]
     public async Task Receive_UnexpectedLeadByte_FiresErrorAndDisconnects()
     {
         await using var server = new TcpLoopbackServer();
