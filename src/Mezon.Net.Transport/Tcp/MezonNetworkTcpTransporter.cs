@@ -2,6 +2,7 @@ using System;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.IO.Pipelines;
 using System.Net.Security;
 using System.Net.Sockets;
@@ -207,6 +208,12 @@ namespace Mezon.Net.Transport
                 {
                     ReadResult result = await reader.ReadAsync(cancellationToken).ConfigureAwait(false);
                     ReadOnlySequence<byte> buffer = result.Buffer;
+                    if (!buffer.IsEmpty && LooksLikeHttp(buffer))
+                    {
+                        throw new InvalidDataException(
+                            "Server returned HTTP on abridged TCP port (expected binary framing).");
+                    }
+
                     while (!buffer.IsEmpty)
                     {
                         var frameStart = buffer.Start;
@@ -222,10 +229,7 @@ namespace Mezon.Net.Transport
 
                         if (MessageReceived != null)
                         {
-                            var payload = type == MezonMessageType.Realtime
-                                ? MezonTransportFrameCodec.TrimRealtimePadding(frame)
-                                : frame;
-                            await MessageReceived.Invoke(type, cid, code, payload).ConfigureAwait(false);
+                            await MessageReceived.Invoke(type, cid, code, frame).ConfigureAwait(false);
                         }
                     }
 
@@ -276,6 +280,45 @@ namespace Mezon.Net.Transport
                     }
                 }
             }
+        }
+
+        private static bool LooksLikeHttp(ReadOnlySequence<byte> buffer)
+        {
+            // Match Rust io_loop: reject HTTP spoken on an abridged TCP socket.
+            Span<byte> prefix = stackalloc byte[5];
+            if (buffer.Length < 4)
+            {
+                return false;
+            }
+
+            var copyLen = (int)Math.Min(buffer.Length, 5);
+            buffer.Slice(0, copyLen).CopyTo(prefix);
+            // "HTTP/" or "GET " or "POST "
+            if (copyLen >= 5
+                && prefix[0] == (byte)'H'
+                && prefix[1] == (byte)'T'
+                && prefix[2] == (byte)'T'
+                && prefix[3] == (byte)'P'
+                && prefix[4] == (byte)'/')
+            {
+                return true;
+            }
+
+            if (copyLen >= 4
+                && prefix[0] == (byte)'G'
+                && prefix[1] == (byte)'E'
+                && prefix[2] == (byte)'T'
+                && prefix[3] == (byte)' ')
+            {
+                return true;
+            }
+
+            return copyLen >= 5
+                && prefix[0] == (byte)'P'
+                && prefix[1] == (byte)'O'
+                && prefix[2] == (byte)'S'
+                && prefix[3] == (byte)'T'
+                && prefix[4] == (byte)' ';
         }
 
         public ValueTask SendAsync(MezonMessageType type, int cid, ReadOnlyMemory<byte> data)

@@ -14,6 +14,7 @@ namespace Mezon.Net.Transport.Internal
         public const byte PingPongPrefix = 0x00;
         public const byte ApiPrefix = 0xff;
         public const byte AbridgedExtendedPrefix = 0x7f;
+        public const byte WebSocketBinaryOpcode = 0x82;
         public const int FinishFlag = 0xff;
 
         /// <summary>Client outbound abridged wire cap: header + protobuf + padding.</summary>
@@ -21,6 +22,9 @@ namespace Mezon.Net.Transport.Internal
 
         /// <summary>Defensive inbound reassembly ceiling aligned with server scratchpad (MAX_BUF_SIZE * 2).</summary>
         public const int MaxAbridgedReceiveFrameLen = 8192;
+
+        /// <summary>Inbound WebSocket-binary (0x82) payload cap; matches Rust MAX_REALTIME_FRAME_LEN.</summary>
+        public const int MaxWebSocketBinaryPayloadLen = 1 << 20;
 
         public static bool TryReadFrame(
             ref ReadOnlySequence<byte> buffer,
@@ -74,11 +78,23 @@ namespace Mezon.Net.Transport.Internal
 
                     return false;
                 }
+                case WebSocketBinaryOpcode:
+                    // NATS fanout often pre-frames envelopes as WS binary (0x82) even on TCP sockets.
+                    if (TryReadWebSocketBinaryFrame(ref reader, out frame))
+                    {
+                        code = 0;
+                        type = MezonMessageType.Realtime;
+                        buffer = buffer.Slice(reader.Position);
+                        return true;
+                    }
+
+                    return false;
                 default:
                     if (TryReadRealtimeFrame(ref reader, prefix, out frame))
                     {
                         code = 0;
                         type = MezonMessageType.Realtime;
+                        frame = TrimRealtimePadding(frame);
                         buffer = buffer.Slice(reader.Position);
                         return true;
                     }
@@ -303,6 +319,75 @@ namespace Mezon.Net.Transport.Internal
             frame = rawPayloadSequence.IsSingleSegment
                 ? rawPayloadSequence.First.Slice(0, payloadLen)
                 : rawPayloadSequence.ToArray();
+            reader.Advance(payloadLen);
+            return true;
+        }
+
+        /// <summary>
+        /// Unwrap an unmasked WebSocket binary frame (opcode 0x82). Payload is the envelope bytes
+        /// (no abridged length prefix / zero-padding). Matches Rust abridged_tcp_adapter decode of 0x82.
+        /// </summary>
+        private static bool TryReadWebSocketBinaryFrame(ref SequenceReader<byte> reader, out ReadOnlyMemory<byte> frame)
+        {
+            frame = ReadOnlyMemory<byte>.Empty;
+            if (!reader.TryRead(out byte b1))
+            {
+                return false;
+            }
+
+            if ((b1 & 0x80) != 0)
+            {
+                throw new InvalidDataException("Masked WebSocket frame is not supported on abridged TCP.");
+            }
+
+            int payloadLen = b1 & 0x7f;
+            if (payloadLen == 126)
+            {
+                if (!TryReadUInt16BigEndian(ref reader, out ushort len16))
+                {
+                    return false;
+                }
+
+                payloadLen = len16;
+            }
+            else if (payloadLen == 127)
+            {
+                if (reader.Remaining < 8)
+                {
+                    return false;
+                }
+
+                Span<byte> lenBytes = stackalloc byte[8];
+                if (!reader.TryCopyTo(lenBytes))
+                {
+                    return false;
+                }
+
+                reader.Advance(8);
+                ulong len64 = BinaryPrimitives.ReadUInt64BigEndian(lenBytes);
+                if (len64 > int.MaxValue)
+                {
+                    throw new InvalidDataException($"WebSocket binary frame length {len64} exceeds int.MaxValue.");
+                }
+
+                payloadLen = (int)len64;
+            }
+
+            if (payloadLen > MaxWebSocketBinaryPayloadLen)
+            {
+                throw new InvalidDataException(
+                    $"WebSocket binary payload length {payloadLen} exceeds receive limit {MaxWebSocketBinaryPayloadLen}.");
+            }
+
+            if (reader.Remaining < payloadLen)
+            {
+                return false;
+            }
+
+            var payloadSequence = reader.Sequence.Slice(reader.Position, payloadLen);
+            frame = payloadSequence.IsSingleSegment
+                ? payloadSequence.First.Slice(0, payloadLen)
+                : payloadSequence.ToArray();
             reader.Advance(payloadLen);
             return true;
         }

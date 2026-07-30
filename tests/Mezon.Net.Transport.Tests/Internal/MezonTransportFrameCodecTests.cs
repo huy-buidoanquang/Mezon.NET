@@ -111,6 +111,90 @@ public class MezonTransportFrameCodecTests
     }
 
     [Fact]
+    public void TryReadFrame_WebSocketBinary_UnwrapsRealtimePayload()
+    {
+        // 0x82 | len=4 | ABCD
+        var bytes = new byte[] { 0x82, 0x04, 0x0A, 0x0B, 0x0C, 0x0D };
+        var buffer = new ReadOnlySequence<byte>(bytes);
+        Assert.True(MezonTransportFrameCodec.TryReadFrame(
+            ref buffer,
+            new System.Collections.Concurrent.ConcurrentDictionary<int, ArrayBufferWriter<byte>>(),
+            out var type,
+            out var cid,
+            out var code,
+            out var frame));
+        Assert.Equal(MezonMessageType.Realtime, type);
+        Assert.Equal(-1, cid);
+        Assert.Equal(0, code);
+        Assert.Equal([0x0A, 0x0B, 0x0C, 0x0D], frame.ToArray());
+        Assert.True(buffer.IsEmpty);
+    }
+
+    [Fact]
+    public void TryReadFrame_WebSocketBinary_ExtendedLength126()
+    {
+        var payload = new byte[200];
+        payload.AsSpan().Fill(0x7E);
+        var bytes = new byte[4 + payload.Length];
+        bytes[0] = 0x82;
+        bytes[1] = 126;
+        BinaryPrimitives.WriteUInt16BigEndian(bytes.AsSpan(2), (ushort)payload.Length);
+        payload.CopyTo(bytes.AsSpan(4));
+
+        var buffer = new ReadOnlySequence<byte>(bytes);
+        Assert.True(MezonTransportFrameCodec.TryReadFrame(
+            ref buffer,
+            new System.Collections.Concurrent.ConcurrentDictionary<int, ArrayBufferWriter<byte>>(),
+            out var type,
+            out _,
+            out _,
+            out var frame));
+        Assert.Equal(MezonMessageType.Realtime, type);
+        Assert.Equal(payload, frame.ToArray());
+    }
+
+    [Fact]
+    public void TryReadFrame_WebSocketBinary_DoesNotStripTrailingZeros()
+    {
+        // WS fanout payloads are not abridged-padded; trailing 0x00 may be meaningful.
+        var bytes = new byte[] { 0x82, 0x04, 0x08, 0x00, 0x00, 0x00 };
+        var buffer = new ReadOnlySequence<byte>(bytes);
+        Assert.True(MezonTransportFrameCodec.TryReadFrame(
+            ref buffer,
+            new System.Collections.Concurrent.ConcurrentDictionary<int, ArrayBufferWriter<byte>>(),
+            out _,
+            out _,
+            out _,
+            out var frame));
+        Assert.Equal([0x08, 0x00, 0x00, 0x00], frame.ToArray());
+    }
+
+    [Fact]
+    public void TryReadFrame_WebSocketBinary_Masked_Throws()
+    {
+        var buffer = new ReadOnlySequence<byte>(new byte[] { 0x82, 0x84, 0x00, 0x00, 0x00, 0x00, 1, 2, 3, 4 });
+        var apiChunkBuffers = new System.Collections.Concurrent.ConcurrentDictionary<int, ArrayBufferWriter<byte>>();
+        Assert.Throws<InvalidDataException>(() =>
+            MezonTransportFrameCodec.TryReadFrame(ref buffer, apiChunkBuffers, out _, out _, out _, out _));
+    }
+
+    [Fact]
+    public void TryReadFrame_Abridged_TrimsTrailingZeros()
+    {
+        var bytes = MezonTransportFrameBuilder.BuildAbridgedFrame([0x0A, 0x0B, 0x0C]);
+        var buffer = new ReadOnlySequence<byte>(bytes);
+        Assert.True(MezonTransportFrameCodec.TryReadFrame(
+            ref buffer,
+            new System.Collections.Concurrent.ConcurrentDictionary<int, ArrayBufferWriter<byte>>(),
+            out var type,
+            out _,
+            out _,
+            out var frame));
+        Assert.Equal(MezonMessageType.Realtime, type);
+        Assert.Equal([0x0A, 0x0B, 0x0C], frame.ToArray());
+    }
+
+    [Fact]
     public void TryReadFrame_UnexpectedLeadByte_Throws()
     {
         var buffer = new ReadOnlySequence<byte>(new byte[] { 0x80, 0x00, 0x00, 0x00 });
