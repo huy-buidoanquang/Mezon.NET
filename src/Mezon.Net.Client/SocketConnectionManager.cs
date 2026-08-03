@@ -93,7 +93,8 @@ namespace Mezon.Net.Client
 
         public async Task ConnectAsync()
         {
-            if (State != ConnectionState.Disconnected)
+            // Guard before Task.Run publishes Connecting — otherwise a second ConnectAsync can race.
+            if (State != ConnectionState.Disconnected || (_task != null && !_task.IsCompleted))
             {
                 throw new InvalidOperationException("Cannot start an already running client.");
             }
