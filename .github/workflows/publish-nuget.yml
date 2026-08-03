@@ -5,8 +5,11 @@ on:
     tags:
       - 'v*.*.*'
 
+# Trusted Publishing (OIDC): https://learn.microsoft.com/nuget/nuget-org/trusted-publishing
+# nuget.org policy must list this workflow file name only: publish-nuget.yml
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   publish:
@@ -90,14 +93,23 @@ jobs:
           echo "Packages:"
           ls -la "$OUT"
 
+      # Request OIDC → short-lived API key immediately before push (keys expire in ~1 hour).
+      - name: NuGet login (OIDC)
+        uses: NuGet/login@v1
+        id: nuget-login
+        with:
+          # nuget.org profile username (not email). Set repo secret NUGET_USER.
+          user: ${{ secrets.NUGET_USER }}
+
       - name: Push to NuGet.org
         env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
         shell: bash
         run: |
           set -euo pipefail
           if [[ -z "${NUGET_API_KEY:-}" ]]; then
-            echo "Secret NUGET_API_KEY is not set. Add a NuGet.org API key under repo Settings → Secrets."
+            echo "Trusted Publishing login did not return NUGET_API_KEY."
+            echo "Confirm nuget.org Trusted Publishing policy matches this repo and workflow file publish-nuget.yml."
             exit 1
           fi
 
