@@ -64,7 +64,7 @@ namespace Mezon.Net.Abstractions
         Task RemoveClanUsersAsync(long clanId, IEnumerable<long> userIds, RequestOptions? options = null);
         Task BanClanUsersAsync(long clanId, long channelId, IEnumerable<long> userIds, int? banTime = null, string? reason = null, RequestOptions? options = null);
         Task<Internal.Api.ChannelDescription> CreateChannelDescAsync(CreateChannelDescRequest body, RequestOptions? options = null);
-        Task DeleteChannelDescAsync(long channelId, RequestOptions? options = null);
+        Task DeleteChannelDescAsync(long clanId, long channelId, RequestOptions? options = null);
         Task UpdateChannelDescAsync(UpdateChannelDescRequest body, RequestOptions? options = null);
         Task AddChannelUsersAsync(long channelId, IEnumerable<long> userIds, RequestOptions? options = null);
         Task RemoveChannelUsersAsync(long channelId, IEnumerable<long> userIds, RequestOptions? options = null);

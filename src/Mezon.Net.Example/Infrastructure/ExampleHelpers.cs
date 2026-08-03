@@ -14,7 +14,7 @@ internal static class ExampleHelpers
         if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
         {
             throw new InvalidOperationException(
-                "Set Mezon:Email and Mezon:Password in appsettings.json or MEZON_EMAIL / MEZON_PASSWORD.");
+                "Set MEZON_EMAIL and MEZON_PASSWORD (preferred), or Mezon:Email / Mezon:Password in a local appsettings override.");
         }
 
         return (email, password);

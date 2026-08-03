@@ -18,8 +18,6 @@ public sealed class DevTransportProbe
     private const string DevApiPort = "8088";
     private const string DevSocketHost = "dev-mezon-sock.nccsoft.vn";
     private const int DevSocketPort = 4433;
-    private const string DevEmail = "";
-    private const string DevPassword = "";
 
     [Fact]
     public async Task Probe_DevSocketEndpoints()
@@ -108,14 +106,24 @@ public sealed class DevTransportProbe
         }
     }
 
-    private static EmailAuthenticationRequest CreateAuthRequest() =>
-        new()
+    private static EmailAuthenticationRequest CreateAuthRequest()
+    {
+        var email = Environment.GetEnvironmentVariable("MEZON_EMAIL");
+        var password = Environment.GetEnvironmentVariable("MEZON_PASSWORD");
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+        {
+            throw new InvalidOperationException(
+                "Set MEZON_EMAIL and MEZON_PASSWORD before running MEZON_DEV_PROBE=1.");
+        }
+
+        return new EmailAuthenticationRequest
         {
             Account = new AccountEmailRequest
             {
-                Email = DevEmail,
-                Password = DevPassword,
+                Email = email,
+                Password = password,
             },
             Create = false,
         };
+    }
 }

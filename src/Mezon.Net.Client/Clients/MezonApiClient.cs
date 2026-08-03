@@ -481,7 +481,7 @@ namespace Mezon.Net.Client
             throw new NotSupportedException("Socket API is not available on REST-only client.");
         }
 
-        public virtual Task DeleteChannelDescAsync(long channelId, RequestOptions? options = null)
+        public virtual Task DeleteChannelDescAsync(long clanId, long channelId, RequestOptions? options = null)
         {
             throw new NotSupportedException("Socket API is not available on REST-only client.");
         }

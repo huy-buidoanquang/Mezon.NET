@@ -711,11 +711,11 @@ namespace Mezon.Net.Client
             return SendApiAsync("CreateChannelDesc", body, Internal.Api.ChannelDescription.Parser, options);
         }
 
-        public override async Task DeleteChannelDescAsync(long channelId, RequestOptions? options = null)
+        public override async Task DeleteChannelDescAsync(long clanId, long channelId, RequestOptions? options = null)
         {
             var request = new DeleteChannelDescRequest();
+            request.ClanId = clanId;
             request.ChannelId = channelId;
-            request.ClanId = 2050100607154393088;
             await SendApiAsync("DeleteChannelDesc", request, Empty.Parser, options);
         }
 

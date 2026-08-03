@@ -101,9 +101,9 @@ namespace Mezon.Net.Client
             return new Mezon.Net.Models.ChannelDescriptionResponse(result);
         }
 
-        public async Task DeleteChannelDescAsync(long channelId, RequestOptions? options = null)
+        public async Task DeleteChannelDescAsync(long clanId, long channelId, RequestOptions? options = null)
         {
-            await ApiClient.DeleteChannelDescAsync(channelId, options).ConfigureAwait(false);
+            await ApiClient.DeleteChannelDescAsync(clanId, channelId, options).ConfigureAwait(false);
         }
 
         public async Task UpdateChannelDescAsync(Mezon.Net.Models.UpdateChannelDescParams body, RequestOptions? options = null)
