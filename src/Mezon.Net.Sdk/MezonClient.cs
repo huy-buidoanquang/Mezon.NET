@@ -311,6 +311,35 @@ namespace Mezon.Net.Sdk
         public ValueTask<TextChannel> GetChannelAsync(long channelId, CancellationToken cancellationToken = default)
             => Channels.GetOrFetchAsync(channelId, FetchChannelAsync, cancellationToken);
 
+        /// <summary>
+        ///     Returns a cached channel or inserts a lightweight stub without calling the socket API.
+        ///     Used by interaction/command hot paths when the channel is not yet warmed in cache.
+        /// </summary>
+        internal TextChannel GetOrCreateChannelStub(long channelId, long clanId = 0)
+        {
+            if (Channels.TryGet(channelId, out var existing))
+            {
+                return existing;
+            }
+
+            if (!Clans.TryGet(clanId, out var clan))
+            {
+                clan = new Clan(this, new global::Mezon.Net.Internal.Api.ClanDesc { ClanId = clanId });
+                Clans.Set(clanId, clan);
+            }
+
+            var channel = new TextChannel(
+                this,
+                new global::Mezon.Net.Internal.Api.ChannelDescription
+                {
+                    ChannelId = channelId,
+                    ClanId = clanId,
+                },
+                clan);
+            Channels.Set(channelId, channel);
+            return channel;
+        }
+
         public ValueTask<Entities.User> GetUserAsync(long userId, CancellationToken cancellationToken = default)
             => Users.GetOrFetchAsync(userId, FetchUserAsync, cancellationToken);
 

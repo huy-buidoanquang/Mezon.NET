@@ -305,12 +305,15 @@ public class MezonTransporterContractTests
 
     [Theory]
     [MemberData(nameof(TransporterKinds))]
-    public async Task SendAsync_WhenDisconnected_ReturnsWithoutThrowing(TransporterKind kind)
+    public async Task SendAsync_WhenDisconnected_ThrowsInvalidOperation(TransporterKind kind)
     {
         var transporter = TransporterFactory.Create(kind);
-        await transporter.SendAsync(MezonMessageType.Heartbeat, 1, ReadOnlyMemory<byte>.Empty).ConfigureAwait(false);
-        await transporter.SendAsync(MezonMessageType.Realtime, 0, ReadOnlyMemory<byte>.Empty).ConfigureAwait(false);
-        await transporter.SendAsync(MezonMessageType.Api, 0, ReadOnlyMemory<byte>.Empty).ConfigureAwait(false);
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            transporter.SendAsync(MezonMessageType.Heartbeat, 1, ReadOnlyMemory<byte>.Empty).AsTask()).ConfigureAwait(false);
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            transporter.SendAsync(MezonMessageType.Realtime, 0, ReadOnlyMemory<byte>.Empty).AsTask()).ConfigureAwait(false);
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            transporter.SendAsync(MezonMessageType.Api, 0, ReadOnlyMemory<byte>.Empty).AsTask()).ConfigureAwait(false);
         await TransporterFactory.DisposeAsync(transporter).ConfigureAwait(false);
     }
 

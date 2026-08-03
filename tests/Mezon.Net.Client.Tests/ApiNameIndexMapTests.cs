@@ -89,10 +89,9 @@ public sealed class ApiNameIndexMapTests
             .SelectMany(t => t.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly))
             .Select(m => m.DeclaringType?.Name + " " + m.Name));
 
-        var clientSources = Directory.GetFiles(
-                Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "Mezon.Net.Client")),
-                "MezonSocketApiClient*.cs",
-                SearchOption.AllDirectories)
+        var clientDir = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "Mezon.Net.Client"));
+        var clientSources = Directory.GetFiles(clientDir, "*.cs", SearchOption.AllDirectories)
             .Select(File.ReadAllText);
 
         var implemented = new HashSet<string>(StringComparer.Ordinal);

@@ -207,9 +207,7 @@ namespace Mezon.Net.Sdk.Interactions
         {
             try
             {
-                var channel = await client.GetChannelAsync(
-                    interaction.ChannelId,
-                    cancellationToken: cancellationToken).ConfigureAwait(false);
+                var channel = client.GetOrCreateChannelStub(interaction.ChannelId);
                 Message? message = null;
                 if (interaction.MessageId != 0 && channel.Messages.TryGet(interaction.MessageId, out var cached))
                 {

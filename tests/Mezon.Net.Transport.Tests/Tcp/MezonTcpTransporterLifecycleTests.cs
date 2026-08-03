@@ -100,7 +100,7 @@ public class MezonTcpTransporterLifecycleTests
             return Task.CompletedTask;
         };
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        await Assert.ThrowsAsync<NetworkTransportUnauthorizationException>(() =>
             transporter.ConnectAsync("127.0.0.1", server.Port, token: null, useSsl: false)).ConfigureAwait(false);
         Assert.True(errors >= 1);
         Assert.Equal(ConnectionState.Disconnected, GetConnectionState(transporter));
