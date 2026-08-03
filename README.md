@@ -20,6 +20,7 @@ The library is designed around two distinct developer experiences:
 | UI / Client dev | `Mezon.Net.Client` (+ `Transport`/`Core` if needed) | `Mezon.Net.Client.MezonClient` | Full engine: socket lifecycle, typed facades (`IMezonClientApi`, `IMezonClientRealtime`), `Mezon.Net.Models` params/data views, all events |
 
 - `Mezon.Net.Sdk` references `Mezon.Net.Client` transitively (`ProjectReference`), so bot devs add **only** `Mezon.Net.Sdk`.
+- On net6.0+, `Mezon.Net.Sdk` also depends on the published `Mezon.Net.Mmn` package (MMN gRPC + ZK). On `netstandard2.1`, MMN APIs are stubbed out.
 - The SDK does not expose the underlying engine: `Engine`/`ApiClient` and internal protobuf plumbing are `internal`, so bot code stays on the ergonomic surface. All messaging (including ephemeral) is composed in the Client layer (`MessageSendHelper`), never by hand-building protobuf in the SDK.
 
 ### Protobuf boundary (`Mezon.Net.Models`)

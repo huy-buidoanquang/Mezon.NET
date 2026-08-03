@@ -9,7 +9,7 @@ internal sealed class RedisSnapshotOperations : IRedisSnapshotOperations
 
     public RedisSnapshotOperations(IConnectionMultiplexer multiplexer)
     {
-        ArgumentNullException.ThrowIfNull(multiplexer);
+        _ = multiplexer ?? throw new ArgumentNullException(nameof(multiplexer));
         _database = multiplexer.GetDatabase();
         _subscriber = multiplexer.GetSubscriber();
     }

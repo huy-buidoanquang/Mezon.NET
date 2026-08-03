@@ -12,8 +12,8 @@ public static class RedisEntitySnapshotStoreServiceCollectionExtensions
         IConnectionMultiplexer multiplexer,
         Action<RedisEntitySnapshotStoreOptions>? configure = null)
     {
-        ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(multiplexer);
+        _ = services ?? throw new ArgumentNullException(nameof(services));
+        _ = multiplexer ?? throw new ArgumentNullException(nameof(multiplexer));
 
         var options = new RedisEntitySnapshotStoreOptions();
         configure?.Invoke(options);
@@ -33,8 +33,8 @@ public static class RedisEntitySnapshotStoreServiceCollectionExtensions
         IConnectionMultiplexer multiplexer,
         Action<RedisEntitySnapshotStoreOptions>? configure = null)
     {
-        ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(multiplexer);
+        _ = services ?? throw new ArgumentNullException(nameof(services));
+        _ = multiplexer ?? throw new ArgumentNullException(nameof(multiplexer));
 
         var options = new RedisEntitySnapshotStoreOptions();
         configure?.Invoke(options);

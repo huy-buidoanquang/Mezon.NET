@@ -5,6 +5,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
     <RootNamespace>Mezon.Net.Sdk.Example</RootNamespace>
     <AssemblyName>Mezon.Net.Sdk.Example</AssemblyName>
     <LangVersion>latest</LangVersion>

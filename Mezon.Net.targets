@@ -1,6 +1,20 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!--
+    Versioning (NuGet SemVer 2.0). All packable projects share VersionPrefix.
+
+    Stable release:   VersionPrefix=1.0.0  IsTagBuild=true                 -> 1.0.0
+    Pre-release:      VersionPrefix=1.1.0  VersionSuffix=preview.1
+                      IsTagBuild=true                                      -> 1.1.0-preview.1
+                      (also rc.1 / beta.1)
+    Local build:      (defaults)                                           -> 1.0.0-dev
+    CI build:         BuildNumber=42 (no IsTagBuild)                       -> 1.0.0-ci.42
+
+    Git tags should match the package: v1.0.0, v1.1.0-preview.1, …
+    GitHub Actions publish workflow packs with -p:PackageVersion from the tag (v prefix stripped).
+    Bump MAJOR for breaking API, MINOR for features, PATCH for fixes.
+  -->
   <PropertyGroup>
-    <VersionPrefix>0.1.0</VersionPrefix>
+    <VersionPrefix>1.0.0</VersionPrefix>
     <LangVersion>latest</LangVersion>
     <Authors>Mezon.Net Contributors</Authors>
     <Company>Mezon.Net</Company>
@@ -19,18 +33,18 @@
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
   </PropertyGroup>
 
+  <!-- Tag / release builds: keep an explicit VersionSuffix (preview.1); optional BuildNumber overrides it. -->
   <PropertyGroup Condition=" '$(IsTagBuild)' == 'true' ">
-    <VersionSuffix Condition=" '$(BuildNumber)' == '' "></VersionSuffix>
     <VersionSuffix Condition=" '$(BuildNumber)' != '' ">$(BuildNumber)</VersionSuffix>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(BuildNumber)' == '' And $(IsTagBuild) != 'true' ">
-    <VersionSuffix Condition=" '$(VersionSuffix)' != ''">$(VersionSuffix)-dev</VersionSuffix>
-    <VersionSuffix Condition=" '$(VersionSuffix)' == ''">dev</VersionSuffix>
+
+  <!-- Non-tag: default to -dev or -ci.<n> only when VersionSuffix was not set explicitly. -->
+  <PropertyGroup Condition=" '$(IsTagBuild)' != 'true' And '$(VersionSuffix)' == '' And '$(BuildNumber)' == '' ">
+    <VersionSuffix>dev</VersionSuffix>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(BuildNumber)' != '' And $(IsTagBuild) != 'true' ">
-    <VersionSuffix Condition=" '$(VersionSuffix)' != '' ">$(VersionSuffix)-$(BuildNumber)</VersionSuffix>
-    <VersionSuffix Condition=" '$(VersionSuffix)' == '' ">$(BuildNumber)</VersionSuffix>
+  <PropertyGroup Condition=" '$(IsTagBuild)' != 'true' And '$(VersionSuffix)' == '' And '$(BuildNumber)' != '' ">
+    <VersionSuffix>ci.$(BuildNumber)</VersionSuffix>
   </PropertyGroup>
 
   <!-- XML docs for IntelliSense / NuGet; missing docs suppressed until full public API coverage. -->

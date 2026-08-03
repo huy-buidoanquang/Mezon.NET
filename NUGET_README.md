@@ -10,7 +10,9 @@
 | **Mezon.Net.Client** | UI / full engine access | `dotnet add package Mezon.Net.Client` |
 | Mezon.Net.Core | Shared contracts & options | transitive |
 | Mezon.Net.Transport | TCP / WebSocket transport | transitive |
-| Mezon.Net.Mmn | MMN gRPC + ZK prove HTTP | not published; bundled in Sdk (net6.0+) |
+| **Mezon.Net.Mmn** | MMN gRPC + ZK prove HTTP | `dotnet add package Mezon.Net.Mmn` (also transitive from Sdk on net6.0+) |
+| Mezon.Net.Sdk.Caching.Sqlite | Optional SQLite message cache | `dotnet add package Mezon.Net.Sdk.Caching.Sqlite` |
+| Mezon.Net.Sdk.Caching.Redis | Optional Redis/Valkey snapshot cache | `dotnet add package Mezon.Net.Sdk.Caching.Redis` |
 
 ## Quickstart (Sdk)
 
@@ -31,16 +33,16 @@ await channel.SendAsync("Hello from Mezon.Net");
 
 ## MMN (Mezon Mainnet)
 
-Configure gRPC node and ZK prove endpoints on `MezonClientOptions`:
+Configure gRPC node and ZK prove endpoints on `MezonClientOptions` (defaults point at production Mezon endpoints):
 
 ```csharp
-options.MMNApiUrl = "https://your-mmn-grpc-endpoint"; // gRPC, not REST
-options.ZkApiUrl = "https://your-zk-prove-service";   // POST /prove
+options.MMNApiUrl = "https://dong.mezon.ai/mmn-api"; // gRPC
+options.ZkApiUrl = "https://dong.mezon.ai/zk-api";   // POST /prove
 ```
 
 After `LoginAsync`, the SDK initializes `KeyGen`, `AddressMmn`, and `ZkProofs`. Send tokens with `SendTransferAsync(recipient, amount)`.
 
-**Breaking change:** MMN no longer uses REST `/sendTransaction` or JSON-RPC nonce. Use `client.Mmn.NodeClient` for low-level gRPC access and `CryptoHelper` for signing.
+Use `client.Mmn.NodeClient` for low-level gRPC access and `CryptoHelper` for signing. On `netstandard2.1`, MMN APIs are unavailable (Sdk references `Mezon.Net.Mmn` only for net6.0+).
 
 ## Rate limits
 

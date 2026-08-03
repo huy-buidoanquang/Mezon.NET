@@ -204,6 +204,12 @@ namespace Mezon.Net.Sdk
 
         public Task ConnectAgentSseAsync(CancellationToken cancellationToken = default)
         {
+            if (string.IsNullOrWhiteSpace(Options.AgentEventUrl))
+            {
+                throw new InvalidOperationException(
+                    "AgentEventUrl is not configured. Set MezonClientOptions.AgentEventUrl to your agent SSE base URL.");
+            }
+
             _agentManager ??= new AgentSseManager(Options.AgentEventUrl, Options.BotId, Options.Token);
             _agentManager.MessageReceived += async evt =>
             {

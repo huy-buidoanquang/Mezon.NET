@@ -1,8 +1,47 @@
 <Project>
   <PropertyGroup>
     <_UserNuGetPackages Condition="'$(USERPROFILE)' != ''">$(USERPROFILE)\.nuget\packages\</_UserNuGetPackages>
-    <Protobuf_ProtocFullPath Condition="'$(Protobuf_ProtocFullPath)' == '' and '$(_UserNuGetPackages)' != '' and Exists('$(_UserNuGetPackages)grpc.tools\2.76.0\tools\windows_x64\protoc.exe')">$(_UserNuGetPackages)grpc.tools\2.76.0\tools\windows_x64\protoc.exe</Protobuf_ProtocFullPath>
-    <Protobuf_GrpcFullPath Condition="'$(Protobuf_GrpcFullPath)' == '' and '$(_UserNuGetPackages)' != '' and Exists('$(_UserNuGetPackages)grpc.tools\2.76.0\tools\windows_x64\grpc_csharp_plugin.exe')">$(_UserNuGetPackages)grpc.tools\2.76.0\tools\windows_x64\grpc_csharp_plugin.exe</Protobuf_GrpcFullPath>
+    <_UserNuGetPackages Condition="'$(_UserNuGetPackages)' == '' and '$(HOME)' != ''">$(HOME)/.nuget/packages/</_UserNuGetPackages>
+    <_GrpcToolsPackageRoot Condition="'$(NuGetPackageRoot)' != ''">$(NuGetPackageRoot)grpc.tools/2.76.0/</_GrpcToolsPackageRoot>
+    <_GrpcToolsPackageRoot Condition="'$(_GrpcToolsPackageRoot)' == '' and '$(_UserNuGetPackages)' != ''">$(_UserNuGetPackages)grpc.tools/2.76.0/</_GrpcToolsPackageRoot>
+
+    <!-- Prefer OS-native protoc from Grpc.Tools when the package is restored. -->
+    <_GrpcToolsOs Condition="$([MSBuild]::IsOSPlatform('Windows'))">windows_x64</_GrpcToolsOs>
+    <_GrpcToolsOs Condition="$([MSBuild]::IsOSPlatform('Linux'))">linux_x64</_GrpcToolsOs>
+    <_GrpcToolsOs Condition="$([MSBuild]::IsOSPlatform('OSX'))">macosx_x64</_GrpcToolsOs>
+    <_GrpcToolsExeExt Condition="$([MSBuild]::IsOSPlatform('Windows'))">.exe</_GrpcToolsExeExt>
+
+    <Protobuf_ProtocFullPath Condition="'$(Protobuf_ProtocFullPath)' == '' and '$(_GrpcToolsPackageRoot)' != '' and '$(_GrpcToolsOs)' != '' and Exists('$(_GrpcToolsPackageRoot)tools/$(_GrpcToolsOs)/protoc$(_GrpcToolsExeExt)')">$(_GrpcToolsPackageRoot)tools/$(_GrpcToolsOs)/protoc$(_GrpcToolsExeExt)</Protobuf_ProtocFullPath>
+    <Protobuf_GrpcFullPath Condition="'$(Protobuf_GrpcFullPath)' == '' and '$(_GrpcToolsPackageRoot)' != '' and '$(_GrpcToolsOs)' != '' and Exists('$(_GrpcToolsPackageRoot)tools/$(_GrpcToolsOs)/grpc_csharp_plugin$(_GrpcToolsExeExt)')">$(_GrpcToolsPackageRoot)tools/$(_GrpcToolsOs)/grpc_csharp_plugin$(_GrpcToolsExeExt)</Protobuf_GrpcFullPath>
     <Protobuf_GrpcPlugin Condition="'$(Protobuf_GrpcFullPath)' != ''">protoc-gen-grpc=$(Protobuf_GrpcFullPath)</Protobuf_GrpcPlugin>
+  </PropertyGroup>
+
+  <!-- BCL / Extensions versions matched per TFM to avoid "doesn't support netX" package warnings. -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <MezonImmutableVersion>10.0.1</MezonImmutableVersion>
+    <MezonPipelinesVersion>10.0.7</MezonPipelinesVersion>
+    <MezonChannelsVersion>10.0.7</MezonChannelsVersion>
+    <MezonTextJsonVersion>10.0.1</MezonTextJsonVersion>
+    <MezonBclAsyncInterfacesVersion>10.0.1</MezonBclAsyncInterfacesVersion>
+    <MezonSqliteVersion>10.0.1</MezonSqliteVersion>
+    <MezonExtensionsVersion>10.0.0</MezonExtensionsVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0'">
+    <MezonImmutableVersion>9.0.8</MezonImmutableVersion>
+    <MezonPipelinesVersion>9.0.8</MezonPipelinesVersion>
+    <MezonChannelsVersion>9.0.8</MezonChannelsVersion>
+    <MezonTextJsonVersion>9.0.8</MezonTextJsonVersion>
+    <MezonBclAsyncInterfacesVersion>9.0.8</MezonBclAsyncInterfacesVersion>
+    <MezonSqliteVersion>9.0.8</MezonSqliteVersion>
+    <MezonExtensionsVersion>9.0.8</MezonExtensionsVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net8.0' Or '$(TargetFramework)' == 'net6.0' Or '$(TargetFramework)' == 'netstandard2.1'">
+    <MezonImmutableVersion>8.0.0</MezonImmutableVersion>
+    <MezonPipelinesVersion>8.0.0</MezonPipelinesVersion>
+    <MezonChannelsVersion>8.0.0</MezonChannelsVersion>
+    <MezonTextJsonVersion>8.0.5</MezonTextJsonVersion>
+    <MezonBclAsyncInterfacesVersion>8.0.0</MezonBclAsyncInterfacesVersion>
+    <MezonSqliteVersion>8.0.11</MezonSqliteVersion>
+    <MezonExtensionsVersion>8.0.2</MezonExtensionsVersion>
   </PropertyGroup>
 </Project>

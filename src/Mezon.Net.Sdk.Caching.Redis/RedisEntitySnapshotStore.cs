@@ -23,7 +23,7 @@ public sealed class RedisEntitySnapshotStore : IEntitySnapshotStore
         RedisEntitySnapshotStoreOptions options,
         ILogger<RedisEntitySnapshotStore> logger)
     {
-        ArgumentNullException.ThrowIfNull(multiplexer);
+        _ = multiplexer ?? throw new ArgumentNullException(nameof(multiplexer));
 
         var redis = new RedisSnapshotOperations(multiplexer);
         _redis = redis;
@@ -75,8 +75,8 @@ public sealed class RedisEntitySnapshotStore : IEntitySnapshotStore
         CacheEntryOptions options,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(dto);
-        ArgumentNullException.ThrowIfNull(options);
+        _ = dto ?? throw new ArgumentNullException(nameof(dto));
+        _ = options ?? throw new ArgumentNullException(nameof(options));
         cancellationToken.ThrowIfCancellationRequested();
 
         try

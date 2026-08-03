@@ -15,8 +15,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.IO.Pipelines" Version="10.0.7" />
-    <PackageReference Include="System.Threading.Channels" Version="10.0.7" />
+    <PackageReference Include="System.IO.Pipelines" Version="$(MezonPipelinesVersion)" />
+    <PackageReference Include="System.Threading.Channels" Version="$(MezonChannelsVersion)" />
   </ItemGroup>
 
   <ItemGroup>

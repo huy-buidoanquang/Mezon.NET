@@ -1,0 +1,147 @@
+name: Publish NuGet
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: Pack & Push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Parse tag version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid version tag '$TAG'. Expected vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-prerelease (e.g. v1.0.0, v1.1.0-preview.1)."
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Packaging version: $VERSION"
+
+      - name: Restore
+        run: dotnet restore Mezon.Net.sln
+
+      - name: Build
+        run: >
+          dotnet build Mezon.Net.sln
+          -c Release
+          --no-restore
+          -p:ContinuousIntegrationBuild=true
+          -p:IsTagBuild=true
+          -p:PackageVersion=${{ steps.version.outputs.version }}
+
+      - name: Test
+        run: >
+          dotnet test Mezon.Net.sln
+          -c Release
+          --no-build
+          --verbosity normal
+
+      - name: Pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          OUT="${{ github.workspace }}/artifacts/nuget"
+          mkdir -p "$OUT"
+
+          projects=(
+            src/Mezon.Net.Core/Mezon.Net.Core.csproj
+            src/Mezon.Net.Transport/Mezon.Net.Transport.csproj
+            src/Mezon.Net.Client/Mezon.Net.Client.csproj
+            src/Mezon.Net.Mmn/Mezon.Net.Mmn.csproj
+            src/Mezon.Net.Sdk/Mezon.Net.Sdk.csproj
+            src/Mezon.Net.Sdk.Caching.Sqlite/Mezon.Net.Sdk.Caching.Sqlite.csproj
+            src/Mezon.Net.Sdk.Caching.Redis/Mezon.Net.Sdk.Caching.Redis.csproj
+          )
+
+          for project in "${projects[@]}"; do
+            echo "Packing $project"
+            dotnet pack "$project" \
+              -c Release \
+              --no-build \
+              -o "$OUT" \
+              -p:ContinuousIntegrationBuild=true \
+              -p:IsTagBuild=true \
+              -p:PackageVersion="$VERSION"
+          done
+
+          echo "Packages:"
+          ls -la "$OUT"
+
+      - name: Push to NuGet.org
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${NUGET_API_KEY:-}" ]]; then
+            echo "Secret NUGET_API_KEY is not set. Add a NuGet.org API key under repo Settings → Secrets."
+            exit 1
+          fi
+
+          OUT="${{ github.workspace }}/artifacts/nuget"
+          # Push nupkg first so dependency packages exist before consumers resolve Sdk.
+          for package in \
+            Mezon.Net.Core \
+            Mezon.Net.Transport \
+            Mezon.Net.Client \
+            Mezon.Net.Mmn \
+            Mezon.Net.Sdk \
+            Mezon.Net.Sdk.Caching.Sqlite \
+            Mezon.Net.Sdk.Caching.Redis
+          do
+            nupkg=$(ls "$OUT"/${package}.${{ steps.version.outputs.version }}.nupkg)
+            echo "Pushing $nupkg"
+            dotnet nuget push "$nupkg" \
+              --api-key "$NUGET_API_KEY" \
+              --source https://api.nuget.org/v3/index.json \
+              --skip-duplicate
+          done
+
+          # Symbol packages (optional; ignore if nuget.org rejects duplicates)
+          shopt -s nullglob
+          for snupkg in "$OUT"/*.snupkg; do
+            echo "Pushing $snupkg"
+            dotnet nuget push "$snupkg" \
+              --api-key "$NUGET_API_KEY" \
+              --source https://api.nuget.org/v3/index.json \
+              --skip-duplicate || true
+          done
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-${{ steps.version.outputs.version }}
+          path: artifacts/nuget/*
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: artifacts/nuget/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

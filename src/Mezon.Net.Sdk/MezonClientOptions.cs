@@ -4,7 +4,10 @@ namespace Mezon.Net.Sdk
 {
     public sealed class MezonClientOptions : MezonSocketClientOptions
     {
-        public const string DefaultAgentEventUrl = "http://172.16.110.19:8002";
+        /// <summary>
+        ///     Empty by default — agent SSE is opt-in. Set a reachable agent base URL when needed.
+        /// </summary>
+        public const string DefaultAgentEventUrl = "";
 
         public long BotId { get; set; } = 0;
         public string Token { get; set; } = string.Empty;

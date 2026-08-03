@@ -16,19 +16,22 @@
 
   <ItemGroup>
     <PackageReference Include="Grpc.Core.Api" Version="2.76.0" />
-    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.1" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="JetBrains.Annotations" Version="2025.2.0" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="2.1.0" />
     <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" Version="3.1.0" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.12.1" />
-    <PackageReference Include="System.Text.Json" Version="9.0.8" />
+    <PackageReference Include="System.Text.Json" Version="$(MezonTextJsonVersion)" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="$(MezonBclAsyncInterfacesVersion)" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Mezon.Net.Core\Mezon.Net.Core.csproj" />
     <ProjectReference Include="..\Mezon.Net.Transport\Mezon.Net.Transport.csproj" />
-    <ProjectReference Include="..\Mezon.Net.Generators\Mezon.Net.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\Mezon.Net.Generators\Mezon.Net.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
