@@ -20,13 +20,13 @@
     <Company>Mezon.Net</Company>
     <Copyright>Copyright (c) Mezon.Net Contributors</Copyright>
     <PackageTags>mezon;mezon.net;chat;bot;realtime;websocket;protobuf</PackageTags>
-    <PackageProjectUrl>https://github.com/Mezon-Net/Mezon.Net</PackageProjectUrl>
+    <PackageProjectUrl>https://github.com/huy-buidoanquang/Mezon.NET</PackageProjectUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <PackageIcon>PackageLogo.png</PackageIcon>
     <PackageReadmeFile>NUGET_README.md</PackageReadmeFile>
     <RepositoryType>git</RepositoryType>
-    <RepositoryUrl>https://github.com/Mezon-Net/Mezon.Net</RepositoryUrl>
+    <RepositoryUrl>https://github.com/huy-buidoanquang/Mezon.NET</RepositoryUrl>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>

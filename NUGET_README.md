@@ -65,7 +65,7 @@ options.DefaultRatelimitCallback = async info =>
 
 ## Documentation
 
-See the [GitHub repository](https://github.com/Mezon-Net/Mezon.Net) for architecture notes, examples, and contribution guidelines.
+See the [GitHub repository](https://github.com/huy-buidoanquang/Mezon.NET) for architecture notes, examples, and contribution guidelines.
 
 ## License
 
