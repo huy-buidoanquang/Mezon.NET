@@ -1,53 +1,72 @@
 using System;
-using System.Collections.Concurrent;
 using System.IO;
-using System.Linq;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using Mezon.Net.Abstractions;
-using Mezon.Net.Api;
+using Mezon.Net.Client;
 using Mezon.Net.Core;
+using Mezon.Net.Utils;
+using Newtonsoft.Json;
 
 namespace Mezon.Net.Queue
 {
-    internal class RequestQueue : IDisposable, IAsyncDisposable
+    /// <summary>
+    ///     Lean request pipeline. Socket traffic is throttled by <see cref="TransportRateLimiter"/>;
+    ///     the REST path only carries rare auth-bootstrap calls and is sent directly.
+    /// </summary>
+    internal sealed class RequestQueue : IDisposable, IAsyncDisposable
     {
-        public event Func<BucketId, RateLimitInfo?, string, Task> RateLimitTriggered;
+        private readonly SemaphoreSlim _semaphoreLock = new SemaphoreSlim(1, 1);
+        private CancellationTokenSource _clearToken = new CancellationTokenSource();
+        private CancellationToken _parentToken = CancellationToken.None;
+        private CancellationTokenSource? _requestCancelTokenSource;
+        private CancellationToken _requestCancelToken = CancellationToken.None;
+        private readonly TransportRateLimiter _transportLimiter = new TransportRateLimiter();
+        private Func<IRateLimitInfo, Task>? _defaultRatelimitCallback;
+        private Func<long, long, string, Task>? _sendBypassMessageAsync;
 
-        private readonly ConcurrentDictionary<BucketId, object> _buckets;
-        private readonly SemaphoreSlim _semaphoreLock;
-        private readonly CancellationTokenSource _cancelTokenSource;
-        private CancellationTokenSource _clearToken;
-        private CancellationToken _parentToken;
-        private CancellationTokenSource _requestCancelTokenSource;
-        private CancellationToken _requestCancelToken;
-        private DateTimeOffset _waitUntil;
-
-        // Gateway rate limiters (WebSocket only)
-        private readonly SocketRateLimiter _unbucketedLimiter;
-        private readonly SocketRateLimiter _identifyLimiter;
-        private readonly SocketRateLimiter _presenceUpdateLimiter;
-
-        private Task _cleanupTask;
-
-#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
-        public RequestQueue()
-#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
+        /// <summary>
+        ///     Updates transport rate-limit capacities without replacing the limiter instance.
+        /// </summary>
+        internal void ConfigureTransportLimits(
+            int maxRequestsPerSecond,
+            int maxRequestsPerMinute,
+            int maxConnectRequestsPerSecond)
         {
-            _semaphoreLock = new SemaphoreSlim(1, 1);
-
-            _clearToken = new CancellationTokenSource();
-            _cancelTokenSource = new CancellationTokenSource();
-            _requestCancelToken = CancellationToken.None;
-            _parentToken = CancellationToken.None;
-            _buckets = new ConcurrentDictionary<BucketId, object>();
-
-            _unbucketedLimiter = new SocketRateLimiter(SocketBucketType.Unbucketed, 117, 60);
-            _identifyLimiter = new SocketRateLimiter(SocketBucketType.Identify, 1, 5);
-            _presenceUpdateLimiter = new SocketRateLimiter(SocketBucketType.PresenceUpdate, 5, 60);
-
-            _cleanupTask = RunCleanup();
+            _transportLimiter.Configure(
+                maxRequestsPerSecond,
+                maxRequestsPerMinute,
+                maxConnectRequestsPerSecond);
         }
+
+        /// <summary>
+        ///     Sets the client-wide default rate-limit callback applied when a request has none.
+        /// </summary>
+        internal void SetDefaultRatelimitCallback(Func<IRateLimitInfo, Task>? callback)
+        {
+            _defaultRatelimitCallback = callback;
+        }
+
+        /// <summary>
+        ///     Sets the bypass send used by <see cref="IRateLimitInfo.SendBypassMessageAsync"/> in rate-limit callbacks.
+        /// </summary>
+        internal void SetRateLimitBypassMessage(Func<long, long, string, Task>? sendBypassMessageAsync)
+        {
+            _sendBypassMessageAsync = sendBypassMessageAsync;
+        }
+
+        internal ValueTask EnterTransportAsync(RequestOptions options)
+        {
+            options.ApplyDefaultRatelimitCallback(_defaultRatelimitCallback);
+            return _transportLimiter.EnterAsync(options.CancelToken, options.RatelimitCallback, _sendBypassMessageAsync);
+        }
+
+        internal void BeginConnectPhase() => _transportLimiter.BeginConnectPhase();
+
+        internal void EndConnectPhase() => _transportLimiter.EndConnectPhase();
+
+        internal void ResetTransportLimits() => _transportLimiter.Reset();
 
         public async Task SetCancelTokenAsync(CancellationToken cancelToken)
         {
@@ -85,186 +104,80 @@ namespace Mezon.Net.Queue
 
         public async Task<Stream> SendAsync(ApiRequest request)
         {
-            CancellationTokenSource? createdTokenSource = default;
-            if (request.Options.CancelToken.CanBeCanceled)
-            {
-                createdTokenSource = CancellationTokenSource.CreateLinkedTokenSource(_requestCancelToken, request.Options.CancelToken);
-                request.Options.CancelToken = createdTokenSource.Token;
-            }
-            else
-            {
-                request.Options.CancelToken = _requestCancelToken;
-            }
-
-            var bucket = GetOrCreateBucket(request.Options, request);
-            var result = await bucket.SendAsync(request).ConfigureAwait(false);
-            createdTokenSource?.Dispose();
-            return result;
-        }
-
-        internal Task EnterGlobalAsync(int id, ApiRequest request)
-        {
-            int millis = (int)Math.Ceiling((_waitUntil - DateTimeOffset.UtcNow).TotalMilliseconds);
-            if (millis > 0)
-            {
-#if DEBUG_LIMITS
-                Debug.WriteLine($"[{id}] Sleeping {millis} ms (Pre-emptive) [Global]");
-#endif
-                return Task.Delay(millis);
-            }
-
-            return Task.CompletedTask;
-        }
-
-        public async Task SendAsync(WebSocketRequest request)
-        {
             CancellationTokenSource? createdTokenSource = null;
-            if (request.Options.CancelToken.CanBeCanceled)
+            var requestToken = request.Options.CancelToken;
+
+            if (requestToken.CanBeCanceled && _requestCancelToken.CanBeCanceled)
             {
-                createdTokenSource = CancellationTokenSource.CreateLinkedTokenSource(_requestCancelToken, request.Options.CancelToken);
+                createdTokenSource = CancellationTokenSource.CreateLinkedTokenSource(_requestCancelToken, requestToken);
                 request.Options.CancelToken = createdTokenSource.Token;
+            }
+            else if (requestToken.CanBeCanceled)
+            {
+                request.Options.CancelToken = requestToken;
             }
             else
             {
                 request.Options.CancelToken = _requestCancelToken;
             }
 
-            // WebSocket uses SocketRateLimiter directly, no need for RequestBucket
-            // Rate limiting is handled in EnterGlobalAsync
-            await EnterGlobalAsync(0, request).ConfigureAwait(false);
-            await request.SendAsync().ConfigureAwait(false);
-
-            createdTokenSource?.Dispose();
-        }
-
-        internal async Task EnterGlobalAsync(int id, WebSocketRequest request)
-        {
-            var requestBucket = SocketBucket.Get(request.Options.BucketId);
-            //if (requestBucket == default(SocketBucket))
-            //{
-            //    await _unbucketedLimiter.WaitAsync(request.Options.CancelToken).ConfigureAwait(false);
-            //    return;
-            //}
-
-            if (requestBucket.Type != SocketBucketType.Unbucketed)
-            {
-                await _unbucketedLimiter.WaitAsync(request.Options.CancelToken).ConfigureAwait(false);
-            }
-
-            var limiter = requestBucket.Type switch
-            {
-                SocketBucketType.Unbucketed => _unbucketedLimiter,
-                SocketBucketType.Identify => _identifyLimiter,
-                SocketBucketType.PresenceUpdate => _presenceUpdateLimiter,
-                _ => _unbucketedLimiter
-            };
-
-            await limiter.WaitAsync(request.Options.CancelToken).ConfigureAwait(false);
-        }
-
-        internal void PauseGlobal(RateLimitInfo info)
-        {
-            if (info.RetryAfter is null)
-            {
-                return;
-            }
-
-            _waitUntil = DateTimeOffset.UtcNow.AddMilliseconds(info.RetryAfter.Value + (info.Lag?.TotalMilliseconds ?? 0.0));
-        }
-
-        private RequestQueueBucket GetOrCreateBucket(RequestOptions options, IRequest request)
-        {
-            if (options.BucketId == null)
-            {
-                throw new InvalidOperationException("BucketId is null when trying to get or create a bucket");
-            }
-
-            var bucketId = options.BucketId;
-            object obj = _buckets.GetOrAdd(bucketId, x => new RequestQueueBucket(this, request, x));
-            if (obj is BucketId hashBucket)
-            {
-                options.BucketId = hashBucket;
-                return (RequestQueueBucket)_buckets.GetOrAdd(hashBucket, x => new RequestQueueBucket(this, request, x));
-            }
-            return (RequestQueueBucket)obj;
-        }
-
-        internal Task RaiseRateLimitTriggered(BucketId bucketId, RateLimitInfo? info, string endpoint)
-            => RateLimitTriggered(bucketId, info, endpoint);
-
-        internal (RequestQueueBucket?, BucketId?) UpdateBucketHash(BucketId id, string mezonHash)
-        {
-            if (!id.IsHashBucket)
-            {
-                var bucket = BucketId.Create(mezonHash, id);
-                var hashReqQueue = (RequestQueueBucket)_buckets.GetOrAdd(bucket, _buckets[id]);
-                _buckets.AddOrUpdate(id, bucket, (oldBucket, oldObj) => bucket);
-                return (hashReqQueue, bucket);
-            }
-            return (null, null);
-        }
-
-        public void ClearGatewayBuckets()
-        {
-            // Reset gateway rate limiters
-            _unbucketedLimiter.Reset();
-            _identifyLimiter.Reset();
-            _presenceUpdateLimiter.Reset();
-        }
-
-        private async Task RunCleanup()
-        {
             try
             {
-                while (!_cancelTokenSource.IsCancellationRequested)
+                var response = await request.SendAsync().ConfigureAwait(false);
+                if (response.StatusCode < (HttpStatusCode)200 || response.StatusCode >= (HttpStatusCode)300)
                 {
-                    var now = DateTimeOffset.UtcNow;
-                    foreach (var bucket in _buckets.Where(x => x.Value is RequestQueueBucket).Select(x => (RequestQueueBucket)x.Value))
-                    {
-                        if ((now - bucket.LastAttemptAt).TotalMinutes > 1.0)
-                        {
-                            if (bucket.Id.IsHashBucket)
-                            {
-                                foreach (var redirectBucket in _buckets.Where(x => x.Value == bucket.Id).Select(x => (BucketId)x.Value))
-                                {
-                                    _buckets.TryRemove(redirectBucket, out _); //remove redirections if hash bucket
-                                }
-                            }
+                    throw BuildHttpException(request, response);
+                }
 
-                            _buckets.TryRemove(bucket.Id, out _);
-                        }
+                return response.Stream!;
+            }
+            finally
+            {
+                createdTokenSource?.Dispose();
+            }
+        }
+
+        private static HttpException BuildHttpException(ApiRequest request, HttpResponse response)
+        {
+            string? reason = null;
+
+            if (response.Stream != null)
+            {
+                try
+                {
+                    if (response.Stream.CanSeek && response.Stream.Length == 0)
+                    {
+                        return new HttpException(response.StatusCode, request, reason);
                     }
-                    await Task.Delay(60000, _cancelTokenSource.Token).ConfigureAwait(false); //Runs each minute
+
+                    using var reader = new StreamReader(response.Stream);
+                    var json = reader.ReadToEnd();
+                    if (!string.IsNullOrEmpty(json))
+                    {
+                        var error = JsonConvert.DeserializeObject<MezonErrorResponse>(json, Json.JsonSerializerSettings);
+                        reason = error?.Message ?? json;
+                    }
+                }
+                catch
+                {
+                    // Best-effort error body parsing.
                 }
             }
-            catch (TaskCanceledException) { }
-            catch (ObjectDisposedException) { }
+
+            return new HttpException(response.StatusCode, request, reason);
         }
 
         public void Dispose()
         {
-            if (!(_cancelTokenSource is null))
-            {
-                _cancelTokenSource.Cancel();
-                _cancelTokenSource.Dispose();
-                _cleanupTask.GetAwaiter().GetResult();
-            }
-            _semaphoreLock?.Dispose();
+            _semaphoreLock.Dispose();
             _clearToken?.Dispose();
             _requestCancelTokenSource?.Dispose();
         }
 
-        public async ValueTask DisposeAsync()
+        public ValueTask DisposeAsync()
         {
-            if (!(_cancelTokenSource is null))
-            {
-                _cancelTokenSource.Cancel();
-                _cancelTokenSource.Dispose();
-                await _cleanupTask.ConfigureAwait(false);
-            }
-            _semaphoreLock?.Dispose();
-            _clearToken?.Dispose();
-            _requestCancelTokenSource?.Dispose();
+            Dispose();
+            return default;
         }
     }
 }

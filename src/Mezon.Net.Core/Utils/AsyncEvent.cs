@@ -37,7 +37,7 @@ namespace Mezon.Net.Core
         }
     }
 
-    internal static class EventExtensions
+    public static class EventExtensions
     {
         public static async Task InvokeAsync(this AsyncEvent<Func<Task>> eventHandler)
         {

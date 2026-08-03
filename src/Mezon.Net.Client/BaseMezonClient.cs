@@ -6,9 +6,9 @@ using Mezon.Net.Core;
 using Mezon.Net.Core.Abstractions;
 using Mezon.Net.Logging;
 
-namespace Mezon.Net.Api
+namespace Mezon.Net.Client
 {
-    public abstract class BaseMezonClient : IMezonClient
+    public abstract partial class BaseMezonClient : IMezonClient
     {
         internal readonly AsyncEvent<Func<LogMessage, Task>> _logEvent = new AsyncEvent<Func<LogMessage, Task>>();
         public event Func<LogMessage, Task> Log { add { _logEvent.Add(value); } remove { _logEvent.Remove(value); } }
@@ -26,15 +26,17 @@ namespace Mezon.Net.Api
         /// </summary>
         public event Func<string, string, double, Task> ApiSentRequestEvent { add { _apiSentRequestEvent.Add(value); } remove { _apiSentRequestEvent.Remove(value); } }
 
-        internal readonly Logger _logger;
-        private readonly SemaphoreSlim _stateLock;
+        private readonly Logger _logger;
+        protected readonly SemaphoreSlim StateLock;
         private bool _isFirstLogin, _isDisposed;
 
         private readonly ISessionManager<MezonApiClientOptions> _sessionManager;
 
+        protected ISessionManager<MezonApiClientOptions> SessionManager => _sessionManager;
+
         protected readonly MezonApiClientOptions Options;
 
-        public IMezonApiClient ApiClient { get; }
+        internal IMezonApiClient ApiClient { get; }
 
         internal LogManager LogManager { get; }
         /// <summary>
@@ -55,28 +57,22 @@ namespace Mezon.Net.Api
             LogManager.Message += async msg => await _logEvent.InvokeAsync(msg).ConfigureAwait(false);
             _logger = LogManager.CreateLogger("MezonClient");
 
-            _stateLock = new SemaphoreSlim(1, 1);
+            StateLock = new SemaphoreSlim(1, 1);
             _isFirstLogin = Options.DisplayInitialLog;
-            _sessionManager = SessionManager<MezonApiClientOptions>.GetOrCreate(options, LogManager);
+            _sessionManager = new SessionManager<MezonApiClientOptions>(options, LogManager);
 
-            ApiClient.RequestQueue.RateLimitTriggered += async (id, info, endpoint) =>
+            if (apiClient is MezonSocketClient socketClient)
             {
-                if (info == null)
-                {
-                    await _logger.DebugAsync($"Preemptive Rate limit triggered: {endpoint} {(id.IsHashBucket ? $"(Bucket: {id.BucketHash})" : "")}").ConfigureAwait(false);
-                }
-                else
-                {
-                    await _logger.WarningAsync($"Rate limit triggered: {endpoint} Remaining: {info.Value.RetryAfter}s {(id.IsHashBucket ? $"(Bucket: {id.BucketHash})" : "")}").ConfigureAwait(false);
-                }
-            };
+                socketClient.ConfigureSessionAccessor(() => _sessionManager.CurrentSession());
+            }
+
             ApiClient.ApiSentRequestEvent += async (method, endpoint, millis) => await _logger.DebugAsync($"{method} {endpoint}: {millis} ms").ConfigureAwait(false);
             ApiClient.ApiSentRequestEvent += (method, endpoint, millis) => _apiSentRequestEvent.InvokeAsync(method, endpoint, millis);
         }
 
         public virtual async Task<bool> LoginAsync(ISession session)
         {
-            await _stateLock.WaitAsync().ConfigureAwait(false);
+            await StateLock.WaitAsync().ConfigureAwait(false);
             try
             {
                 await _sessionManager.LoginAsync(session).ConfigureAwait(false);
@@ -88,13 +84,17 @@ namespace Mezon.Net.Api
                 await LoginInternalAsync(TokenType, _sessionManager.CurrentSession().AuthToken).ConfigureAwait(false);
                 return true;
             }
+            catch (MezonException)
+            {
+                throw;
+            }
             catch
             {
                 return false;
             }
             finally
             {
-                _stateLock.Release();
+                StateLock.Release();
             }
         }
 
@@ -125,7 +125,6 @@ namespace Mezon.Net.Api
             {
                 ApiClient.ConfigureApiBasePath(_sessionManager.CurrentSession().ApiUrl ?? string.Empty);
                 await ApiClient.LoginAsync(tokenType, token).ConfigureAwait(false);
-                await OnLoginAsync(tokenType, token).ConfigureAwait(false);
                 LoginState = LoginState.LoggedIn;
             }
             catch
@@ -137,18 +136,16 @@ namespace Mezon.Net.Api
             await _loggedInEvent.InvokeAsync().ConfigureAwait(false);
         }
 
-        internal virtual Task OnLoginAsync(TokenType tokenType, string token) => Task.CompletedTask;
-
         public async Task LogoutAsync()
         {
-            await _stateLock.WaitAsync().ConfigureAwait(false);
+            await StateLock.WaitAsync().ConfigureAwait(false);
             try
             {
                 await LogoutInternalAsync().ConfigureAwait(false);
             }
             finally
             {
-                _stateLock.Release();
+                StateLock.Release();
             }
         }
 
@@ -163,14 +160,10 @@ namespace Mezon.Net.Api
 
             await _sessionManager.LogoutAsync().ConfigureAwait(false);
             await ApiClient.LogoutAsync().ConfigureAwait(false);
-
-            await OnLogoutAsync().ConfigureAwait(false);
             LoginState = LoginState.LoggedOut;
 
             await _loggedOutEvent.InvokeAsync().ConfigureAwait(false);
         }
-
-        internal virtual Task OnLogoutAsync() => Task.CompletedTask;
 
         /// <inheritdoc />
         Task IMezonClient.ConnectAsync()
@@ -183,7 +176,7 @@ namespace Mezon.Net.Api
         {
             if (!_isDisposed)
             {
-                _stateLock?.Dispose();
+                StateLock?.Dispose();
                 _isDisposed = true;
             }
         }
@@ -195,7 +188,16 @@ namespace Mezon.Net.Api
         {
             if (!_isDisposed)
             {
-                _stateLock?.Dispose();
+                if (_sessionManager is IAsyncDisposable asyncSessionManager)
+                {
+                    await asyncSessionManager.DisposeAsync().ConfigureAwait(false);
+                }
+                else
+                {
+                    _sessionManager.Dispose();
+                }
+
+                StateLock?.Dispose();
                 _isDisposed = true;
             }
         }

@@ -1,4 +1,5 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="../../Mezon.Net.targets" />
 
   <PropertyGroup>
     <TargetFrameworks>netstandard2.1;net6.0;net8.0;net9.0;net10.0;</TargetFrameworks>
@@ -6,10 +7,11 @@
     <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
     <IsTrimmable>false</IsTrimmable>
     <IsAotCompatible>false</IsAotCompatible>
-    <IncludeSymbols>true</IncludeSymbols>
-    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <Nullable>enable</Nullable>
     <WarningsAsErrors>$(WarningsAsErrors);CS8600;CS8602;CS8603</WarningsAsErrors>
+    <PackageId>Mezon.Net.Sdk</PackageId>
+    <Description>High-level Mezon bot/application SDK for .NET — entities, events, builders, and DI.</Description>
+    <IsPackable>true</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,7 +19,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Mezon.Net.Client\Mezon.Net.Client.csproj" />
+    <InternalsVisibleTo Include="Mezon.Net.Sdk.Tests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Mezon.Net.Client\Mezon.Net.Client.csproj" />
+    <ProjectReference Include="..\Mezon.Net.Mmn\Mezon.Net.Mmn.csproj" Condition="'$(TargetFramework)' != 'netstandard2.1'" />
+  </ItemGroup>
 </Project>

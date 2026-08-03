@@ -1,16 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <Import Project="../../Mezon.Net.targets" />
+
   <PropertyGroup>
-    <TargetFramework>netstandard2.1</TargetFramework>
     <TargetFrameworks>netstandard2.1;net6.0;net8.0;net9.0;net10.0;</TargetFrameworks>
     <WarningLevel>5</WarningLevel>
     <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
     <IsTrimmable>false</IsTrimmable>
     <IsAotCompatible>false</IsAotCompatible>
-    <IncludeSymbols>true</IncludeSymbols>
-    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <Nullable>enable</Nullable>
     <WarningsAsErrors>$(WarningsAsErrors);CS8600;CS8602;CS8603</WarningsAsErrors>
+    <PackageId>Mezon.Net.Client</PackageId>
+    <Description>Mezon.Net socket engine — API-over-socket, realtime envelopes, events, and session lifecycle.</Description>
+    <IsPackable>true</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,11 +22,18 @@
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="2.1.0" />
     <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" Version="3.1.0" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.12.1" />
+    <PackageReference Include="System.Text.Json" Version="9.0.8" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Mezon.Net.Core\Mezon.Net.Core.csproj" />
     <ProjectReference Include="..\Mezon.Net.Transport\Mezon.Net.Transport.csproj" />
+    <ProjectReference Include="..\Mezon.Net.Generators\Mezon.Net.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Mezon.Net.Client.Tests" />
+    <InternalsVisibleTo Include="Mezon.Net.Client.Benchmarks" />
+    <InternalsVisibleTo Include="Mezon.Net.Sdk" />
+  </ItemGroup>
 </Project>

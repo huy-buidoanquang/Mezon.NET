@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo("Mezon.Net.Client")]
 
-namespace Mezon.Net.Api
+namespace Mezon.Net.Client
 {
     public static class AssemblyReference
     {

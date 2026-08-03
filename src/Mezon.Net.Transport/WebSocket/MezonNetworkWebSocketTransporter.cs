@@ -2,14 +2,12 @@ using System;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.IO.Pipelines;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Mezon.Net.Core;
 using Mezon.Net.Core.Abstractions;
-using Mezon.Net.Core.Exceptions;
 using Mezon.Net.Transport.Internal;
 
 namespace Mezon.Net.Transport
@@ -22,11 +20,9 @@ namespace Mezon.Net.Transport
 
         private ConnectionState _state = ConnectionState.Disconnected;
         private ClientWebSocket? _wsClient;
-        private Pipe? _receivePipe;
-        private PipeReader? _pipeReader;
         private CancellationToken _externalCt, _internalCt;
         private IDictionary<string, string>? _headers;
-        private readonly ConcurrentDictionary<int, ArrayBufferWriter<byte>> _streams = new ConcurrentDictionary<int, ArrayBufferWriter<byte>>();
+        private readonly ConcurrentDictionary<int, ArrayBufferWriter<byte>> _apiChunkBuffers = new ConcurrentDictionary<int, ArrayBufferWriter<byte>>();
         private CancellationTokenSource? _disconnectCts, _internalCts;
         private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1);
         private Channel<ReadOnlyMemory<byte>>? _sendChannel;
@@ -69,7 +65,7 @@ namespace Mezon.Net.Transport
                     await ErrorOccurred.Invoke(ex).ConfigureAwait(false);
                 }
 
-                await DisconnectInternalAsync().ConfigureAwait(false);
+                await DisconnectInternalAsync(invokeClosed: false).ConfigureAwait(false);
                 throw;
             }
             finally
@@ -96,10 +92,6 @@ namespace Mezon.Net.Transport
                     KeepAliveInterval = TimeSpan.Zero,
                 }
             };
-
-#if NET5_0_OR_GREATER
-            _wsClient.Options.RemoteCertificateValidationCallback = MezonNetworkSettings.DefaultValidateServerCertificate;
-#endif
 
             if (_headers?.Count > 0)
             {
@@ -136,8 +128,6 @@ namespace Mezon.Net.Transport
                 await Opened.Invoke().ConfigureAwait(false);
             }
 
-            _receivePipe = new Pipe(new PipeOptions(useSynchronizationContext: false));
-            _pipeReader = _receivePipe.Reader;
             _sendChannel = Channel.CreateUnbounded<ReadOnlyMemory<byte>>(new UnboundedChannelOptions
             {
                 SingleReader = true,
@@ -145,8 +135,7 @@ namespace Mezon.Net.Transport
             });
 
             var generation = Interlocked.Increment(ref _connectionGeneration);
-            _ = Task.Run(() => WebSocketToPipeLoopAsync(_internalCt, generation), _internalCt);
-            _ = Task.Run(() => PipeReceiveLoopAsync(_internalCt, generation), _internalCt);
+            _ = Task.Run(() => ReceiveLoopAsync(_internalCt, generation), _internalCt);
             _ = Task.Run(() => SendLoopAsync(_internalCt), _internalCt);
 
             _state = ConnectionState.Connected;
@@ -166,20 +155,21 @@ namespace Mezon.Net.Transport
             }.Uri;
         }
 
-        private async Task WebSocketToPipeLoopAsync(CancellationToken cancellationToken, int generation)
+        private async Task ReceiveLoopAsync(CancellationToken cancellationToken, int generation)
         {
             byte[]? wsBuffer = null;
             try
             {
-                if (_wsClient == null || _receivePipe == null)
+                if (_wsClient == null)
                 {
                     return;
                 }
 
                 wsBuffer = ArrayPool<byte>.Shared.Rent(WsReceiveBufferSize);
-                var pipeWriter = _receivePipe.Writer;
+                var messageWriter = new ArrayBufferWriter<byte>(WsReceiveBufferSize);
                 while (_wsClient.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
                 {
+                    messageWriter.Clear();
                     WebSocketReceiveResult result;
                     do
                     {
@@ -191,9 +181,7 @@ namespace Mezon.Net.Transport
 
                         if (result.Count > 0)
                         {
-                            var dest = pipeWriter.GetMemory(result.Count);
-                            wsBuffer.AsSpan(0, result.Count).CopyTo(dest.Span);
-                            pipeWriter.Advance(result.Count);
+                            messageWriter.Write(wsBuffer.AsSpan(0, result.Count));
                         }
                     }
                     while (!result.EndOfMessage);
@@ -203,10 +191,18 @@ namespace Mezon.Net.Transport
                         break;
                     }
 
-                    var flushResult = await pipeWriter.FlushAsync(cancellationToken).ConfigureAwait(false);
-                    if (flushResult.IsCompleted || flushResult.IsCanceled)
+                    if (MessageReceived != null && messageWriter.WrittenCount > 0)
                     {
-                        break;
+                        if (MezonWebSocketFrameCodec.TryHandleMessage(
+                                messageWriter.WrittenMemory,
+                                _apiChunkBuffers,
+                                out var type,
+                                out var cid,
+                                out var code,
+                                out var payload))
+                        {
+                            await MessageReceived.Invoke(type, cid, code, payload).ConfigureAwait(false);
+                        }
                     }
                 }
             }
@@ -227,76 +223,6 @@ namespace Mezon.Net.Transport
                     ArrayPool<byte>.Shared.Return(wsBuffer);
                 }
 
-                if (_receivePipe != null)
-                {
-                    try
-                    {
-                        await _receivePipe.Writer.CompleteAsync().ConfigureAwait(false);
-                    }
-                    catch
-                    {
-                    }
-                }
-            }
-        }
-
-        private async Task PipeReceiveLoopAsync(CancellationToken cancellationToken, int generation)
-        {
-            try
-            {
-                while (!cancellationToken.IsCancellationRequested && _pipeReader != null)
-                {
-                    ReadResult result = await _pipeReader.ReadAsync(cancellationToken).ConfigureAwait(false);
-                    ReadOnlySequence<byte> buffer = result.Buffer;
-                    if (MessageReceived != null)
-                    {
-                        while (!buffer.IsEmpty)
-                        {
-                            var frameStart = buffer.Start;
-                            if (!MezonTransportFrameCodec.TryReadFrame(ref buffer, _streams, out var type, out var cid, out var code, out var frame))
-                            {
-                                if (frameStart.Equals(buffer.Start))
-                                {
-                                    break;
-                                }
-
-                                continue;
-                            }
-
-                            var payload = type == MezonMessageType.Abridged
-                                ? MezonTransportFrameCodec.TrimPadding(frame)
-                                : frame;
-                            await MessageReceived.Invoke(type, cid, code, payload).ConfigureAwait(false);
-                        }
-                    }
-
-                    _pipeReader.AdvanceTo(buffer.Start, buffer.End);
-                    if (result.IsCompleted)
-                    {
-                        break;
-                    }
-                }
-            }
-            catch (OperationCanceledException)
-            {
-            }
-            catch (Exception ex)
-            {
-                if (ErrorOccurred != null)
-                {
-                    await ErrorOccurred.Invoke(ex).ConfigureAwait(false);
-                }
-            }
-            finally
-            {
-                try
-                {
-                    await _pipeReader!.CompleteAsync().ConfigureAwait(false);
-                }
-                catch
-                {
-                }
-
                 if (generation == _connectionGeneration && _state == ConnectionState.Connected)
                 {
                     await DisconnectAsync().ConfigureAwait(false);
@@ -308,22 +234,21 @@ namespace Mezon.Net.Transport
         {
             if (_wsClient?.State != WebSocketState.Open || _state != ConnectionState.Connected || _sendChannel == null)
             {
-                return default;
+                return new ValueTask(Task.FromException(new InvalidOperationException(
+                    $"Cannot send on WebSocket (wsState={_wsClient?.State}, transportState={_state}, sendChannel={_sendChannel != null}).")));
             }
 
             switch (type)
             {
-                case MezonMessageType.Heartbeat:
-                    return MezonTransportFrameCodec.TryQueuePingFrame(_sendChannel.Writer, (ushort)cid)
-                        ? default
-                        : new ValueTask(Task.FromException(new InvalidOperationException("Cannot queue ping.")));
                 case MezonMessageType.Api:
-                case MezonMessageType.Abridged:
-                    return MezonTransportFrameCodec.TryQueueAbridgedFrame(_sendChannel.Writer, data)
+                case MezonMessageType.Realtime:
+                    return MezonWebSocketFrameCodec.TryQueueRawFrame(_sendChannel.Writer, data)
                         ? default
                         : new ValueTask(Task.FromException(new InvalidOperationException("Cannot queue message for sending.")));
+                case MezonMessageType.Heartbeat:
+                    return new ValueTask(Task.FromException(new InvalidOperationException("WebSocket heartbeat must be sent as a Ping envelope.")));
                 default:
-                    return default;
+                    return new ValueTask(Task.FromException(new InvalidOperationException($"Unsupported WebSocket message type '{type}'.")));
             }
         }
 
@@ -356,7 +281,7 @@ namespace Mezon.Net.Transport
                         }
                         finally
                         {
-                            MezonTransportFrameCodec.ReturnPooledSendBuffer(msgSend);
+                            MezonWebSocketFrameCodec.ReturnPooledSendBuffer(msgSend);
                         }
                     }
                 }
@@ -386,7 +311,7 @@ namespace Mezon.Net.Transport
             }
         }
 
-        private async Task DisconnectInternalAsync(int closeCode = 1000, string? reason = null)
+        private async Task DisconnectInternalAsync(int closeCode = 1000, string? reason = null, bool invokeClosed = true)
         {
             if (_state == ConnectionState.Disconnected || _state == ConnectionState.Disconnecting)
             {
@@ -410,17 +335,6 @@ namespace Mezon.Net.Transport
             }
 
             _internalCts?.Cancel();
-
-            if (_receivePipe != null)
-            {
-                try
-                {
-                    await _receivePipe.Writer.CompleteAsync().ConfigureAwait(false);
-                }
-                catch
-                {
-                }
-            }
 
             if (_wsClient != null)
             {
@@ -446,15 +360,16 @@ namespace Mezon.Net.Transport
                 _wsClient = null;
             }
 
-            _pipeReader = null;
-            _receivePipe = null;
-            _streams.Clear();
+            _apiChunkBuffers.Clear();
             _state = ConnectionState.Disconnected;
-            if (Closed != null)
+            if (invokeClosed && Closed != null)
             {
                 await Closed.Invoke(null).ConfigureAwait(false);
             }
         }
+
+        /// <inheritdoc cref="MezonNetworkTransporterExtensions.RemoveApiChunkBuffer(IMezonNetworkTransporter, int)"/>
+        public void RemoveApiChunkBuffer(int cid) => _apiChunkBuffers.TryRemove(cid, out _);
 
         public void Dispose()
         {
@@ -482,7 +397,7 @@ namespace Mezon.Net.Transport
                 _disconnectCts?.Dispose();
                 _internalCts?.Dispose();
                 _wsClient?.Dispose();
-                _streams.Clear();
+                _apiChunkBuffers.Clear();
             }
 
             _disposed = true;

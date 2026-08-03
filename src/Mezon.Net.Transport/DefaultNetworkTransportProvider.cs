@@ -1,6 +1,6 @@
 using System;
-using System.Runtime.InteropServices;
 using Mezon.Net.Core;
+using Mezon.Net.Core.Abstractions;
 using static Mezon.Net.Core.Abstractions.IMezonNetworkTransporter;
 
 namespace Mezon.Net.Transport
@@ -9,54 +9,43 @@ namespace Mezon.Net.Transport
     {
         public static readonly MezonNetworkTransportProvider Instance = Create();
 
+        /// <summary>
+        /// Creates a provider that picks TCP/WebSocket from the <paramref name="type"/>
+        /// passed at each call (after <see cref="TransportTypeExtensions.Resolve"/>).
+        /// </summary>
         public static MezonNetworkTransportProvider Create(TransportType type = TransportType.Auto)
         {
-
-            var targetType = type;
-
             if (type == TransportType.Auto)
             {
-                targetType = GetRecommendedTransport();
+                return requested => CreateTransporter(requested.Resolve());
             }
 
-            switch (targetType)
-            {
-                case TransportType.Tcp:
-                    return (type) =>
-                    {
-                        try
-                        {
-                            return new MezonNetworkTcpTransporter();
-                        }
-                        catch (PlatformNotSupportedException ex)
-                        {
-                            throw new PlatformNotSupportedException("The default TCPClientProvider is not supported on this platform.", ex);
-                        }
-                    };
-                case TransportType.WebSocket:
-                    return (type) =>
-                    {
-                        try
-                        {
-                            return new MezonNetworkWebSocketTransporter();
-                        }
-                        catch (PlatformNotSupportedException ex)
-                        {
-                            throw new PlatformNotSupportedException("The default TCPClientProvider is not supported on this platform.", ex);
-                        }
-                    };
-                default:
-                    throw new PlatformNotSupportedException("The default TCPClientProvider is not supported on this platform.");
-            }
+            var fixedType = type.Resolve();
+            return _ => CreateTransporter(fixedType);
         }
 
-        private static TransportType GetRecommendedTransport()
+        private static IMezonNetworkTransporter CreateTransporter(TransportType resolved)
         {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Create("BROWSER")))
+            try
             {
-                return TransportType.WebSocket;
+                return resolved switch
+                {
+                    TransportType.Tcp => new MezonNetworkTcpTransporter(),
+                    TransportType.WebSocket => new MezonNetworkWebSocketTransporter(),
+                    _ => throw new PlatformNotSupportedException(
+                        $"Transport type '{resolved}' is not supported."),
+                };
             }
-            return TransportType.Tcp;
+            catch (PlatformNotSupportedException)
+            {
+                throw;
+            }
+            catch (Exception ex) when (ex is not PlatformNotSupportedException)
+            {
+                throw new PlatformNotSupportedException(
+                    $"The default MezonNetwork transporter for '{resolved}' is not supported on this platform.",
+                    ex);
+            }
         }
     }
 }

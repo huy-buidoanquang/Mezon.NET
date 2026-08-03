@@ -33,7 +33,7 @@ namespace Mezon.Net.Logging
         ///     Gets the exception of this log entry.
         /// </summary>
         /// <returns>
-        ///     An <see cref="Mezon.LogMessage.Exception" /> object associated with an incident; otherwise <see langword="null" />.
+        ///     An <see cref="Exception"/> object associated with an incident; otherwise <see langword="null"/>.
         /// </returns>
         public Exception? Exception { get; }
 

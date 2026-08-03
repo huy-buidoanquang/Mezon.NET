@@ -16,6 +16,8 @@ public sealed class DevTransportProbe
 {
     private const string DevApiHost = "dev-mezon.nccsoft.vn";
     private const string DevApiPort = "8088";
+    private const string DevSocketHost = "dev-mezon-sock.nccsoft.vn";
+    private const int DevSocketPort = 4433;
     private const string DevEmail = "";
     private const string DevPassword = "";
 
@@ -29,8 +31,7 @@ public sealed class DevTransportProbe
 
         var options = new MezonSocketClientOptions(DevApiHost, DevApiPort, useSSL: true);
         var client = new MezonClient(options);
-        var auth = await client.AuthenticateEmailAsync(DevEmail, DevPassword).ConfigureAwait(false);
-        var session = new Mezon.Net.Api.Session(auth);
+        var session = await client.AuthenticateEmailAsync(CreateAuthRequest()).ConfigureAwait(false);
 
         Assert.False(string.IsNullOrEmpty(session.SessionId), "SessionId required");
         Assert.False(string.IsNullOrEmpty(session.AuthToken), "AuthToken required");
@@ -38,8 +39,8 @@ public sealed class DevTransportProbe
         var tokensToTry = new[] { session.SessionId, session.AuthToken };
         var endpoints = new (string host, int port, bool ssl, TransportType type)[]
         {
-            (MezonNetworkSettings.DefaultSocketHost, MezonNetworkSettings.DefaultSocketPort, true, TransportType.WebSocket),
-            (MezonNetworkSettings.DefaultSocketHost, MezonNetworkSettings.DefaultSocketPort, true, TransportType.Tcp),
+            (DevSocketHost, DevSocketPort, true, TransportType.WebSocket),
+            (DevSocketHost, DevSocketPort, true, TransportType.Tcp),
             ("dev-mezon.nccsoft.vn", 7349, true, TransportType.WebSocket),
             ("dev-mezon.nccsoft.vn", 7349, true, TransportType.Tcp),
         };
@@ -106,4 +107,15 @@ public sealed class DevTransportProbe
             transporter.Dispose();
         }
     }
+
+    private static EmailAuthenticationRequest CreateAuthRequest() =>
+        new()
+        {
+            Account = new AccountEmailRequest
+            {
+                Email = DevEmail,
+                Password = DevPassword,
+            },
+            Create = false,
+        };
 }

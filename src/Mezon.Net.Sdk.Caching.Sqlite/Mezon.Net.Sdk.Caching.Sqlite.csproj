@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="../../Mezon.Net.targets" />
+
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.1;net6.0;net8.0;net9.0;net10.0;</TargetFrameworks>
+    <WarningLevel>5</WarningLevel>
+    <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
+    <Nullable>enable</Nullable>
+    <WarningsAsErrors>$(WarningsAsErrors);CS8600;CS8602;CS8603</WarningsAsErrors>
+    <NoWarn>$(NoWarn);NU1903</NoWarn>
+    <PackageId>Mezon.Net.Sdk.Caching.Sqlite</PackageId>
+    <Description>Optional SQLite-backed persistent message cache for Mezon.Net SDK applications.</Description>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="9.0.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Mezon.Net.Sdk.Caching.Sqlite.Tests" />
+  </ItemGroup>
+</Project>

@@ -1,20 +1,18 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Mezon.Net.Api;
 using Mezon.Net.Core;
 using Mezon.Net.Internal.Api;
-using Mezon.Net.Queue;
+using Mezon.Net.Internal.Realtime;
+using MezonSession = Mezon.Net.Internal.Api.Session;
 
 namespace Mezon.Net.Abstractions
 {
-    public interface IMezonApiClient : IDisposable, IAsyncDisposable
+    internal interface IMezonApiClient : IDisposable, IAsyncDisposable
     {
         event Func<string, string, double, Task> ApiSentRequestEvent;
 
         LoginState LoginState { get; }
-
-        internal RequestQueue RequestQueue { get; }
 
         Task LoginAsync(TokenType tokenType, string token, RequestOptions? options = null);
 
@@ -26,441 +24,240 @@ namespace Mezon.Net.Abstractions
 
         internal string AuthToken { get; }
 
-        Task SendNoResAsync(string method, string endpoint, BucketId? bucketId = null, ApiBucketType clientBucket = ApiBucketType.Unbucketed, RequestOptions? options = null);
+        Task SendNoResAsync(string method, string endpoint, RequestOptions? options = null);
 
-        Task SendJsonNoResAsync(string method, string endpoint, object payload, BucketId? bucketId = null, ApiBucketType clientBucket = ApiBucketType.Unbucketed, RequestOptions? options = null);
+        Task SendJsonNoResAsync(string method, string endpoint, object payload, RequestOptions? options = null);
 
-        Task SendMultipartNoResAsync(string method, string endpoint, IReadOnlyDictionary<string, object> multipartArgs, BucketId? bucketId = null, ApiBucketType clientBucket = ApiBucketType.Unbucketed, RequestOptions? options = null);
+        Task SendMultipartNoResAsync(string method, string endpoint, IReadOnlyDictionary<string, object> multipartArgs, RequestOptions? options = null);
 
-        Task<System.IO.Stream> SendAsync(string method, string endpoint, BucketId? bucketId = null, ApiBucketType clientBucket = ApiBucketType.Unbucketed, RequestOptions? options = null);
+        Task<System.IO.Stream> SendAsync(string method, string endpoint, RequestOptions? options = null);
 
-        Task<System.IO.Stream> SendJsonAsync(string method, string endpoint, object payload, BucketId? bucketId = null, ApiBucketType clientBucket = ApiBucketType.Unbucketed, RequestOptions? options = null);
+        Task<System.IO.Stream> SendJsonAsync(string method, string endpoint, object payload, RequestOptions? options = null);
 
-        Task<System.IO.Stream> SendMultipartAsync(string method, string endpoint, IReadOnlyDictionary<string, object> multipartArgs, BucketId? bucketId = null, ApiBucketType clientBucket = ApiBucketType.Unbucketed, RequestOptions? options = null);
+        Task<System.IO.Stream> SendMultipartAsync(string method, string endpoint, IReadOnlyDictionary<string, object> multipartArgs, RequestOptions? options = null);
 
         void ConfigureGatewayBasePath(string gatewayBasePath);
 
         void ConfigureApiBasePath(string apiBasePath);
 
-        //// Account management
-        //Task DeleteAccountAsync();
-        //Task<Account> GetAccountAsync();
-        ////// Authentication
-        //Task<AuthenticationResponse> CheckLoginRequestAsync(string basicAuthUsername, string basicAuthPassword, Api.ConfirmLoginRequest body, RequestOptions? options = null);
-        //Task ConfirmLoginAsync(Api.ConfirmLoginRequest body, RequestOptions options);
-        Task<Api.LoginIDResponse> CreateQRLoginAsync(string basicAuthUsername, string basicAuthPassword, LoginIDRequest body, RequestOptions? options = null);
-        Task<AuthenticationResponse> AuthenticateEmailAsync(string basicAuthUsername, string basicAuthPassword, EmailAuthenticationRequest body, RequestOptions? options = null);
-        //Task<AuthenticationResponse> AuthenticateMezonAsync(string basicAuthUsername, string basicAuthPassword, AccountMezonRequest body, AccountMezonParams args, RequestOptions? options = null);
-        //Task<AccountConfirmResponse> AuthenticateSMSOTPAsync(string basicAuthUsername, string basicAuthPassword, AuthenticateSMSRequest body, RequestOptions? options = null);
-        Task<AuthenticationResponse> RefreshSessionAsync(string basicAuthUsername, string basicAuthPassword, Api.SessionRefreshRequest body, RequestOptions? options = null);
-        Task<AuthenticationResponse> AuthenticateAppAsync(string basicAuthUsername, string basicAuthPassword, AppAuthenticationRequest body, RequestOptions? options = null);
-        Task<bool> AuthenticateAppLogoutAsync(AppAuthenticationLogoutRequest body, RequestOptions? options = null);
-
-        //#region Friends
-        //Task<Mezon.Net.Internal.Protos.AddFriendsResponse> AddFriendsAsync(IEnumerable<long>? ids = null, IEnumerable<string>? usernames = null, RequestOptions? options = null);
-        //Task BlockFriendsAsync(IEnumerable<long>? ids = null, IEnumerable<string>? usernames = null, RequestOptions? options = null);
-        //Task UnblockFriendsAsync(IEnumerable<long>? ids = null, IEnumerable<string>? usernames = null, RequestOptions? options = null);
-        //Task DeleteFriendsAsync(IEnumerable<long>? ids = null, IEnumerable<string>? usernames = null, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.FriendList> ListFriendsAsync(int? state = null, int? limit = null, string? cursor = null, RequestOptions? options = null);
-        //#endregion
-
-        //#region Clan
-        Task<ClanDescList> ListClanDescsAsync(PaginationParams args, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.ClanDesc> CreateClanDescAsync(string clanName, string? logo = null, string? banner = null, RequestOptions? options = null);
-        //Task DeleteClanDescAsync(long clanId, RequestOptions? options = null);
-        //Task UpdateClanDescAsync(Mezon.Net.Internal.Protos.UpdateClanDescRequest body, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.ClanUserList> ListClanUsersAsync(long clanId, RequestOptions? options = null);
-        //Task RemoveClanUsersAsync(long clanId, IEnumerable<long> userIds, RequestOptions? options = null);
-        //Task BanClanUsersAsync(long clanId, long channelId, IEnumerable<long> userIds, int? banTime = null, string? reason = null, RequestOptions? options = null);
-        ////Task<ClanDescriptionProfileResponse> GetClanDescriptionProfileAsync(string clanId);
-        ////Task UpdateClanDescriptionProfileAsync(string clanId, object body, RequestOptions? options = null);
-        ////Task<CheckDuplicateClanNameResponse> CheckDuplicateClanNameAsync(string clanName);
-        //#endregion
-
-        //#region Channel
-        //Task<Mezon.Net.Internal.Protos.ChannelDescription> CreateChannelDescAsync(Mezon.Net.Internal.Protos.CreateChannelDescRequest body, RequestOptions? options = null);
-        //Task DeleteChannelDescAsync(long channelId, RequestOptions? options = null);
-        //Task UpdateChannelDescAsync(Mezon.Net.Internal.Protos.UpdateChannelDescRequest body, RequestOptions? options = null);
-        //Task AddChannelUsersAsync(long channelId, IEnumerable<long> userIds, RequestOptions? options = null);
-        //Task RemoveChannelUsersAsync(long channelId, IEnumerable<long> userIds, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.ChannelMessageList> ListChannelMessagesAsync(long clanId, long channelId, long? messageId = null, int? direction = null, int? limit = null, long? topicId = null, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.ChannelUserList> ListChannelUsersAsync(long clanId, long channelId, int channelType, int? limit = null, int? state = null, string? cursor = null, RequestOptions? options = null);
-        ////Task<ChannelAppsResponse> GetChannelAppsAsync(string? clanId = null, CancellationToken cancellationToken = default);
-        //#endregion
-
-        //#region Users
-        //Task UpdateUserAsync(Mezon.Net.Internal.Protos.UpdateUsersRequest body, RequestOptions? options = null);
-        ////Task<UsersResponse> GetUsersAsync(IEnumerable<string>? ids = null, IEnumerable<string>? usernames = null);
-        ////Task UpdateUserStatusAsync(UpdateUserStatusRequest body, RequestOptions? options = null);
-        ////Task<UserStatusResponse> GetUserStatusAsync(string bearerToken);
-        //#endregion
-
-        //#region Roles
-        //Task<Mezon.Net.Internal.Protos.Role> CreateRoleAsync(Mezon.Net.Internal.Protos.CreateRoleRequest body, RequestOptions? options = null);
-        //Task DeleteRoleAsync(long roleId, RequestOptions? options = null);
-        //Task UpdateRoleAsync(Mezon.Net.Internal.Protos.UpdateRoleRequest body, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.RoleListEventResponse> ListRolesAsync(long? clanId = null, int? limit = null, int? state = null, string? cursor = null, RequestOptions? options = null);
-        //#endregion
-
-        //#region Events
-        //Task<Mezon.Net.Internal.Protos.EventManagement> CreateEventAsync(Mezon.Net.Internal.Protos.CreateEventRequest body, RequestOptions? options = null);
-        //Task DeleteEventAsync(long eventId, RequestOptions? options = null);
-        //Task UpdateEventAsync(Mezon.Net.Internal.Protos.UpdateEventRequest body, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.EventList> ListEventsAsync(long? clanId = null, RequestOptions? options = null);
-        //#endregion
-        //#region Messages (Advanced)
-        //Task<Mezon.Net.Internal.Protos.SearchMessageResponse> SearchMessageAsync(Mezon.Net.Internal.Protos.SearchMessageRequest body, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.ChannelMessage> CreatePinMessageAsync(Mezon.Net.Internal.Protos.PinMessageRequest body, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.PinMessagesList> GetPinMessagesListAsync(long channelId, long clanId, RequestOptions? options = null);
-        //Task DeletePinMessageAsync(long messageId, long channelId, long clanId, RequestOptions? options = null);
-        //Task MarkAsReadAsync(Mezon.Net.Internal.Protos.MarkAsReadRequest body, RequestOptions? options = null);
-        //#endregion
-
-        //#region Emoji & Stickers
-        //Task CreateClanEmojiAsync(Mezon.Net.Internal.Protos.ClanEmojiCreateRequest body, RequestOptions? options = null);
-        //Task UpdateClanEmojiByIdAsync(Mezon.Net.Internal.Protos.ClanEmojiUpdateRequest body, RequestOptions? options = null);
-        //Task DeleteClanEmojiByIdAsync(long emojiId, long clanId, RequestOptions? options = null);
-        //Task AddClanStickerAsync(Mezon.Net.Internal.Protos.ClanStickerAddRequest body, RequestOptions? options = null);
-        //Task UpdateClanStickerByIdAsync(Mezon.Net.Internal.Protos.ClanStickerUpdateByIdRequest body, RequestOptions? options = null);
-        //Task DeleteClanStickerByIdAsync(long stickerId, long clanId, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.EmojiListedResponse> GetListEmojisByUserIdAsync(RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.StickerListedResponse> GetListStickersByUserIdAsync(RequestOptions? options = null);
-        //#endregion
-
-        //#region Webhooks
-        //Task<Mezon.Net.Internal.Protos.WebhookGenerateResponse> GenerateWebhookAsync(Mezon.Net.Internal.Protos.WebhookCreateRequest body, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.WebhookListResponse> ListWebhookByChannelIdAsync(long channelId, long clanId, RequestOptions? options = null);
-        //Task UpdateWebhookByIdAsync(Mezon.Net.Internal.Protos.WebhookUpdateRequestById body, RequestOptions? options = null);
-        //Task DeleteWebhookByIdAsync(Mezon.Net.Internal.Protos.WebhookDeleteRequestById body, RequestOptions? options = null);
-        //#endregion
-
-        //#region System Messages
-        //Task CreateSystemMessageAsync(Mezon.Net.Internal.Protos.SystemMessageRequest body, RequestOptions? options = null);
-        //Task UpdateSystemMessageAsync(Mezon.Net.Internal.Protos.SystemMessageRequest body, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.SystemMessage> GetSystemMessageByClanIdAsync(long clanId, RequestOptions? options = null);
-        //Task DeleteSystemMessageAsync(long clanId, RequestOptions? options = null);
-        //#endregion
-
-        //#region Ordering
-        //Task UpdateRoleOrderAsync(Mezon.Net.Internal.Protos.UpdateRoleOrderRequest body, RequestOptions? options = null);
-        //Task UpdateClanOrderAsync(Mezon.Net.Internal.Protos.UpdateClanOrderRequest body, RequestOptions? options = null);
-        //#endregion
-
-        //#region Encryption
-        //Task<Mezon.Net.Internal.Protos.ChanEncryptionMethod> GetChanEncryptionMethodAsync(long channelId, RequestOptions? options = null);
-        //Task SetChanEncryptionMethodAsync(Mezon.Net.Internal.Protos.ChanEncryptionMethod body, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.GetPubKeysResponse> GetPublicKeysAsync(IEnumerable<long> userIds, RequestOptions? options = null);
-        //Task PushPublicKeyAsync(Mezon.Net.Internal.Protos.PushPubKeyRequest body, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.GetKeyServerResp> GetKeyServerAsync(RequestOptions? options = null);
-        //#endregion
-
-        //#region Onboarding
-        //Task<Mezon.Net.Internal.Protos.ListOnboardingResponse> ListOnboardingAsync(long clanId, int? guideType = null, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.OnboardingItem> GetOnboardingDetailAsync(long id, long clanId, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.ListOnboardingResponse> CreateOnboardingAsync(Mezon.Net.Internal.Protos.CreateOnboardingRequest body, RequestOptions? options = null);
-        //Task UpdateOnboardingAsync(Mezon.Net.Internal.Protos.UpdateOnboardingRequest body, RequestOptions? options = null);
-        //Task DeleteOnboardingAsync(long id, long clanId, RequestOptions? options = null);
-        //#endregion
-
-        //#region Activity
-        //Task<Mezon.Net.Internal.Protos.ListUserActivity> ListActivityAsync(RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.UserActivity> CreateActivityAsync(Mezon.Net.Internal.Protos.CreateActivityRequest body, RequestOptions? options = null);
-        //#endregion
-
-        //#region Mezon Meet
-        //Task<Mezon.Net.Internal.Protos.GenerateMezonMeetResponse> CreateExternalMezonMeetAsync(RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.GenerateMeetTokenResponse> GenerateMeetTokenAsync(Mezon.Net.Internal.Protos.GenerateMeetTokenRequest body, RequestOptions? options = null);
-        //#endregion
-
-        //#region Ownership
-        //Task TransferOwnershipAsync(Mezon.Net.Internal.Protos.TransferOwnershipRequest body, RequestOptions? options = null);
-        //#endregion
-
-        //#region Permissions
-        //Task<Mezon.Net.Internal.Protos.PermissionList> GetListPermissionAsync(RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.PermissionList> ListRolePermissionsAsync(long roleId, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.RoleUserList> ListRoleUsersAsync(long roleId, int? limit = null, string? cursor = null, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.UserPermissionInChannelListResponse> ListUserPermissionInChannelAsync(long clanId, long channelId, RequestOptions? options = null);
-        //#endregion
-
-        //#region Notifications
-        //Task DeleteNotificationsAsync(IEnumerable<long>? ids = null, int? category = null, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.NotificationList> ListNotificationsAsync(long? clanId = null, long? notificationId = null, int? limit = null, int? direction = null, RequestOptions? options = null);
-        //#endregion
-
-        //#region Category
-        //Task<Mezon.Net.Internal.Protos.CategoryDesc> CreateCategoryDescAsync(Mezon.Net.Internal.Protos.CreateCategoryDescRequest body, RequestOptions? options = null);
-        //Task DeleteCategoryDescAsync(long categoryId, long clanId, RequestOptions? options = null);
-        //Task UpdateCategoryAsync(Mezon.Net.Internal.Protos.UpdateCategoryDescRequest body, RequestOptions? options = null);
-        //Task UpdateCategoryOrderAsync(Mezon.Net.Internal.Protos.UpdateCategoryOrderRequest body, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.CategoryDescList> ListCategoryDescsAsync(long clanId, RequestOptions? options = null);
-        //#endregion
-
-        //#region Invites
-        //Task<Mezon.Net.Internal.Protos.LinkInviteUser> CreateLinkInviteUserAsync(Mezon.Net.Internal.Protos.LinkInviteUserRequest body, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.InviteUserRes> InviteUserAsync(long inviteId, RequestOptions? options = null);
-        //#endregion
-
-        //#region Notification Settings
-        //Task SetNotificationClanSettingAsync(Mezon.Net.Internal.Protos.SetDefaultNotificationRequest body, RequestOptions? options = null);
-        //Task SetNotificationChannelSettingAsync(Mezon.Net.Internal.Protos.SetNotificationRequest body, RequestOptions? options = null);
-        //Task SetMuteNotificationCategoryAsync(Mezon.Net.Internal.Protos.SetMuteRequest body, RequestOptions? options = null);
-        //Task SetMuteNotificationChannelAsync(Mezon.Net.Internal.Protos.SetMuteRequest body, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.NotificationChannelCategorySettingList> GetChannelCategoryNotificationSettingsAsync(long clanId, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.NotificationSetting> GetClanNotificationSettingAsync(long clanId, RequestOptions? options = null);
-        //#endregion
-
-        //#region User Status
-        //Task<Mezon.Net.Internal.Protos.UserStatus> GetUserStatusAsync(RequestOptions? options = null);
-        //Task UpdateUserStatusAsync(Mezon.Net.Internal.Protos.UserStatusUpdate body, RequestOptions? options = null);
-        //#endregion
-
-        //#region Apps
-        //Task<Mezon.Net.Internal.Protos.App> AddAppAsync(Mezon.Net.Internal.Protos.AddAppRequest body, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.AppList> ListAppsAsync(string? filter = null, bool? tombstones = null, string? cursor = null, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.App> GetAppAsync(long id, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.App> UpdateAppAsync(Mezon.Net.Internal.Protos.UpdateAppRequest body, RequestOptions? options = null);
-        //Task DeleteAppAsync(long id, bool? recordDeletion = null, RequestOptions? options = null);
-        //Task AddAppToClanAsync(long appId, long clanId, RequestOptions? options = null);
-        //#endregion
-
-        //#region Audit Log
-        //Task<Mezon.Net.Internal.Protos.ListAuditLog> ListAuditLogAsync(long? clanId = null, string? actionLog = null, long? userId = null, string? dateLog = null, RequestOptions? options = null);
-        //#endregion
-
-        //#region Storage
-        //Task<Mezon.Net.Internal.Protos.UploadAttachment> UploadAttachmentFileAsync(Mezon.Net.Internal.Protos.UploadAttachmentRequest body, RequestOptions? options = null);
-        //#endregion
-
-        //#region User Events
-        //Task AddUserEventAsync(Mezon.Net.Internal.Protos.UserEventRequest body, RequestOptions? options = null);
-        //Task DeleteUserEventAsync(long clanId, long eventId, RequestOptions? options = null);
-        //#endregion
-
-        //#region Healthcheck
-        //Task HealthcheckAsync(RequestOptions? options = null);
-        //#endregion
-
-        //#region Channel Descs
-        //Task<Mezon.Net.Internal.Protos.ChannelDescList> ListChannelDescsAsync(long clanId, int? limit = null, int? state = null, string? cursor = null, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.ChannelDescription> GetChannelDetailAsync(long channelId, RequestOptions? options = null);
-        //#endregion
-
-        //#region Banned Users
-        //Task<Mezon.Net.Internal.Protos.BannedUserList> ListBannedUsersAsync(long clanId, RequestOptions? options = null);
-        //Task UnbanClanUsersAsync(long clanId, IEnumerable<long> userIds, RequestOptions? options = null);
-        //#endregion
-
-        //#region FCM Device Token
-        //Task<Mezon.Net.Internal.Protos.RegistFcmDeviceTokenResponse> RegistFCMDeviceTokenAsync(Mezon.Net.Internal.Protos.RegistFcmDeviceTokenRequest body, RequestOptions? options = null);
-        //#endregion
-
-        //#region User Clans
-        //Task<Mezon.Net.Internal.Protos.AllUserClans> ListUserClansByUserIdAsync(RequestOptions? options = null);
-        //#endregion
-
-        //#region Channel Apps
-        //Task<Mezon.Net.Internal.Protos.ListChannelAppsResponse> ListChannelAppsAsync(long? clanId = null, RequestOptions? options = null);
-        //#endregion
-
-        //#region Direct Messages
-        //Task CloseDMByChannelIdAsync(long channelId, RequestOptions? options = null);
-        //Task OpenDMByChannelIdAsync(long channelId, RequestOptions? options = null);
-        //#endregion
-
-        //#region User Profile
-        //Task<Mezon.Net.Internal.Protos.ClanProfile> GetUserProfileOnClanAsync(long clanId, RequestOptions? options = null);
-        //Task UpdateUserProfileByClanAsync(Mezon.Net.Internal.Protos.UpdateClanProfileRequest body, RequestOptions? options = null);
-        //#endregion
-
-        //#region Thread
-        //Task LeaveThreadAsync(long channelId, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.ChannelDescListNoPool> ListThreadDescsAsync(long channelId, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.ChannelDescList> SearchThreadAsync(Mezon.Net.Internal.Protos.SearchThreadRequest body, RequestOptions? options = null);
-        //#endregion
-
-        //#region Account Linking
-        //Task<Mezon.Net.Internal.Protos.LinkAccountConfirmRequest> LinkSMSAsync(Mezon.Net.Internal.Protos.AccountMezon body, RequestOptions? options = null);
-        //Task ConfirmLinkMezonOTPAsync(Mezon.Net.Internal.Protos.LinkAccountConfirmRequest body, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.LinkAccountConfirmRequest> LinkEmailAsync(Mezon.Net.Internal.Protos.AccountEmail body, RequestOptions? options = null);
-        //Task UnlinkMezonAsync(Mezon.Net.Internal.Protos.AccountMezon body, RequestOptions? options = null);
-        //Task UnlinkEmailAsync(Mezon.Net.Internal.Protos.AccountEmail body, RequestOptions? options = null);
-        //#endregion
-
-        //#region Banned Check
-        //Task<Mezon.Net.Internal.Protos.IsBannedResponse> IsBannedAsync(long channelId, RequestOptions? options = null);
-        //#endregion
-
-        //#region Role Channel Permission
-        //Task AddRolesChannelDescAsync(Mezon.Net.Internal.Protos.AddRoleChannelDescRequest body, RequestOptions? options = null);
-        //Task DeleteRoleChannelDescAsync(long roleId, RequestOptions? options = null);
-        //Task SetRoleChannelPermissionAsync(Mezon.Net.Internal.Protos.UpdateRoleChannelRequest body, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.RoleList> GetRoleOfUserInTheClanAsync(long clanId, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.PermissionRoleChannelListEventResponse> GetPermissionByRoleIdChannelIdAsync(Mezon.Net.Internal.Protos.PermissionRoleChannelListEventRequest body, RequestOptions? options = null);
-        //#endregion
-
-        //#region Channel Attachments
-        //Task<Mezon.Net.Internal.Protos.ChannelAttachmentList> ListChannelAttachmentAsync(long channelId, RequestOptions? options = null);
-        //#endregion
-
-        //#region Voice Channel Users
-        //Task<Mezon.Net.Internal.Protos.VoiceChannelUserList> ListChannelVoiceUsersAsync(long clanId, long channelId, int channelType, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.StreamingChannelUserList> ListStreamingChannelUsersAsync(long clanId, long channelId, int channelType, RequestOptions? options = null);
-        //#endregion
-
-        //#region Channel By User
-        //Task<Mezon.Net.Internal.Protos.ChannelDescListNoPool> ListChannelByUserIdAsync(RequestOptions? options = null);
-        //#endregion
-
-        //#region Notification Category
-        //Task<Mezon.Net.Internal.Protos.NotificationUserChannel> GetNotificationChannelAsync(Mezon.Net.Internal.Protos.NotificationChannel body, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.NotificationUserChannel> GetNotificationCategoryAsync(Mezon.Net.Internal.Protos.DefaultNotificationCategory body, RequestOptions? options = null);
-        //Task SetNotificationCategorySettingAsync(Mezon.Net.Internal.Protos.SetNotificationRequest body, RequestOptions? options = null);
-        //Task DeleteNotificationCategorySettingAsync(Mezon.Net.Internal.Protos.DefaultNotificationCategory body, RequestOptions? options = null);
-        //Task DeleteNotificationChannelAsync(Mezon.Net.Internal.Protos.NotificationChannel body, RequestOptions? options = null);
-        //#endregion
-
-        //#region Inbox Messages
-        //Task<Mezon.Net.Internal.Protos.ChannelMessage> CreateMessage2InboxAsync(Mezon.Net.Internal.Protos.Message2InboxRequest body, RequestOptions? options = null);
-        //#endregion
-
-        //#region Channel Settings
-        //Task<Mezon.Net.Internal.Protos.ChannelSettingListResponse> ListChannelSettingAsync(long clanId, RequestOptions? options = null);
-        //#endregion
-
-        //#region Username
-        //Task<Mezon.Net.Internal.Protos.Session> UpdateUsernameAsync(Mezon.Net.Internal.Protos.UpdateUsernameRequest body, RequestOptions? options = null);
-        //#endregion
-
-        //#region Channel Private
-        //Task UpdateChannelPrivateAsync(Mezon.Net.Internal.Protos.ChangeChannelPrivateRequest body, RequestOptions? options = null);
-        //#endregion
-
-        //#region Channel Category
-        //Task ChangeChannelCategoryAsync(Mezon.Net.Internal.Protos.ChangeChannelCategoryRequest body, RequestOptions? options = null);
-        //#endregion
-
-        //#region Emoji Recent
-        //Task<Mezon.Net.Internal.Protos.EmojiRecentList> EmojiRecentListAsync(RequestOptions? options = null);
-        //#endregion
-
-        //#region Channel Users UC
-        //Task<Mezon.Net.Internal.Protos.AllUsersAddChannelResponse> ListChannelUsersUCAsync(Mezon.Net.Internal.Protos.AllUsersAddChannelRequest body, RequestOptions? options = null);
-        //#endregion
-
-        //#region Channel Canvas
-        //Task<Mezon.Net.Internal.Protos.EditChannelCanvasResponse> EditChannelCanvasesAsync(Mezon.Net.Internal.Protos.EditChannelCanvasRequest body, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.ChannelCanvasListResponse> GetChannelCanvasListAsync(long channelId, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.ChannelCanvasDetailResponse> GetChannelCanvasDetailAsync(long id, RequestOptions? options = null);
-        //Task DeleteChannelCanvasAsync(long canvasId, RequestOptions? options = null);
-        //#endregion
-
-        //#region Favorite Channel
-        //Task<Mezon.Net.Internal.Protos.ListFavoriteChannelResponse> GetListFavoriteChannelAsync(long clanId, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.AddFavoriteChannelResponse> AddChannelFavoriteAsync(Mezon.Net.Internal.Protos.AddFavoriteChannelRequest body, RequestOptions? options = null);
-        //Task RemoveChannelFavoriteAsync(long channelId, RequestOptions? options = null);
-        //#endregion
-
-        //#region Clan Webhook
-        //Task<Mezon.Net.Internal.Protos.GenerateClanWebhookResponse> GenerateClanWebhookAsync(Mezon.Net.Internal.Protos.GenerateClanWebhookRequest body, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.ListClanWebhookResponse> ListClanWebhookAsync(long clanId, RequestOptions? options = null);
-        //Task UpdateClanWebhookByIdAsync(Mezon.Net.Internal.Protos.UpdateClanWebhookRequest body, RequestOptions? options = null);
-        //Task DeleteClanWebhookByIdAsync(long id, RequestOptions? options = null);
-        //#endregion
-
-        //#region Onboarding Step
-        //Task<Mezon.Net.Internal.Protos.ListOnboardingStepResponse> ListOnboardingStepAsync(long clanId, RequestOptions? options = null);
-        //Task UpdateOnboardingStepAsync(Mezon.Net.Internal.Protos.UpdateOnboardingStepRequest body, RequestOptions? options = null);
-        //#endregion
-
-        //#region Clan Unread Message Indicator
-        //Task<Mezon.Net.Internal.Protos.ListClanUnreadMsgIndicatorResponse> ListClanUnreadMsgIndicatorAsync(long clanId, RequestOptions? options = null);
-        //#endregion
-
-        //#region Quick Menu Access
-        //Task DeleteQuickMenuAccessAsync(Mezon.Net.Internal.Protos.QuickMenuAccess body, RequestOptions? options = null);
-        //Task AddQuickMenuAccessAsync(Mezon.Net.Internal.Protos.QuickMenuAccess body, RequestOptions? options = null);
-        //Task UpdateQuickMenuAccessAsync(Mezon.Net.Internal.Protos.QuickMenuAccess body, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.QuickMenuAccessList> ListQuickMenuAccessAsync(long botId, long channelId, int? menuType = null, RequestOptions? options = null);
-        //#endregion
-
-        //#region Follower
-        //Task<Mezon.Net.Internal.Protos.IsFollowerResponse> IsFollowerAsync(Mezon.Net.Internal.Protos.IsFollowerRequest body, RequestOptions? options = null);
-        //#endregion
-
-        //#region Channel Messages
-        //Task<Mezon.Protobuf.Realtime.ChannelMessageAck> SendChannelMessageAsync(Mezon.Protobuf.Realtime.ChannelMessageSend body, RequestOptions? options = null);
-        //Task UpdateChannelMessageAsync(Mezon.Protobuf.Realtime.ChannelMessageUpdate body, RequestOptions? options = null);
-        //Task DeleteChannelMessageAsync(Mezon.Protobuf.Realtime.ChannelMessageRemove body, RequestOptions? options = null);
-        //#endregion
-
-        //#region Mezon Meet Participant
-        //Task RemoveParticipantMezonMeetAsync(Mezon.Net.Internal.Protos.MeetParticipantRequest body, RequestOptions? options = null);
-        //Task MuteParticipantMezonMeetAsync(Mezon.Net.Internal.Protos.MeetParticipantRequest body, RequestOptions? options = null);
-        //#endregion
-
-        //#region Room Channel Apps
-        //Task<Mezon.Net.Internal.Protos.CreateRoomChannelApps> CreateRoomChannelAppsAsync(Mezon.Net.Internal.Protos.CreateRoomChannelApps body, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.GenerateHashChannelAppsResponse> GenerateHashChannelAppsAsync(Mezon.Net.Internal.Protos.GenerateHashChannelAppsRequest body, RequestOptions? options = null);
-        //#endregion
-
-        //#region OAuth Client
-        //Task<Mezon.Net.Internal.Protos.MezonOauthClient> GetMezonOauthClientAsync(Mezon.Net.Internal.Protos.GetMezonOauthClientRequest body, RequestOptions? options = null);
-        //Task DeleteMezonOauthClientAsync(Mezon.Net.Internal.Protos.MezonOauthClient body, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.MezonOauthClient> UpdateMezonOauthClientAsync(Mezon.Net.Internal.Protos.MezonOauthClient body, RequestOptions? options = null);
-        //#endregion
-
-        //#region SD Topics
-        //Task<Mezon.Net.Internal.Protos.SdTopicList> ListSdTopicAsync(Mezon.Net.Internal.Protos.ListSdTopicRequest body, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.SdTopic> GetTopicDetailAsync(Mezon.Net.Internal.Protos.SdTopicDetailRequest body, RequestOptions? options = null);
-        //Task<Mezon.Net.Internal.Protos.SdTopic> CreateSdTopicAsync(Mezon.Net.Internal.Protos.SdTopicRequest body, RequestOptions? options = null);
-        //Task DeleteSdTopicAsync(Mezon.Net.Internal.Protos.DeleteSdTopicRequest body, RequestOptions? options = null);
-        //#endregion
-
-        //#region Interactive
-        //Task MessageButtonClickAsync(Mezon.Protobuf.Realtime.MessageButtonClicked body, RequestOptions? options = null);
-        //Task DropdownBoxSelectedAsync(Mezon.Protobuf.Realtime.DropdownBoxSelected body, RequestOptions? options = null);
-        //#endregion
-
-        //#region Voice State
-        //Task UpdateMezonVoiceStateAsync(Mezon.Protobuf.Realtime.HandleParticipantMeetStateEvent body, RequestOptions? options = null);
-        //#endregion
-
-        //#region Archived Thread
-        //Task ActiveArchivedThreadAsync(Mezon.Protobuf.Realtime.ActiveArchivedThread body, RequestOptions? options = null);
-        //#endregion
-
-        //#region AI Agent
-        //Task AddAgentToChannelAsync(Mezon.Net.Internal.Protos.UpdateAIAgentRequest body, RequestOptions? options = null);
-        //Task DisconnectAgentAsync(Mezon.Net.Internal.Protos.UpdateAIAgentRequest body, RequestOptions? options = null);
-        //#endregion
-
-        //#region Report Message
-        //Task ReportMessageAbuseAsync(Mezon.Net.Internal.Protos.ReportMessageAbuseReqest body, RequestOptions? options = null);
-        //#endregion
-
-        //#region Registration
-        //Task<AuthenticationResponse> RegistrationEmailAsync(string basicAuthUsername, string basicAuthPassword, Mezon.Net.Internal.Protos.RegistrationEmailRequest body, RequestOptions? options = null);
-        //#endregion
-
-        //#region OAuth File Upload
-        //Task<Mezon.Net.Internal.Protos.UploadAttachment> UploadOauthFileAsync(Mezon.Net.Internal.Protos.UploadAttachmentRequest body, RequestOptions? options = null);
-        //#endregion
-
-        //#region Account Update
-        //Task UpdateAccountAsync(Mezon.Net.Internal.Protos.UpdateAccountRequest body, RequestOptions? options = null);
-        //#endregion
-
-        //#region Streaming Callback
-        //Task<Mezon.Net.Internal.Protos.StreamHttpCallbackResponse> StreamingServerCallbackAsync(Mezon.Net.Internal.Protos.StreamHttpCallbackRequest body, RequestOptions? options = null);
-        //#endregion
-
-        //#region For Sale Items
-        //Task<Mezon.Net.Internal.Protos.ForSaleItemList> ListForSaleItemsAsync(Mezon.Net.Internal.Protos.ListForSaleItemsRequest body, RequestOptions? options = null);
-        //#endregion
-
-        //#region Clan Webhook Handler
-        //Task HandleClanWebhookAsync(Mezon.Net.Internal.Protos.ClanWebhookHandlerRequest body, RequestOptions? options = null);
-        //#endregion
+        Task<LoginIDResponse> CreateQRLoginAsync(string basicAuthUsername, string basicAuthPassword, LoginRequest body, RequestOptions? options = null);
+        Task<MezonSession> CheckLoginRequestAsync(string basicAuthUsername, string basicAuthPassword, ConfirmLoginRequest body, RequestOptions? options = null);
+        Task ConfirmLoginAsync(ConfirmLoginRequest body, RequestOptions? options = null);
+        Task<MezonSession> AuthenticateEmailAsync(string basicAuthUsername, string basicAuthPassword, Mezon.Net.Client.EmailAuthenticationRequest body, RequestOptions? options = null);
+        Task<MezonSession> RefreshSessionAsync(string basicAuthUsername, string basicAuthPassword, SessionRefreshRequest body, RequestOptions? options = null);
+        Task<MezonSession> AuthenticateMezonAsync(string basicAuthUsername, string basicAuthPassword, AccountMezon body, Mezon.Net.Client.AccountMezonParams args, RequestOptions? options = null);
+        Task<LinkAccountConfirmRequest> AuthenticateSMSOTPAsync(string basicAuthUsername, string basicAuthPassword, Mezon.Net.Client.AuthenticateSMSRequest body, RequestOptions? options = null);
+        Task UpdateAccountAsync(UpdateAccountRequest body);
+        Task<MezonSession> AuthenticateAppAsync(string basicAuthUsername, string basicAuthPassword, Mezon.Net.Client.AppAuthenticationRequest body, RequestOptions? options = null);
+        Task<ClanDescList> ListClanDescsAsync(ListClanDescRequest body, RequestOptions? options = null);
+        Task DeleteAccountAsync(RequestOptions? options = null);
+        Task<Account> GetAccountAsync(RequestOptions? options = null);
+        Task<AddFriendsResponse> AddFriendsAsync(IEnumerable<long>? ids = null, IEnumerable<string>? usernames = null, RequestOptions? options = null);
+        Task BlockFriendsAsync(IEnumerable<long>? ids = null, IEnumerable<string>? usernames = null, RequestOptions? options = null);
+        Task UnblockFriendsAsync(IEnumerable<long>? ids = null, IEnumerable<string>? usernames = null, RequestOptions? options = null);
+        Task DeleteFriendsAsync(IEnumerable<long>? ids = null, IEnumerable<string>? usernames = null, RequestOptions? options = null);
+        Task<FriendList> ListFriendsAsync(int? state = null, int? limit = null, string? cursor = null, RequestOptions? options = null);
+        Task<ClanDesc> CreateClanDescAsync(string clanName, string? logo = null, string? banner = null, RequestOptions? options = null);
+        Task DeleteClanDescAsync(long clanId, RequestOptions? options = null);
+        Task UpdateClanDescAsync(UpdateClanDescRequest body, RequestOptions? options = null);
+        Task<ClanUserList> ListClanUsersAsync(long clanId, RequestOptions? options = null);
+        Task RemoveClanUsersAsync(long clanId, IEnumerable<long> userIds, RequestOptions? options = null);
+        Task BanClanUsersAsync(long clanId, long channelId, IEnumerable<long> userIds, int? banTime = null, string? reason = null, RequestOptions? options = null);
+        Task<Internal.Api.ChannelDescription> CreateChannelDescAsync(CreateChannelDescRequest body, RequestOptions? options = null);
+        Task DeleteChannelDescAsync(long channelId, RequestOptions? options = null);
+        Task UpdateChannelDescAsync(UpdateChannelDescRequest body, RequestOptions? options = null);
+        Task AddChannelUsersAsync(long channelId, IEnumerable<long> userIds, RequestOptions? options = null);
+        Task RemoveChannelUsersAsync(long channelId, IEnumerable<long> userIds, RequestOptions? options = null);
+        Task<ChannelMessageList> ListChannelMessagesAsync(long clanId, long channelId, long? messageId = null, int? direction = null, int? limit = null, long? topicId = null, RequestOptions? options = null);
+        Task<ChannelUserList> ListChannelUsersAsync(long clanId, long channelId, int channelType, int? limit = null, int? state = null, string? cursor = null, RequestOptions? options = null);
+        Task DeleteRoleAsync(long roleId, RequestOptions? options = null);
+        Task<RoleListEventResponse> ListRolesAsync(RoleListEventRequest request, RequestOptions? options = null);
+        Task UpdateUserAsync(UpdateUsersRequest body, RequestOptions? options = null);
+        Task DeleteEventAsync(long eventId, RequestOptions? options = null);
+        Task<EventList> ListEventsAsync(long? clanId = null, RequestOptions? options = null);
+        Task<ChannelMessage> CreatePinMessageAsync(PinMessageRequest body, RequestOptions? options = null);
+        Task<PinMessagesList> GetPinMessagesListAsync(long channelId, long clanId, RequestOptions? options = null);
+        Task DeletePinMessageAsync(long messageId, long channelId, long clanId, RequestOptions? options = null);
+        Task MarkAsReadAsync(MarkAsReadRequest body, RequestOptions? options = null);
+        Task CreateClanEmojiAsync(ClanEmojiCreateRequest body, RequestOptions? options = null);
+        Task UpdateClanEmojiByIdAsync(ClanEmojiUpdateRequest body, RequestOptions? options = null);
+        Task DeleteClanEmojiByIdAsync(long emojiId, long clanId, RequestOptions? options = null);
+        Task AddClanStickerAsync(ClanStickerAddRequest body, RequestOptions? options = null);
+        Task UpdateClanStickerByIdAsync(ClanStickerUpdateByIdRequest body, RequestOptions? options = null);
+        Task DeleteClanStickerByIdAsync(long stickerId, long clanId, RequestOptions? options = null);
+        Task<EmojiListedResponse> GetListEmojisByUserIdAsync(RequestOptions? options = null);
+        Task<StickerListedResponse> GetListStickersByUserIdAsync(RequestOptions? options = null);
+        Task<WebhookGenerateResponse> GenerateWebhookAsync(WebhookCreateRequest body, RequestOptions? options = null);
+        Task<WebhookListResponse> ListWebhookByChannelIdAsync(long channelId, long clanId, RequestOptions? options = null);
+        Task UpdateWebhookByIdAsync(WebhookUpdateRequestById body, RequestOptions? options = null);
+        Task DeleteWebhookByIdAsync(WebhookDeleteRequestById body, RequestOptions? options = null);
+        Task CreateSystemMessageAsync(SystemMessageRequest body, RequestOptions? options = null);
+        Task UpdateSystemMessageAsync(SystemMessageRequest body, RequestOptions? options = null);
+        Task<SystemMessage> GetSystemMessageByClanIdAsync(long clanId, RequestOptions? options = null);
+        Task DeleteSystemMessageAsync(long clanId, RequestOptions? options = null);
+        Task UpdateRoleOrderAsync(UpdateRoleOrderRequest body, RequestOptions? options = null);
+        Task UpdateClanOrderAsync(UpdateClanOrderRequest body, RequestOptions? options = null);
+        Task<ChanEncryptionMethod> GetChanEncryptionMethodAsync(long channelId, RequestOptions? options = null);
+        Task SetChanEncryptionMethodAsync(ChanEncryptionMethod body, RequestOptions? options = null);
+        Task<GetPubKeysResponse> GetPublicKeysAsync(IEnumerable<long> userIds, RequestOptions? options = null);
+        Task PushPublicKeyAsync(PushPubKeyRequest body, RequestOptions? options = null);
+        Task<GetKeyServerResp> GetKeyServerAsync(RequestOptions? options = null);
+        Task<ListOnboardingResponse> ListOnboardingAsync(long clanId, int? guideType = null, RequestOptions? options = null);
+        Task<OnboardingItem> GetOnboardingDetailAsync(long id, long clanId, RequestOptions? options = null);
+        Task<ListOnboardingResponse> CreateOnboardingAsync(CreateOnboardingRequest body, RequestOptions? options = null);
+        Task UpdateOnboardingAsync(UpdateOnboardingRequest body, RequestOptions? options = null);
+        Task DeleteOnboardingAsync(long id, long clanId, RequestOptions? options = null);
+        Task<ListUserActivity> ListActivityAsync(RequestOptions? options = null);
+        Task<GenerateMeetTokenResponse> GenerateMeetTokenAsync(GenerateMeetTokenRequest body, RequestOptions? options = null);
+        Task TransferOwnershipAsync(TransferOwnershipRequest body, RequestOptions? options = null);
+        Task<PermissionList> GetListPermissionAsync(RequestOptions? options = null);
+        Task<PermissionList> ListRolePermissionsAsync(long roleId, RequestOptions? options = null);
+        Task<RoleUserList> ListRoleUsersAsync(ListRoleUsersRequest request, RequestOptions? options = null);
+        Task<UserPermissionInChannelListResponse> ListUserPermissionInChannelAsync(long clanId, long channelId, RequestOptions? options = null);
+        Task DeleteNotificationsAsync(IEnumerable<long>? ids = null, int? category = null, RequestOptions? options = null);
+        Task<NotificationList> ListNotificationsAsync(long? clanId = null, long? notificationId = null, int? limit = null, int? category = null, int? direction = null, RequestOptions? options = null);
+        Task<CategoryDesc> CreateCategoryDescAsync(CreateCategoryDescRequest body, RequestOptions? options = null);
+        Task DeleteCategoryDescAsync(long categoryId, long clanId, RequestOptions? options = null);
+        Task UpdateCategoryAsync(UpdateCategoryDescRequest body, RequestOptions? options = null);
+        Task<CategoryDescList> ListCategoryDescsAsync(long clanId, RequestOptions? options = null);
+        Task<InviteUserRes> InviteUserAsync(long inviteId, RequestOptions? options = null);
+        Task SetNotificationChannelSettingAsync(SetNotificationRequest body, RequestOptions? options = null);
+        Task SetMuteNotificationCategoryAsync(SetMuteRequest body, RequestOptions? options = null);
+        Task SetMuteNotificationChannelAsync(SetMuteRequest body, RequestOptions? options = null);
+        Task<NotificationChannelCategorySettingList> GetChannelCategoryNotificationSettingsAsync(long clanId, RequestOptions? options = null);
+        Task<NotificationSetting> GetClanNotificationSettingAsync(long clanId, RequestOptions? options = null);
+        Task<UserStatus> GetUserStatusAsync(RequestOptions? options = null);
+        Task UpdateUserStatusAsync(UserStatusUpdate body, RequestOptions? options = null);
+        Task<AppList> ListAppsAsync(string? filter = null, bool? tombstones = null, string? cursor = null, RequestOptions? options = null);
+        Task<App> GetAppAsync(long id, RequestOptions? options = null);
+        Task<App> UpdateAppAsync(UpdateAppRequest body, RequestOptions? options = null);
+        Task DeleteAppAsync(long id, bool? recordDeletion = null, RequestOptions? options = null);
+        Task AddAppToClanAsync(long appId, long clanId, RequestOptions? options = null);
+        Task<ListAuditLog> ListAuditLogAsync(long? clanId = null, string? actionLog = null, long? userId = null, string? dateLog = null, RequestOptions? options = null);
+        Task AddUserEventAsync(UserEventRequest body, RequestOptions? options = null);
+        Task DeleteUserEventAsync(long clanId, long eventId, RequestOptions? options = null);
+        Task HealthcheckAsync(RequestOptions? options = null);
+        Task<ChannelDescList> ListChannelDescsAsync(ListChannelDescsRequest request, RequestOptions? options = null);
+        Task<Internal.Api.ChannelDescription> GetChannelDetailAsync(long channelId, RequestOptions? options = null);
+        Task<BannedUserList> ListBannedUsersAsync(long clanId, RequestOptions? options = null);
+        Task UnbanClanUsersAsync(long clanId, IEnumerable<long> userIds, RequestOptions? options = null);
+        Task<RegistFcmDeviceTokenResponse> RegistFCMDeviceTokenAsync(RegistFcmDeviceTokenRequest body, RequestOptions? options = null);
+        Task<AllUserClans> ListUserClansByUserIdAsync(RequestOptions? options = null);
+        Task<ListChannelAppsResponse> ListChannelAppsAsync(long? clanId = null, RequestOptions? options = null);
+        Task CloseDMByChannelIdAsync(long channelId, RequestOptions? options = null);
+        Task OpenDMByChannelIdAsync(long channelId, RequestOptions? options = null);
+        Task<ClanProfile> GetUserProfileOnClanAsync(long clanId, RequestOptions? options = null);
+        Task UpdateUserProfileByClanAsync(UpdateClanProfileRequest body, RequestOptions? options = null);
+        Task LeaveThreadAsync(long channelId, RequestOptions? options = null);
+        Task<ChannelDescListNoPool> ListThreadDescsAsync(long channelId, RequestOptions? options = null);
+        Task<ChannelDescList> SearchThreadAsync(SearchThreadRequest body, RequestOptions? options = null);
+        Task<LinkAccountConfirmRequest> LinkSMSAsync(AccountMezon body, RequestOptions? options = null);
+        Task ConfirmLinkMezonOTPAsync(LinkAccountConfirmRequest body, RequestOptions? options = null);
+        Task<LinkAccountConfirmRequest> LinkEmailAsync(AccountEmail body, RequestOptions? options = null);
+        Task UnlinkMezonAsync(AccountMezon body, RequestOptions? options = null);
+        Task UnlinkEmailAsync(AccountEmail body, RequestOptions? options = null);
+        Task<IsBannedResponse> IsBannedAsync(long channelId, RequestOptions? options = null);
+        Task AddRolesChannelDescAsync(AddRoleChannelDescRequest body, RequestOptions? options = null);
+        Task DeleteRoleChannelDescAsync(long roleId, RequestOptions? options = null);
+        Task SetRoleChannelPermissionAsync(UpdateRoleChannelRequest body, RequestOptions? options = null);
+        Task<RoleList> GetRoleOfUserInTheClanAsync(long clanId, RequestOptions? options = null);
+        Task<PermissionRoleChannelListEventResponse> GetPermissionByRoleIdChannelIdAsync(PermissionRoleChannelListEventRequest body, RequestOptions? options = null);
+        Task<ChannelAttachmentList> ListChannelAttachmentAsync(long channelId, RequestOptions? options = null);
+        Task<VoiceChannelUserList> ListChannelVoiceUsersAsync(long clanId, long channelId, int channelType, RequestOptions? options = null);
+        Task<StreamingChannelUserList> ListStreamingChannelUsersAsync(long clanId, long channelId, int channelType, RequestOptions? options = null);
+        Task<ChannelDescListNoPool> ListChannelByUserIdAsync(RequestOptions? options = null);
+        Task<NotificationUserChannel> GetNotificationChannelAsync(NotificationChannel body, RequestOptions? options = null);
+        Task<NotificationUserChannel> GetNotificationCategoryAsync(DefaultNotificationCategory body, RequestOptions? options = null);
+        Task SetNotificationCategorySettingAsync(SetNotificationRequest body, RequestOptions? options = null);
+        Task DeleteNotificationCategorySettingAsync(DefaultNotificationCategory body, RequestOptions? options = null);
+        Task DeleteNotificationChannelAsync(NotificationChannel body, RequestOptions? options = null);
+        Task<ChannelMessage> CreateMessage2InboxAsync(Message2InboxRequest body, RequestOptions? options = null);
+        Task<ChannelSettingListResponse> ListChannelSettingAsync(long clanId, RequestOptions? options = null);
+        Task UpdateChannelPrivateAsync(ChangeChannelPrivateRequest body, RequestOptions? options = null);
+        Task ChangeChannelCategoryAsync(ChangeChannelCategoryRequest body, RequestOptions? options = null);
+        Task<EmojiRecentList> EmojiRecentListAsync(RequestOptions? options = null);
+        Task<AllUsersAddChannelResponse> ListChannelUsersUCAsync(AllUsersAddChannelRequest body, RequestOptions? options = null);
+        Task<EditChannelCanvasResponse> EditChannelCanvasesAsync(EditChannelCanvasRequest body, RequestOptions? options = null);
+        Task<ChannelCanvasListResponse> GetChannelCanvasListAsync(long channelId, RequestOptions? options = null);
+        Task<ChannelCanvasDetailResponse> GetChannelCanvasDetailAsync(long id, RequestOptions? options = null);
+        Task DeleteChannelCanvasAsync(long canvasId, RequestOptions? options = null);
+        Task<ListFavoriteChannelResponse> GetListFavoriteChannelAsync(long clanId, RequestOptions? options = null);
+        Task<AddFavoriteChannelResponse> AddChannelFavoriteAsync(AddFavoriteChannelRequest body, RequestOptions? options = null);
+        Task RemoveChannelFavoriteAsync(long channelId, RequestOptions? options = null);
+        Task<GenerateClanWebhookResponse> GenerateClanWebhookAsync(GenerateClanWebhookRequest body, RequestOptions? options = null);
+        Task<ListClanWebhookResponse> ListClanWebhookAsync(long clanId, RequestOptions? options = null);
+        Task UpdateClanWebhookByIdAsync(UpdateClanWebhookRequest body, RequestOptions? options = null);
+        Task DeleteClanWebhookByIdAsync(long id, RequestOptions? options = null);
+        Task<ListOnboardingStepResponse> ListOnboardingStepAsync(long clanId, RequestOptions? options = null);
+        Task UpdateOnboardingStepAsync(UpdateOnboardingStepRequest body, RequestOptions? options = null);
+        Task DeleteQuickMenuAccessAsync(QuickMenuAccess body, RequestOptions? options = null);
+        Task AddQuickMenuAccessAsync(QuickMenuAccess body, RequestOptions? options = null);
+        Task UpdateQuickMenuAccessAsync(QuickMenuAccess body, RequestOptions? options = null);
+        Task<QuickMenuAccessList> ListQuickMenuAccessAsync(long botId, long channelId, int? menuType = null, RequestOptions? options = null);
+        Task<IsFollowerResponse> IsFollowerAsync(IsFollowerRequest body, RequestOptions? options = null);
+        Task<ChannelMessageAck> SendChannelMessageAsync(ChannelMessageSend body, RequestOptions? options = null);
+        Task<ChannelMessageAck> SendChannelMessageAsync(Mezon.Net.Models.SendChannelMessageParams message, RequestOptions? options = null);
+        Task UpdateChannelMessageAsync(ChannelMessageUpdate body, RequestOptions? options = null);
+        Task DeleteChannelMessageAsync(ChannelMessageRemove body, RequestOptions? options = null);
+        Task RemoveParticipantMezonMeetAsync(MeetParticipantRequest body, RequestOptions? options = null);
+        Task MuteParticipantMezonMeetAsync(MeetParticipantRequest body, RequestOptions? options = null);
+        Task<CreateRoomChannelApps> CreateRoomChannelAppsAsync(CreateRoomChannelApps body, RequestOptions? options = null);
+        Task<GenerateHashChannelAppsResponse> GenerateHashChannelAppsAsync(GenerateHashChannelAppsRequest body, RequestOptions? options = null);
+        Task<MezonOauthClient> GetMezonOauthClientAsync(GetMezonOauthClientRequest body, RequestOptions? options = null);
+        Task DeleteMezonOauthClientAsync(MezonOauthClient body, RequestOptions? options = null);
+        Task<MezonOauthClient> UpdateMezonOauthClientAsync(MezonOauthClient body, RequestOptions? options = null);
+        Task<SdTopicList> ListSdTopicAsync(ListSdTopicRequest body, RequestOptions? options = null);
+        Task<SdTopic> GetTopicDetailAsync(SdTopicDetailRequest body, RequestOptions? options = null);
+        Task<SdTopic> CreateSdTopicAsync(SdTopicRequest body, RequestOptions? options = null);
+        Task DeleteSdTopicAsync(DeleteSdTopicRequest body, RequestOptions? options = null);
+        Task MessageButtonClickAsync(MessageButtonClicked body, RequestOptions? options = null);
+        Task DropdownBoxSelectedAsync(DropdownBoxSelected body, RequestOptions? options = null);
+        Task ActiveArchivedThreadAsync(ActiveArchivedThread body, RequestOptions? options = null);
+        Task AddAgentToChannelAsync(UpdateAIAgentRequest body, RequestOptions? options = null);
+        Task DisconnectAgentAsync(UpdateAIAgentRequest body, RequestOptions? options = null);
+        Task ReportMessageAbuseAsync(ReportMessageAbuseReqest body, RequestOptions? options = null);
+        Task<StreamHttpCallbackResponse> StreamingServerCallbackAsync(StreamHttpCallbackRequest body, RequestOptions? options = null);
+        Task<ForSaleItemList> ListForSaleItemsAsync(ListForSaleItemsRequest body, RequestOptions? options = null);
+        Task HandleClanWebhookAsync(ClanWebhookHandlerRequest body, RequestOptions? options = null);
+        Task<MutedChannelList> ListMutedChannelAsync(long clanId, RequestOptions? options = null);
+        Task<ListClanBadgeCountResponse> ListClanBadgeCountAsync(RequestOptions? options = null);
+        Task<ListChannelBadgeCountResponse> ListChannelBadgeCountAsync(long clanId, int? limit = null, int? page = null, RequestOptions? options = null);
+        Task<LogedDeviceList> ListLogedDeviceAsync(RequestOptions? options = null);
+        Task<ClanUserStatusList> ListClanUsersStatusAsync(long clanId, RequestOptions? options = null);
+        Task<ListChannelTimelineResponse> ListChannelTimelineAsync(ListChannelTimelineRequest body, RequestOptions? options = null);
+        Task<ListArchivedChannelDescsResponse> ListArchivedChannelDescsAsync(long clanId, RequestOptions? options = null);
+        Task<ListUserOnlineResponse> ListUserOnlineAsync(long clanId, int? limit = null, int? page = null, RequestOptions? options = null);
+        Task<Session> RegistrationEmailAsync(RegistrationEmailRequest body, RequestOptions? options = null);
+        Task<UploadAttachment> UploadAttachmentFileAsync(UploadAttachmentRequest body, RequestOptions? options = null);
+        Task<UploadAttachment> UploadOauthFileAsync(UploadAttachmentRequest body, RequestOptions? options = null);
+        Task<Role> CreateRoleAsync(CreateRoleRequest body, RequestOptions? options = null);
+        Task<EventManagement> CreateEventAsync(CreateEventRequest body, RequestOptions? options = null);
+        Task ArchiveChannelAsync(ArchiveChannelRequest body, RequestOptions? options = null);
+        Task<LinkInviteUser> CreateLinkInviteUserAsync(LinkInviteUserRequest body, RequestOptions? options = null);
+        Task SetNotificationClanSettingAsync(SetDefaultNotificationRequest body, RequestOptions? options = null);
+        Task UpdateAccountAsync(Internal.Api.UpdateAccountRequest body, RequestOptions? options = null);
+        Task<Session> UpdateUsernameAsync(UpdateUsernameRequest body, RequestOptions? options = null);
+        Task UpdateCategoryOrderAsync(UpdateCategoryOrderRequest body, RequestOptions? options = null);
+        Task UpdateRoleAsync(UpdateRoleRequest body, RequestOptions? options = null);
+        Task UpdateEventAsync(UpdateEventRequest body, RequestOptions? options = null);
+        Task<SearchMessageResponse> SearchMessageAsync(SearchMessageRequest body, RequestOptions? options = null);
+        Task HandleWebhookAsync(ClanWebhookHandlerRequest body, RequestOptions? options = null);
+        Task<CheckDuplicateNameResponse> CheckDuplicateNameAsync(CheckDuplicateNameRequest body, RequestOptions? options = null);
+        Task<App> AddAppAsync(AddAppRequest body, RequestOptions? options = null);
+        Task<UserActivity> CreateActivityAsync(CreateActivityRequest body, RequestOptions? options = null);
+        Task UpdateUserCustomStatusAsync(User body, RequestOptions? options = null);
+        Task<GenerateMezonMeetResponse> CreateExternalMezonMeetAsync(RequestOptions? options = null);
+        Task<UpdateChannelTimelineResponse> UpdateChannelTimelineAsync(UpdateChannelTimelineRequest body, RequestOptions? options = null);
+        Task<CreateChannelTimelineResponse> CreateChannelTimelineAsync(CreateChannelTimelineRequest body, RequestOptions? options = null);
+        Task<ChannelTimelineDetailResponse> DetailChannelTimelineAsync(ChannelTimelineDetailRequest body, RequestOptions? options = null);
+        Task<CreatePollResponse> CreatePollAsync(CreatePollRequest body, RequestOptions? options = null);
+        Task<VotePollResponse> VotePollAsync(VotePollRequest body, RequestOptions? options = null);
+        Task ClosePollAsync(ClosePollRequest body, RequestOptions? options = null);
+        Task<GetPollResponse> GetPollAsync(GetPollRequest body, RequestOptions? options = null);
+        Task ReactChannelMessageAsync(MessageReaction body, RequestOptions? options = null);
+        Task<MultipartUploadAttachment> MultipartUploadAttachmentFileStartAsync(UploadAttachmentRequest body, RequestOptions? options = null);
+        Task<UploadAttachment> MultipartUploadAttachmentFileFinishAsync(MultipartUploadAttachmentFinishRequest body, RequestOptions? options = null);
+        Task SessionLogoutAsync(SessionLogoutRequest body, RequestOptions? options = null);
+        Task<UploadAttachmentBatch> UploadBatchAttachmentFileAsync(UploadBatchAttachmentRequest body, RequestOptions? options = null);
     }
 }

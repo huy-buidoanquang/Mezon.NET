@@ -2,6 +2,7 @@ using System;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.IO.Pipelines;
 using System.Net.Security;
 using System.Net.Sockets;
@@ -24,13 +25,15 @@ namespace Mezon.Net.Transport
         private System.IO.Stream? _dataStream;
         private PipeReader? _reader;
         private IDictionary<string, string>? _headers;
-        private readonly ConcurrentDictionary<int, ArrayBufferWriter<byte>> _streams = new ConcurrentDictionary<int, ArrayBufferWriter<byte>>();
+        private readonly ConcurrentDictionary<int, ArrayBufferWriter<byte>> _apiChunkBuffers = new ConcurrentDictionary<int, ArrayBufferWriter<byte>>();
         private CancellationTokenSource? _disconnectCts, _internalCts;
         private CancellationToken _externalCt, _internalCt;
         private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1);
         private Channel<ReadOnlyMemory<byte>>? _sendChannel;
+        private Task? _receiveLoopTask;
+        private Task? _sendLoopTask;
         private bool _disposed;
-        private int _connectionGeneration;
+        private int _connectionVersion;
 
         public Func<MezonMessageType, int, int, ReadOnlyMemory<byte>, ValueTask>? MessageReceived { get; set; }
         public Func<Task>? Opened { get; set; }
@@ -71,7 +74,8 @@ namespace Mezon.Net.Transport
                     await ErrorOccurred.Invoke(ex).ConfigureAwait(false);
                 }
 
-                await DisconnectInternalAsync().ConfigureAwait(false);
+                await DisconnectInternalAsync(invokeClosed: false).ConfigureAwait(false);
+                await WaitForBackgroundLoopsAsync(clearReceiveLoop: true).ConfigureAwait(false);
                 throw;
             }
             finally
@@ -82,6 +86,7 @@ namespace Mezon.Net.Transport
 
         private async Task ConnectInternalAsync(string host, int? port = 443, string? token = null, bool? useSsl = false, bool? createStatus = false)
         {
+            await WaitForBackgroundLoopsAsync(clearReceiveLoop: true).ConfigureAwait(false);
             await DisconnectInternalAsync().ConfigureAwait(false);
             _disconnectCts?.Dispose();
             _internalCts?.Dispose();
@@ -98,11 +103,6 @@ namespace Mezon.Net.Transport
 
             await _tcpClient.ConnectAsync(host, port ?? 443).ConfigureAwait(false);
 
-            if (Opened != null)
-            {
-                await Opened.Invoke().ConfigureAwait(false);
-            }
-
             System.IO.Stream networkStream = _tcpClient.GetStream();
             if (useSsl.HasValue && useSsl.Value)
             {
@@ -110,7 +110,6 @@ namespace Mezon.Net.Transport
                 var sslOptions = new SslClientAuthenticationOptions
                 {
                     TargetHost = host,
-                    RemoteCertificateValidationCallback = MezonNetworkSettings.DefaultValidateServerCertificate,
                 };
                 await sslStream.AuthenticateAsClientAsync(sslOptions, _internalCt).ConfigureAwait(false);
                 _dataStream = sslStream;
@@ -121,15 +120,24 @@ namespace Mezon.Net.Transport
             }
 
             await HandshakeAsync(token).ConfigureAwait(false);
-            _reader = PipeReader.Create(_dataStream);
-            _sendChannel = Channel.CreateUnbounded<ReadOnlyMemory<byte>>(new UnboundedChannelOptions
+
+            if (Opened != null)
+            {
+                await Opened.Invoke().ConfigureAwait(false);
+            }
+
+            var reader = PipeReader.Create(_dataStream);
+            _reader = reader;
+            var sendChannel = Channel.CreateUnbounded<ReadOnlyMemory<byte>>(new UnboundedChannelOptions
             {
                 SingleReader = true,
                 SingleWriter = false
             });
-            var generation = Interlocked.Increment(ref _connectionGeneration);
-            _ = Task.Run(() => ReceiveLoopAsync(_internalCt, generation), _internalCt);
-            _ = Task.Run(() => SendLoopAsync(_internalCt), _internalCt);
+            _sendChannel = sendChannel;
+            var dataStream = _dataStream;
+            var connectionVer = Interlocked.Increment(ref _connectionVersion);
+            _receiveLoopTask = Task.Run(() => ReceiveLoopAsync(reader, connectionVer, _internalCt), _internalCt);
+            _sendLoopTask = Task.Run(() => SendLoopAsync(sendChannel, dataStream, _internalCt), _internalCt);
 
             _state = ConnectionState.Connected;
         }
@@ -150,10 +158,10 @@ namespace Mezon.Net.Transport
             {
                 if (ErrorOccurred != null)
                 {
-                    await ErrorOccurred.Invoke(new InvalidOperationException("Unauthorized.")).ConfigureAwait(false);
+                    await ErrorOccurred.Invoke(new NetworkTransportUnauthorizationException()).ConfigureAwait(false);
                 }
 
-                throw new InvalidOperationException("Unauthorized.");
+                throw new NetworkTransportUnauthorizationException();
             }
 
             var padding = (4 - (tokenBytes.Length % 4)) & 3;
@@ -192,37 +200,40 @@ namespace Mezon.Net.Transport
             }
         }
 
-        private async Task ReceiveLoopAsync(CancellationToken cancellationToken, int generation)
+        private async Task ReceiveLoopAsync(PipeReader reader, int connectionVer, CancellationToken cancellationToken)
         {
             try
             {
-                while (!cancellationToken.IsCancellationRequested && _dataStream != null)
+                while (!cancellationToken.IsCancellationRequested)
                 {
-                    ReadResult result = await _reader!.ReadAsync(cancellationToken).ConfigureAwait(false);
+                    ReadResult result = await reader.ReadAsync(cancellationToken).ConfigureAwait(false);
                     ReadOnlySequence<byte> buffer = result.Buffer;
-                    if (MessageReceived != null)
+                    if (!buffer.IsEmpty && LooksLikeHttp(buffer))
                     {
-                        while (!buffer.IsEmpty)
-                        {
-                            var frameStart = buffer.Start;
-                            if (!MezonTransportFrameCodec.TryReadFrame(ref buffer, _streams, out var type, out var cid, out var code, out var frame))
-                            {
-                                if (frameStart.Equals(buffer.Start))
-                                {
-                                    break;
-                                }
+                        throw new InvalidDataException(
+                            "Server returned HTTP on abridged TCP port (expected binary framing).");
+                    }
 
-                                continue;
+                    while (!buffer.IsEmpty)
+                    {
+                        var frameStart = buffer.Start;
+                        if (!MezonTransportFrameCodec.TryReadFrame(ref buffer, _apiChunkBuffers, out var type, out var cid, out var code, out var frame))
+                        {
+                            if (frameStart.Equals(buffer.Start))
+                            {
+                                break;
                             }
 
-                            var payload = type == MezonMessageType.Abridged
-                                ? MezonTransportFrameCodec.TrimPadding(frame)
-                                : frame;
-                            await MessageReceived.Invoke(type, cid, code, payload).ConfigureAwait(false);
+                            continue;
+                        }
+
+                        if (MessageReceived != null)
+                        {
+                            await MessageReceived.Invoke(type, cid, code, frame).ConfigureAwait(false);
                         }
                     }
 
-                    _reader.AdvanceTo(buffer.Start, buffer.End);
+                    reader.AdvanceTo(buffer.Start, buffer.End);
                     if (result.IsCompleted)
                     {
                         break;
@@ -241,19 +252,81 @@ namespace Mezon.Net.Transport
             }
             finally
             {
-                _reader?.Complete();
-                if (generation == _connectionGeneration && _state == ConnectionState.Connected)
+                try
                 {
-                    await DisconnectAsync().ConfigureAwait(false);
+                    await reader.CompleteAsync().ConfigureAwait(false);
+                }
+                catch
+                {
+                }
+
+                if (connectionVer == _connectionVersion && _state == ConnectionState.Connected)
+                {
+                    try
+                    {
+                        await _semaphore.WaitAsync().ConfigureAwait(false);
+                        try
+                        {
+                            await DisconnectInternalAsync().ConfigureAwait(false);
+                            await WaitForBackgroundLoopsAsync(clearReceiveLoop: false).ConfigureAwait(false);
+                        }
+                        finally
+                        {
+                            _semaphore.Release();
+                        }
+                    }
+                    catch
+                    {
+                    }
                 }
             }
+        }
+
+        private static bool LooksLikeHttp(ReadOnlySequence<byte> buffer)
+        {
+            // Match Rust io_loop: reject HTTP spoken on an abridged TCP socket.
+            Span<byte> prefix = stackalloc byte[5];
+            if (buffer.Length < 4)
+            {
+                return false;
+            }
+
+            var copyLen = (int)Math.Min(buffer.Length, 5);
+            buffer.Slice(0, copyLen).CopyTo(prefix);
+            // "HTTP/" or "GET " or "POST "
+            if (copyLen >= 5
+                && prefix[0] == (byte)'H'
+                && prefix[1] == (byte)'T'
+                && prefix[2] == (byte)'T'
+                && prefix[3] == (byte)'P'
+                && prefix[4] == (byte)'/')
+            {
+                return true;
+            }
+
+            if (copyLen >= 4
+                && prefix[0] == (byte)'G'
+                && prefix[1] == (byte)'E'
+                && prefix[2] == (byte)'T'
+                && prefix[3] == (byte)' ')
+            {
+                return true;
+            }
+
+            return copyLen >= 5
+                && prefix[0] == (byte)'P'
+                && prefix[1] == (byte)'O'
+                && prefix[2] == (byte)'S'
+                && prefix[3] == (byte)'T'
+                && prefix[4] == (byte)' ';
         }
 
         public ValueTask SendAsync(MezonMessageType type, int cid, ReadOnlyMemory<byte> data)
         {
             if (_state != ConnectionState.Connected || _tcpClient == null || !_tcpClient.Connected || _sendChannel == null)
             {
-                return default;
+                return new ValueTask(Task.FromException(new InvalidOperationException(
+                    $"Cannot send on TCP (transportState={_state}, tcpConnected={_tcpClient?.Connected}, sendChannel={_sendChannel != null}).")));
             }
 
             switch (type)
@@ -263,37 +336,35 @@ namespace Mezon.Net.Transport
                         ? default
                         : new ValueTask(Task.FromException(new InvalidOperationException("Cannot queue ping.")));
                 case MezonMessageType.Api:
-                case MezonMessageType.Abridged:
-                    return MezonTransportFrameCodec.TryQueueAbridgedFrame(_sendChannel.Writer, data)
-                        ? default
-                        : new ValueTask(Task.FromException(new InvalidOperationException("Cannot queue message for sending.")));
+                case MezonMessageType.Realtime:
+                    try
+                    {
+                        return MezonTransportFrameCodec.TryQueueRealtimeFrame(_sendChannel.Writer, data)
+                            ? default
+                            : new ValueTask(Task.FromException(new InvalidOperationException("Cannot queue message for sending.")));
+                    }
+                    catch (NetworkTransportPayloadTooLargeException ex)
+                    {
+                        // Oversized send fails this request only; connection and receive loop stay open.
+                        return new ValueTask(Task.FromException(ex));
+                    }
                 default:
-                    return default;
+                    return new ValueTask(Task.FromException(new InvalidOperationException($"Unsupported TCP message type '{type}'.")));
             }
         }
 
-        private async Task SendLoopAsync(CancellationToken cancellationToken)
+        private async Task SendLoopAsync(Channel<ReadOnlyMemory<byte>> sendChannel, System.IO.Stream dataStream, CancellationToken cancellationToken)
         {
             try
             {
-                if (_dataStream == null || _sendChannel == null)
+                while (await sendChannel.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
                 {
-                    if (ErrorOccurred != null)
-                    {
-                        await ErrorOccurred.Invoke(new InvalidOperationException("Connection is not established.")).ConfigureAwait(false);
-                    }
-
-                    return;
-                }
-
-                while (await _sendChannel.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
-                {
-                    while (_sendChannel.Reader.TryRead(out var msgSend))
+                    while (sendChannel.Reader.TryRead(out var msgSend))
                     {
                         try
                         {
-                            await _dataStream.WriteAsync(msgSend, cancellationToken).ConfigureAwait(false);
-                            await _dataStream.FlushAsync(cancellationToken).ConfigureAwait(false);
+                            await dataStream.WriteAsync(msgSend, cancellationToken).ConfigureAwait(false);
+                            await dataStream.FlushAsync(cancellationToken).ConfigureAwait(false);
                         }
                         finally
                         {
@@ -320,6 +391,7 @@ namespace Mezon.Net.Transport
             try
             {
                 await DisconnectInternalAsync(closeCode).ConfigureAwait(false);
+                await WaitForBackgroundLoopsAsync(clearReceiveLoop: true).ConfigureAwait(false);
             }
             finally
             {
@@ -327,7 +399,7 @@ namespace Mezon.Net.Transport
             }
         }
 
-        private async Task DisconnectInternalAsync(int closeCode = 1000, bool isDisposing = false)
+        private async Task DisconnectInternalAsync(int closeCode = 1000, bool invokeClosed = true)
         {
             if (_state == ConnectionState.Disconnected || _state == ConnectionState.Disconnecting)
             {
@@ -336,6 +408,7 @@ namespace Mezon.Net.Transport
 
             _state = ConnectionState.Disconnecting;
             _sendChannel?.Writer.TryComplete();
+            _reader = null;
 
             if (_disconnectCts != null)
             {
@@ -378,13 +451,53 @@ namespace Mezon.Net.Transport
                 }
             }
 
-            _streams.Clear();
+            _apiChunkBuffers.Clear();
+            _sendChannel = null;
             _state = ConnectionState.Disconnected;
-            if (Closed != null)
+            if (invokeClosed && Closed != null)
             {
                 await Closed.Invoke(null).ConfigureAwait(false);
             }
         }
+
+        private async Task WaitForBackgroundLoopsAsync(bool clearReceiveLoop = true)
+        {
+            var receive = clearReceiveLoop ? _receiveLoopTask : null;
+            var send = _sendLoopTask;
+            _receiveLoopTask = null;
+            _sendLoopTask = null;
+
+            if (receive == null && send == null)
+            {
+                return;
+            }
+
+            try
+            {
+                if (receive != null && send != null)
+                {
+                    await Task.WhenAll(receive, send).ConfigureAwait(false);
+                }
+                else if (receive != null)
+                {
+                    await receive.ConfigureAwait(false);
+                }
+                else if (send != null)
+                {
+                    await send.ConfigureAwait(false);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception)
+            {
+                // Loop faults are reported via ErrorOccurred; cleanup must not throw.
+            }
+        }
+
+        /// <inheritdoc cref="MezonNetworkTransporterExtensions.RemoveApiChunkBuffer(IMezonNetworkTransporter, int)"/>
+        public void RemoveApiChunkBuffer(int cid) => _apiChunkBuffers.TryRemove(cid, out _);
 
         public void Dispose()
         {
@@ -394,9 +507,18 @@ namespace Mezon.Net.Transport
 
         public async ValueTask DisposeAsync()
         {
-            await DisconnectInternalAsync().ConfigureAwait(false);
-            Dispose(false);
-            GC.SuppressFinalize(this);
+            await _semaphore.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                await DisconnectInternalAsync().ConfigureAwait(false);
+                await WaitForBackgroundLoopsAsync(clearReceiveLoop: true).ConfigureAwait(false);
+                Dispose(false);
+            }
+            finally
+            {
+                _semaphore.Release();
+                GC.SuppressFinalize(this);
+            }
         }
 
         protected virtual void Dispose(bool disposing)
@@ -413,7 +535,7 @@ namespace Mezon.Net.Transport
                 _disconnectCts?.Dispose();
                 _internalCts?.Dispose();
                 _tcpClient?.Dispose();
-                _streams.Clear();
+                _apiChunkBuffers.Clear();
             }
 
             _disposed = true;

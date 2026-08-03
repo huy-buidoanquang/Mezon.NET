@@ -89,6 +89,6 @@ namespace Mezon.Net.Logging
             => LogAsync(LogLevel.Trace, source, message, ex);
         public Logger CreateLogger(string name) => new Logger(this, name);
         public Task WriteInitialLog()
-            => ClientLogger.InfoAsync($"Mezon.Net v1.0.1");
+            => ClientLogger.InfoAsync("Mezon.Net v1.0.0");
     }
 }
