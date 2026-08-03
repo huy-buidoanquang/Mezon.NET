@@ -7,7 +7,7 @@ namespace Mezon.Net.Core
     ///     These limits mirror Mezon gateway guidance and are applied by the socket client's transport rate limiter.
     ///     Override per client via <c>MezonSocketClientOptions</c> when needed.
     /// </remarks>
-    public static class MezonTransportLimits
+    public struct MezonTransportLimits
     {
         /// <summary>
         ///     Maximum socket API requests allowed per second under normal operation.

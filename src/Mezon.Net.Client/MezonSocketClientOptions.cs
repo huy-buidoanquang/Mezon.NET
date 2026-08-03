@@ -15,7 +15,7 @@ namespace Mezon.Net.Client
         /// <summary>
         ///     Default event-handler timeout in milliseconds.
         /// </summary>
-        public const int DefaultHandlerTimeoutInMilliseconds = 3000;
+        public const int DefaultSocketHandlerTimeoutInMilliseconds = 3000;
 
         /// <summary>
         ///     Default heartbeat interval in milliseconds.
@@ -63,7 +63,7 @@ namespace Mezon.Net.Client
         ///     Gets or sets the timeout for event handlers, in milliseconds, after which a warning will be logged.
         ///     Setting this property to <see langword="null"/> disables this check (default; preferred for hot paths).
         /// </summary>
-        public int? SocketHandlerTimeoutInMilliseconds { get; set; } = DefaultHandlerTimeoutInMilliseconds;
+        public int? SocketHandlerTimeoutInMilliseconds { get; set; } = DefaultSocketHandlerTimeoutInMilliseconds;
 
         /// <summary>
         ///     Gets or sets the interval, in milliseconds, for the heartbeat.

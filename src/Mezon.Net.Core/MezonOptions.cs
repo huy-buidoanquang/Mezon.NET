@@ -28,7 +28,7 @@ namespace Mezon.Net.Core
         /// <summary>
         ///     Default Mezon Mainnet (MMN) gRPC node endpoint. Empty disables automatic MMN initialization.
         /// </summary>
-        public const string DefaultMMNApi = "";
+        public const string DefaultMMNApi = "https://dong.mezon.ai/mmn-api";
 
         /// <summary>
         ///     Default Zero-Knowledge (ZK) prove service base URL.
@@ -38,17 +38,17 @@ namespace Mezon.Net.Core
         /// <summary>
         ///     Default server key used for authentication bootstrap.
         /// </summary>
-        public const string DefaultServerKey = "defaultkey";
+        public const string DefaultServerKey = "HTTP3m3zonPr0dkey";
 
         /// <summary>
         ///     Default Mezon gateway host.
         /// </summary>
-        public const string DefaultHost = "dev-mezon.nccsoft.vn";
+        public const string DefaultHost = "gw.mezon.ai";
 
         /// <summary>
         ///     Default Mezon gateway port.
         /// </summary>
-        public const string DefaultPort = "8088";
+        public const string DefaultPort = "443";
 
         /// <summary>
         ///     Default value indicating whether TLS should be used.

@@ -13,8 +13,6 @@ namespace Mezon.Net.Client
     /// </summary>
     internal static class MessageContentCodec
     {
-        internal const int MaxJsonLength = 8000;
-
         private static bool IsKnownRootProperty(string name) =>
             name is "t" or "hg" or "ej" or "lk" or "mk" or "vk" or "embed" or "components";
 
@@ -231,35 +229,12 @@ namespace Mezon.Net.Client
 
         internal static string WriteText(string text)
         {
-            ValidateTextLength(text);
             var json = WriteTextPayload(text);
-            ValidateJsonLength(json);
             return json;
-        }
-
-        internal static void ValidateTextLength(string? text)
-        {
-            if (text is not null && text.Length > MaxJsonLength)
-            {
-                throw new ArgumentException(
-                    $"message.content exceeds the allowed length. Maximum total of {MaxJsonLength} UTF-16 characters. Current length: {text.Length}.",
-                    nameof(text));
-            }
-        }
-
-        internal static void ValidateJsonLength(string json)
-        {
-            if (json.Length > MaxJsonLength)
-            {
-                throw new ArgumentException(
-                    $"message.content exceeds the allowed length. Maximum total of {MaxJsonLength} UTF-16 characters. Current length: {json.Length}.",
-                    nameof(json));
-            }
         }
 
         internal static string Serialize(in MessageContentSnapshot snapshot)
         {
-            // Expandable stream — snapshot JSON can exceed a small fixed rented buffer.
             using var stream = new MemoryStream(256);
             using (var writer = new Utf8JsonWriter(stream))
             {
@@ -267,7 +242,6 @@ namespace Mezon.Net.Client
             }
 
             var json = Encoding.UTF8.GetString(stream.GetBuffer(), 0, (int)stream.Length);
-            ValidateJsonLength(json);
             return json;
         }
 

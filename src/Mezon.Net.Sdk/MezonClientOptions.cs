@@ -4,7 +4,7 @@ namespace Mezon.Net.Sdk
 {
     public sealed class MezonClientOptions : MezonSocketClientOptions
     {
-        public const string DefaultAgentEventUrl = "http://172.16.110.19:8002/";
+        public const string DefaultAgentEventUrl = "http://172.16.110.19:8002";
 
         public long BotId { get; set; } = 0;
         public string Token { get; set; } = string.Empty;
