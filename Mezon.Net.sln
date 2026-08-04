@@ -51,6 +51,21 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mezon.Net.Sdk.Caching.Sqlit
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mezon.Net.Client.Benchmarks", "tests\Mezon.Net.Client.Benchmarks\Mezon.Net.Client.Benchmarks.csproj", "{6F6408B8-9F66-4355-A819-63AB51F8B00F}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{9FC67223-2D41-4CC8-A9F7-9997CD82F0B2}"
+	ProjectSection(SolutionItems) = preProject
+		docs\caching-l2-l3.md = docs\caching-l2-l3.md
+		docs\events-and-cache.md = docs\events-and-cache.md
+		docs\high-perf-sdk.md = docs\high-perf-sdk.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{482F9949-6E39-4076-9FDD-4A0D2C6C2A7E}"
+	ProjectSection(SolutionItems) = preProject
+		Directory.Build.props = Directory.Build.props
+		LICENSE = LICENSE
+		NUGET_README.md = NUGET_README.md
+		README.md = README.md
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU

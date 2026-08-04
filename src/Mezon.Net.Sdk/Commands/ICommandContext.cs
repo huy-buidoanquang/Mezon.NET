@@ -12,7 +12,7 @@ namespace Mezon.Net.Sdk.Commands
     {
         MezonClient Client { get; }
         Message Message { get; }
-        TextChannel Channel { get; }
+        Channel Channel { get; }
         Clan? Clan { get; }
         User Author { get; }
         string Prefix { get; }

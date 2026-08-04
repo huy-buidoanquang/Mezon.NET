@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Threading;
@@ -12,6 +12,7 @@ using Mezon.Net.Client;
 using Mezon.Net.Sdk.Entities;
 using Mezon.Net.Sdk.Interactions;
 using ApiChannelDescription = Mezon.Net.Internal.Api.ChannelDescription;
+using SdkChannel = Mezon.Net.Sdk.Entities.Channel;
 using Xunit;
 
 namespace Mezon.Net.Sdk.Tests
@@ -154,7 +155,7 @@ namespace Mezon.Net.Sdk.Tests
                 return Task.CompletedTask;
             });
 
-            // Client has no channel 20 cached — must not call GetChannelDetail.
+            // Client has no channel 20 cached � must not call GetChannelDetail.
             var client = new MezonClient(new MezonClientOptions(1, "token"));
             client.Users.Set(40, new Entities.User(client, 40, username: "tester"));
 
@@ -187,12 +188,12 @@ namespace Mezon.Net.Sdk.Tests
             Assert.Equal(new[] { "high", "urgent" }, values);
         }
 
-        private static MezonClient CreateClient(out TextChannel channel)
+        private static MezonClient CreateClient(out SdkChannel channel)
         {
             var client = new MezonClient(new MezonClientOptions(1, "token"));
             var clan = new Clan(client, new ClanDesc { ClanId = 10, ClanName = "Test Clan" });
             client.Clans.Set(10, clan);
-            channel = new TextChannel(client, new ApiChannelDescription
+            channel = new SdkChannel(client, new ApiChannelDescription
             {
                 ClanId = 10,
                 ChannelId = 20,
@@ -356,12 +357,12 @@ namespace Mezon.Net.Sdk.Tests
             Assert.NotNull(result.Interaction);
         }
 
-        private static MezonClient CreateClient(out TextChannel channel)
+        private static MezonClient CreateClient(out SdkChannel channel)
         {
             var client = new MezonClient(new MezonClientOptions(1, "token"));
             var clan = new Clan(client, new ClanDesc { ClanId = 10, ClanName = "Test Clan" });
             client.Clans.Set(10, clan);
-            channel = new TextChannel(client, new ApiChannelDescription
+            channel = new SdkChannel(client, new ApiChannelDescription
             {
                 ClanId = 10,
                 ChannelId = 20,

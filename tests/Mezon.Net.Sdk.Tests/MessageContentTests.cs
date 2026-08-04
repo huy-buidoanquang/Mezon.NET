@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Mezon.Net.Client;
 using Mezon.Net.Sdk.Builders;
 using Xunit;

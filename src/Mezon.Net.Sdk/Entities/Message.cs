@@ -13,18 +13,18 @@ namespace Mezon.Net.Sdk.Entities
     public sealed partial class Message : IMessage
     {
         private readonly MezonClient _client;
-        private readonly TextChannel _channel;
+        private readonly Channel _channel;
         private ChannelMessageResponse? _source;
         private MessageContent? _content;
 
-        internal Message(MezonClient client, TextChannel channel, ChannelMessageResponse source)
+        internal Message(MezonClient client, Channel channel, ChannelMessageResponse source)
         {
             _client = client;
             _channel = channel;
             _source = source;
         }
 
-        internal Message(MezonClient client, TextChannel channel, ChannelMessageAck ack, MessageContent content)
+        internal Message(MezonClient client, Channel channel, ChannelMessageAck ack, MessageContent content)
         {
             _client = client;
             _channel = channel;
@@ -42,7 +42,7 @@ namespace Mezon.Net.Sdk.Entities
         public MessageContent Content => _content ??= MessageContent.Parse(Source?.Content ?? string.Empty);
         public string RawContent => Content.RawJson;
         public int Code => Source?.Code ?? 0;
-        public TextChannel Channel => _channel;
+        public Channel Channel => _channel;
 
         public IReadOnlyList<MessageReactionResponse> Reactions
             => Source is { } source ? source.Reactions : Array.Empty<MessageReactionResponse>();

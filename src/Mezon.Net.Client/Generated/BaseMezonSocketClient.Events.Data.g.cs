@@ -248,6 +248,34 @@ namespace Mezon.Net.Client
         }
         internal readonly AsyncEvent<Func<UserChannelAddedEventData, Task>> _userChannelAddedEvent = new AsyncEvent<Func<UserChannelAddedEventData, Task>>();
 
+        public event Func<UserChannelRemovedEventData, Task> UserChannelRemovedEvent
+        {
+            add { _userChannelRemovedEvent.Add(value); }
+            remove { _userChannelRemovedEvent.Remove(value); }
+        }
+        internal readonly AsyncEvent<Func<UserChannelRemovedEventData, Task>> _userChannelRemovedEvent = new AsyncEvent<Func<UserChannelRemovedEventData, Task>>();
+
+        public event Func<AddClanUserEventEventData, Task> ClanUserAddedEvent
+        {
+            add { _clanUserAddedEvent.Add(value); }
+            remove { _clanUserAddedEvent.Remove(value); }
+        }
+        internal readonly AsyncEvent<Func<AddClanUserEventEventData, Task>> _clanUserAddedEvent = new AsyncEvent<Func<AddClanUserEventEventData, Task>>();
+
+        public event Func<RoleAssignedEventEventData, Task> RoleAssignedEvent
+        {
+            add { _roleAssignedEvent.Add(value); }
+            remove { _roleAssignedEvent.Remove(value); }
+        }
+        internal readonly AsyncEvent<Func<RoleAssignedEventEventData, Task>> _roleAssignedEvent = new AsyncEvent<Func<RoleAssignedEventEventData, Task>>();
+
+        public event Func<RoleEventEventData, Task> RoleChangedEvent
+        {
+            add { _roleChangedEvent.Add(value); }
+            remove { _roleChangedEvent.Remove(value); }
+        }
+        internal readonly AsyncEvent<Func<RoleEventEventData, Task>> _roleChangedEvent = new AsyncEvent<Func<RoleEventEventData, Task>>();
+
         public event Func<ApiRequestEventEventData, Task> LocalCacheUpdatedEvent
         {
             add { _localCacheUpdatedEvent.Add(value); }

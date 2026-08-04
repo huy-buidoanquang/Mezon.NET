@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Mezon.Net.Client.Messaging;
 using Mezon.Net.Core;
@@ -9,12 +9,12 @@ using Mezon.Net.Client;
 
 namespace Mezon.Net.Sdk.Entities
 {
-    public sealed class TextChannel : IChannel
+    public sealed class Channel : IChannel
     {
         private global::Mezon.Net.Internal.Api.ChannelDescription _desc;
         private readonly MezonClient _client;
 
-        internal TextChannel(MezonClient client, global::Mezon.Net.Internal.Api.ChannelDescription desc, Clan clan)
+        internal Channel(MezonClient client, global::Mezon.Net.Internal.Api.ChannelDescription desc, Clan clan)
         {
             _client = client;
             _desc = desc;
@@ -24,6 +24,11 @@ namespace Mezon.Net.Sdk.Entities
 
         public long Id => _desc.ChannelId;
         public long ClanId => _desc.ClanId;
+        public long ParentId => _desc.ParentId;
+        public long CategoryId => _desc.CategoryId;
+        public string? CategoryName => string.IsNullOrEmpty(_desc.CategoryName) ? null : _desc.CategoryName;
+        public long CreatorId => _desc.CreatorId;
+        public long AppId => _desc.AppId;
         public int Type => _desc.Type;
         public bool IsPrivate => _desc.ChannelPrivate != 0;
         public string? Name => _desc.ChannelLabel;
@@ -31,6 +36,8 @@ namespace Mezon.Net.Sdk.Entities
         public string MeetingCode => _desc.MeetingCode;
         public Clan Clan { get; }
         public EntityCache<Message> Messages { get; }
+
+        internal global::Mezon.Net.Internal.Api.ChannelDescription Proto => _desc;
 
         internal void UpdateFrom(global::Mezon.Net.Internal.Api.ChannelDescription desc) => _desc = desc;
 
@@ -41,6 +48,8 @@ namespace Mezon.Net.Sdk.Entities
         /// (server maps public sends onto the clan stream). Useful for DM/group/private/thread edge cases.
         /// </summary>
         public Task JoinAsync() => _client.Engine.JoinChannelChatRtAsync(new ChannelJoinParams(ClanId, Id, Type, IsPublic));
+
+        public Task LeaveAsync() => _client.Engine.LeaveChannelChatRtAsync(new ChannelLeaveParams(ClanId, Id, Type, IsPublic));
 
         public Task<ChannelMessageAckResponse> SendAsync(
             MessageContent content,

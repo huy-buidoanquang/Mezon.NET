@@ -49,7 +49,7 @@ namespace Mezon.Net.Sdk
             remove => _engine.TokenSentEvent -= value;
         }
 
-        public event Func<Task> UserChannelRemoved
+        public event Func<UserChannelRemovedEventData, Task> UserChannelRemoved
         {
             add => _engine.UserChannelRemovedEvent += value;
             remove => _engine.UserChannelRemovedEvent -= value;
@@ -73,19 +73,19 @@ namespace Mezon.Net.Sdk
             remove => _engine.CoffeeGivenEvent -= value;
         }
 
-        public event Func<Task> RoleChanged
+        public event Func<RoleEventEventData, Task> RoleChanged
         {
             add => _engine.RoleChangedEvent += value;
             remove => _engine.RoleChangedEvent -= value;
         }
 
-        public event Func<Task> RoleAssigned
+        public event Func<RoleAssignedEventEventData, Task> RoleAssigned
         {
             add => _engine.RoleAssignedEvent += value;
             remove => _engine.RoleAssignedEvent -= value;
         }
 
-        public event Func<Task> ClanUserAdded
+        public event Func<AddClanUserEventEventData, Task> ClanUserAdded
         {
             add => _engine.ClanUserAddedEvent += value;
             remove => _engine.ClanUserAddedEvent -= value;

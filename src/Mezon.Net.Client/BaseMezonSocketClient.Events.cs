@@ -13,13 +13,6 @@ namespace Mezon.Net.Client
         }
         internal readonly AsyncEvent<Func<Task>> _clientReadyEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> UserChannelRemovedEvent
-        {
-            add { _userChannelRemovedEvent.Add(value); }
-            remove { _userChannelRemovedEvent.Remove(value); }
-        }
-        internal readonly AsyncEvent<Func<Task>> _userChannelRemovedEvent = new AsyncEvent<Func<Task>>();
-
         public event Func<Task> UserClanRemovedEvent
         {
             add { _userClanRemovedEvent.Add(value); }
@@ -55,26 +48,12 @@ namespace Mezon.Net.Client
         }
         internal readonly AsyncEvent<Func<Task>> _userProfileUpdatedEvent = new AsyncEvent<Func<Task>>();
 
-        public event Func<Task> ClanUserAddedEvent
-        {
-            add { _clanUserAddedEvent.Add(value); }
-            remove { _clanUserAddedEvent.Remove(value); }
-        }
-        internal readonly AsyncEvent<Func<Task>> _clanUserAddedEvent = new AsyncEvent<Func<Task>>();
-
         public event Func<Task> ClanEventCreated
         {
             add { _clanEventCreated.Add(value); }
             remove { _clanEventCreated.Remove(value); }
         }
         internal readonly AsyncEvent<Func<Task>> _clanEventCreated = new AsyncEvent<Func<Task>>();
-
-        public event Func<Task> RoleAssignedEvent
-        {
-            add { _roleAssignedEvent.Add(value); }
-            remove { _roleAssignedEvent.Remove(value); }
-        }
-        internal readonly AsyncEvent<Func<Task>> _roleAssignedEvent = new AsyncEvent<Func<Task>>();
 
         public event Func<Task> ClanDeletedEvent
         {
@@ -110,13 +89,6 @@ namespace Mezon.Net.Client
             remove { _stickerDeletedEvent.Remove(value); }
         }
         internal readonly AsyncEvent<Func<Task>> _stickerDeletedEvent = new AsyncEvent<Func<Task>>();
-
-        public event Func<Task> RoleChangedEvent
-        {
-            add { _roleChangedEvent.Add(value); }
-            remove { _roleChangedEvent.Remove(value); }
-        }
-        internal readonly AsyncEvent<Func<Task>> _roleChangedEvent = new AsyncEvent<Func<Task>>();
 
         public event Func<Task> EmojiReceivedEvent
         {

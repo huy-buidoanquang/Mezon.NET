@@ -13,7 +13,7 @@ namespace Mezon.Net.Sdk.Commands
         public CommandContext(
             MezonClient client,
             Message message,
-            TextChannel channel,
+            Channel channel,
             Clan? clan,
             User author,
             string prefix,
@@ -34,7 +34,7 @@ namespace Mezon.Net.Sdk.Commands
 
         public MezonClient Client { get; }
         public Message Message { get; }
-        public TextChannel Channel { get; }
+        public Channel Channel { get; }
         public Clan? Clan { get; }
         public User Author { get; }
         public string Prefix { get; }

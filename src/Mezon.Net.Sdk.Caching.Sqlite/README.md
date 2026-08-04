@@ -1,6 +1,8 @@
 # Mezon.Net.Sdk.Caching.Sqlite
 
-Optional SQLite-backed persistent message cache for Mezon.Net applications.
+Optional SQLite-backed persistent message cache (L3) for Mezon.Net applications.
+
+**Integration guide (L1 + L2 + L3):** [docs/caching-l2-l3.md](../../docs/caching-l2-l3.md)
 
 ## Features
 
@@ -28,7 +30,8 @@ var path = SqliteMessageStorePaths.ResolveDatabasePath(
 
 await using var store = await SqliteMessageStore.OpenAsync(path);
 
-// From websocket/API events — returns immediately; disk I/O runs off the hot path.
+// From websocket events — enqueue only; disk I/O runs off the hot path.
+// Do not call REST APIs from message event handlers.
 await store.UpsertMessageAsync(new MessageSnapshot
 {
     MessageId = message.MessageId,
@@ -41,7 +44,7 @@ await store.UpsertMessageAsync(new MessageSnapshot
 
 await store.FlushAsync(); // optional: before shutdown or when tests need durability
 
-// Hydrate on startup
+// Hydrate on Ready into channel.Messages (L1) when desired
 var cached = await store.TryGetMessageAsync(channelId, messageId);
 
 // Housekeeping
@@ -55,3 +58,4 @@ Pick a local app-data directory for `baseDirectory`. This package does not modif
 - Map `Mezon.Net.Models.ChannelMessageResponse` (or your own DTO) into `MessageSnapshot` at the SDK boundary.
 - Use monotonically increasing `revision` values (event sequence, wall clock, or hybrid) so stale events cannot overwrite newer rows.
 - Call `FlushAsync()` before process exit if you need guaranteed durability.
+- L3 is **messages only**; clan/channel/role DTO sharing belongs in L2 Redis.

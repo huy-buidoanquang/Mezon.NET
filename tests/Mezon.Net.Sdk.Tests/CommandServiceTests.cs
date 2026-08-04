@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -11,6 +11,7 @@ using Mezon.Net.Sdk.Commands;
 using Mezon.Net.Client;
 using Mezon.Net.Sdk.Entities;
 using ApiChannelDescription = Mezon.Net.Internal.Api.ChannelDescription;
+using SdkChannel = Mezon.Net.Sdk.Entities.Channel;
 using Xunit;
 
 namespace Mezon.Net.Sdk.Tests
@@ -202,12 +203,12 @@ namespace Mezon.Net.Sdk.Tests
             Assert.Equal(CommandExecutionResult.Unauthorized, result);
         }
 
-        private static MezonClient CreateClient(out TextChannel channel)
+        private static MezonClient CreateClient(out SdkChannel channel)
         {
             var client = new MezonClient(new MezonClientOptions(1, "token"));
             var clan = new Clan(client, new ClanDesc { ClanId = 10, ClanName = "Test Clan" });
             client.Clans.Set(10, clan);
-            channel = new TextChannel(client, new ApiChannelDescription
+            channel = new SdkChannel(client, new ApiChannelDescription
             {
                 ClanId = 10,
                 ChannelId = 20,
