@@ -16,7 +16,7 @@ The library is designed around two distinct developer experiences:
 
 | Audience | Package to reference | Entry point | Surface |
 |----------|----------------------|-------------|---------|
-| Bot / Channel-app dev | `Mezon.Net.Sdk` only | `Mezon.Net.Sdk.MezonClient` | Curated, high-level: `LoginAsync`, entities (`Clan`/`TextChannel`/`Message`/`User`), past-tense events (`ChannelMessageReceived`), builders, MMN, quick menu |
+| Bot / Channel-app dev | `Mezon.Net.Sdk` only | `Mezon.Net.Sdk.MezonClient` | Curated, high-level: `LoginAsync`, entities (`Clan`/`Channel`/`Role`/`Message`/`User`), past-tense events (`ChannelMessageReceived`), builders, MMN, quick menu |
 | UI / Client dev | `Mezon.Net.Client` (+ `Transport`/`Core` if needed) | `Mezon.Net.Client.MezonClient` | Full engine: socket lifecycle, typed facades (`IMezonClientApi`, `IMezonClientRealtime`), `Mezon.Net.Models` params/data views, all events |
 
 - `Mezon.Net.Sdk` references `Mezon.Net.Client` transitively (`ProjectReference`), so bot devs add **only** `Mezon.Net.Sdk`.
@@ -102,7 +102,11 @@ See [`src/Mezon.Net.Sdk.Example`](src/Mezon.Net.Sdk.Example) for a sample bot ho
 | `Mezon.Net.Core` | `IMezonNetworkTransporter`, `MezonFrame`, protobuf (`Internal.Api`, `Internal.Realtime`) |
 | `Mezon.Net.Transport` | `MezonNetworkTcpTransporter`, `MezonNetworkWebSocketTransporter` |
 | `Mezon.Net.Client` | Unified `MezonClient` (merged former Api+Client) |
-| `Mezon.Net.Sdk` | `MezonClient`, entities (`Clan`, `TextChannel`, `Message`, `User`), `AddMezonClient()` DI |
+| `Mezon.Net.Sdk` | `MezonClient`, entities (`Clan`, `Channel`, `Role`, `Message`, `User`), `AddMezonClient()` DI |
+| `Mezon.Net.Sdk.Caching.Redis` | Optional L2 DTO snapshots (Redis/Valkey) |
+| `Mezon.Net.Sdk.Caching.Sqlite` | Optional L3 message history (Sqlite WAL) |
+
+Caching guide: [`docs/caching-l2-l3.md`](docs/caching-l2-l3.md). Event → L1 map: [`docs/events-and-cache.md`](docs/events-and-cache.md).
 
 ## Build notes
 

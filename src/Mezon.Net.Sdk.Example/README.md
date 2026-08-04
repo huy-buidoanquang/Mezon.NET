@@ -54,7 +54,7 @@ dotnet run --project src/Mezon.Net.Sdk.Example -- --help
 | `!ping` | Reply with socket latency and typed mention/attachment/reference counts |
 | `!help` | List available commands |
 
-Replies use `TextChannel.SendAsync` with a `MessageRefParams` reference to the triggering message.
+Replies use `Channel.SendAsync` with a `MessageRefParams` reference to the triggering message.
 
 ## Layout
 

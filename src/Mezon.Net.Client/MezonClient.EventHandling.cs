@@ -166,7 +166,7 @@ namespace Mezon.Net.Client
                         ScheduleEvent(() => TimedInvokeAsync(_userChannelAddedEvent, nameof(UserChannelAddedEvent), new UserChannelAddedEventData(new UserChannelAddedResponse(envelope.UserChannelAddedEvent))));
                         break;
                     case Envelope.MessageOneofCase.UserChannelRemovedEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_userChannelRemovedEvent, nameof(UserChannelRemovedEvent)));
+                        ScheduleEvent(() => TimedInvokeAsync(_userChannelRemovedEvent, nameof(UserChannelRemovedEvent), new UserChannelRemovedEventData(new UserChannelRemovedResponse(envelope.UserChannelRemovedEvent))));
                         break;
                     case Envelope.MessageOneofCase.UserClanRemovedEvent:
                         ScheduleEvent(() => TimedInvokeAsync(_userClanRemovedEvent, nameof(UserClanRemovedEvent)));
@@ -184,13 +184,13 @@ namespace Mezon.Net.Client
                         ScheduleEvent(() => TimedInvokeAsync(_userProfileUpdatedEvent, nameof(UserProfileUpdatedEvent)));
                         break;
                     case Envelope.MessageOneofCase.AddClanUserEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_clanUserAddedEvent, nameof(ClanUserAddedEvent)));
+                        ScheduleEvent(() => TimedInvokeAsync(_clanUserAddedEvent, nameof(ClanUserAddedEvent), new AddClanUserEventEventData(new AddClanUserEventResponse(envelope.AddClanUserEvent))));
                         break;
                     case Envelope.MessageOneofCase.ClanEventCreated:
                         ScheduleEvent(() => TimedInvokeAsync(_clanEventCreated, nameof(ClanEventCreated)));
                         break;
                     case Envelope.MessageOneofCase.RoleAssignEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_roleAssignedEvent, nameof(RoleAssignedEvent)));
+                        ScheduleEvent(() => TimedInvokeAsync(_roleAssignedEvent, nameof(RoleAssignedEvent), new RoleAssignedEventEventData(new RoleAssignedEventResponse(envelope.RoleAssignEvent))));
                         break;
                     case Envelope.MessageOneofCase.ClanDeletedEvent:
                         ScheduleEvent(() => TimedInvokeAsync(_clanDeletedEvent, nameof(ClanDeletedEvent)));
@@ -208,7 +208,7 @@ namespace Mezon.Net.Client
                         ScheduleEvent(() => TimedInvokeAsync(_stickerDeletedEvent, nameof(StickerDeletedEvent)));
                         break;
                     case Envelope.MessageOneofCase.RoleEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_roleChangedEvent, nameof(RoleChangedEvent)));
+                        ScheduleEvent(() => TimedInvokeAsync(_roleChangedEvent, nameof(RoleChangedEvent), new RoleEventEventData(new RoleEventResponse(envelope.RoleEvent))));
                         break;
                     case Envelope.MessageOneofCase.EventEmoji:
                         ScheduleEvent(() => TimedInvokeAsync(_emojiReceivedEvent, nameof(EmojiReceivedEvent)));

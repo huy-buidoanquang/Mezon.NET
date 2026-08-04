@@ -14,7 +14,7 @@ namespace Mezon.Net.Sdk.Interactions
     {
         MezonClient Client { get; }
         IInteraction Interaction { get; }
-        TextChannel Channel { get; }
+        Channel Channel { get; }
         Message? Message { get; }
         User User { get; }
         CancellationToken CancellationToken { get; }
@@ -32,7 +32,7 @@ namespace Mezon.Net.Sdk.Interactions
         public InteractionContext(
             MezonClient client,
             IInteraction interaction,
-            TextChannel channel,
+            Channel channel,
             Message? message,
             User user,
             CancellationToken cancellationToken)
@@ -47,7 +47,7 @@ namespace Mezon.Net.Sdk.Interactions
 
         public MezonClient Client { get; }
         public IInteraction Interaction { get; }
-        public TextChannel Channel { get; }
+        public Channel Channel { get; }
         public Message? Message { get; }
         public User User { get; }
         public CancellationToken CancellationToken { get; }

@@ -39,7 +39,8 @@ namespace Mezon.Net.Sdk
             _engine.Connected += EngineConnectedHandlerAsync;
             _logger = _engine.LogManager.CreateLogger("MezonSdkClient");
             Clans = new EntityCache<Clan>(options.CacheCapacity);
-            Channels = new EntityCache<TextChannel>(options.CacheCapacity);
+            Channels = new EntityCache<Channel>(options.CacheCapacity);
+            Roles = new EntityCache<Role>(options.CacheCapacity);
             Users = new EntityCache<Entities.User>(options.CacheCapacity);
             ApiClient.RequestQueue.SetRateLimitBypassMessage(SendRateLimitBypassMessageAsync);
         }
@@ -50,7 +51,8 @@ namespace Mezon.Net.Sdk
         internal DmChannelManager DmChannels => _dmChannels;
         internal ChannelSendQueue SendQueue => _sendQueue;
         public EntityCache<Clan> Clans { get; }
-        public EntityCache<TextChannel> Channels { get; }
+        public EntityCache<Channel> Channels { get; }
+        public EntityCache<Role> Roles { get; }
         public EntityCache<Entities.User> Users { get; }
 
         public long BotId => Options.BotId;
@@ -183,6 +185,7 @@ namespace Mezon.Net.Sdk
                     {
                         var clanDesc = list.Clandesc[i].Proto;
                         Clans.Set(clanDesc.ClanId, new Clan(this, clanDesc));
+                        MarkClanChatJoined(clanDesc.ClanId);
                         await _engine.JoinClanChatRtAsync(new ClanJoinParams(clanDesc.ClanId)).ConfigureAwait(false);
                     }
 
@@ -308,14 +311,14 @@ namespace Mezon.Net.Sdk
         public ValueTask<Clan> GetClanAsync(long clanId, CancellationToken cancellationToken = default)
             => Clans.GetOrFetchAsync(clanId, FetchClanAsync, cancellationToken);
 
-        public ValueTask<TextChannel> GetChannelAsync(long channelId, CancellationToken cancellationToken = default)
+        public ValueTask<Channel> GetChannelAsync(long channelId, CancellationToken cancellationToken = default)
             => Channels.GetOrFetchAsync(channelId, FetchChannelAsync, cancellationToken);
 
         /// <summary>
         ///     Returns a cached channel or inserts a lightweight stub without calling the socket API.
         ///     Used by interaction/command hot paths when the channel is not yet warmed in cache.
         /// </summary>
-        internal TextChannel GetOrCreateChannelStub(long channelId, long clanId = 0)
+        internal Channel GetOrCreateChannelStub(long channelId, long clanId = 0)
         {
             if (Channels.TryGet(channelId, out var existing))
             {
@@ -328,7 +331,7 @@ namespace Mezon.Net.Sdk
                 Clans.Set(clanId, clan);
             }
 
-            var channel = new TextChannel(
+            var channel = new Channel(
                 this,
                 new global::Mezon.Net.Internal.Api.ChannelDescription
                 {
@@ -358,11 +361,40 @@ namespace Mezon.Net.Sdk
             throw new MezonEntityNotFoundException(nameof(Clan), clanId);
         }
 
-        private async ValueTask<TextChannel> FetchChannelAsync(long channelId, CancellationToken cancellationToken)
+        private async ValueTask<Channel> FetchChannelAsync(long channelId, CancellationToken cancellationToken)
         {
             var detail = await _engine.GetChannelDetailAsync(channelId).ConfigureAwait(false);
             var clan = await GetClanAsync(detail.ClanId, cancellationToken).ConfigureAwait(false);
-            return new TextChannel(this, detail.Proto, clan);
+            return new Channel(this, detail.Proto, clan);
+        }
+
+        /// <summary>Upsert a channel into L1 from an API/event description (caller-initiated or event payload).</summary>
+        internal Channel UpsertChannelFromDescription(global::Mezon.Net.Internal.Api.ChannelDescription desc, Clan? clan = null)
+        {
+            if (desc.ChannelId == 0)
+            {
+                throw new System.ArgumentException("ChannelDescription.ChannelId is required.", nameof(desc));
+            }
+
+            if (clan is null)
+            {
+                var clanId = desc.ClanId;
+                if (!Clans.TryGet(clanId, out clan))
+                {
+                    clan = new Clan(this, new global::Mezon.Net.Internal.Api.ClanDesc { ClanId = clanId });
+                    Clans.Set(clanId, clan);
+                }
+            }
+
+            if (Channels.TryGet(desc.ChannelId, out var existing))
+            {
+                existing.UpdateFrom(desc);
+                return existing;
+            }
+
+            var channel = new Channel(this, desc, clan);
+            Channels.Set(desc.ChannelId, channel);
+            return channel;
         }
 
         private ValueTask<Entities.User> FetchUserAsync(long userId, CancellationToken cancellationToken)

@@ -11,7 +11,8 @@ namespace Mezon.Net.Sdk.Entities
     {
         private readonly MezonClient _client;
         private ClanDesc _desc;
-        private EntityCacheView<TextChannel>? _channelsView;
+        private EntityCacheView<Channel>? _channelsView;
+        private EntityCacheView<Role>? _rolesView;
 
         internal Clan(MezonClient client, ClanDesc desc)
         {
@@ -25,15 +26,27 @@ namespace Mezon.Net.Sdk.Entities
         public long CreatorId => _desc.CreatorId;
         public long WelcomeChannelId => _desc.WelcomeChannelId;
 
-        public EntityCacheView<TextChannel> Channels =>
-            _channelsView ??= new EntityCacheView<TextChannel>(_client.Channels, channel => channel.ClanId == Id);
+        public EntityCacheView<Channel> Channels =>
+            _channelsView ??= new EntityCacheView<Channel>(_client.Channels, channel => channel.ClanId == Id);
+
+        public EntityCacheView<Role> Roles =>
+            _rolesView ??= new EntityCacheView<Role>(_client.Roles, role => role.ClanId == Id);
 
         internal void UpdateFrom(ClanDesc desc) => _desc = desc;
 
-        public Task<ChannelDescListResponse> LoadChannelsAsync(int? channelType = null, RequestOptions? options = null)
-            => _client.ListChannelDescsAsync(
+        public async Task<ChannelDescListResponse> LoadChannelsAsync(int? channelType = null, RequestOptions? options = null)
+        {
+            var list = await _client.ListChannelDescsAsync(
                 new ListChannelDescsParams(clanId: Id, channelType: channelType),
-                options);
+                options).ConfigureAwait(false);
+
+            for (var i = 0; i < list.Channeldesc.Count; i++)
+            {
+                _client.UpsertChannelFromDescription(list.Channeldesc[i].Proto, this);
+            }
+
+            return list;
+        }
 
         public Task<Mezon.Net.Models.RoleListEventResponse> ListRolesAsync(int? limit = null, int? state = null, string? cursor = null, RequestOptions? options = null)
             => _client.ListRolesAsync(new RoleListEventParams(clanId: Id, limit: limit, state: state, cursor: cursor), options);

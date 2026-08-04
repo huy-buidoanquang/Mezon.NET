@@ -7,6 +7,7 @@ using Mezon.Net.Models;
 using Mezon.Net.Sdk;
 using Mezon.Net.Sdk.Entities;
 using ApiChannelDescription = Mezon.Net.Internal.Api.ChannelDescription;
+using SdkChannel = Mezon.Net.Sdk.Entities.Channel;
 using Xunit;
 
 namespace Mezon.Net.Sdk.Tests
@@ -59,14 +60,14 @@ namespace Mezon.Net.Sdk.Tests
             client.Clans.Set(1, clan1);
             client.Clans.Set(2, clan2);
 
-            var channelInClan1 = new TextChannel(client, new ApiChannelDescription
+            var channelInClan1 = new SdkChannel(client, new ApiChannelDescription
             {
                 ClanId = 1,
                 ChannelId = 10,
                 ChannelLabel = "general",
                 Type = 1,
             }, clan1);
-            var channelInClan2 = new TextChannel(client, new ApiChannelDescription
+            var channelInClan2 = new SdkChannel(client, new ApiChannelDescription
             {
                 ClanId = 2,
                 ChannelId = 20,
@@ -103,13 +104,13 @@ namespace Mezon.Net.Sdk.Tests
             Assert.Equal("updated via receive", message.Source!.Value.Content);
         }
 
-        private static (MezonClient Client, TextChannel Channel) CreateFixture(long clanId, long channelId)
+        private static (MezonClient Client, SdkChannel Channel) CreateFixture(long clanId, long channelId)
         {
             var client = new MezonClient(new MezonClientOptions { BotId = 1, Token = "token" });
             var clan = new Clan(client, new ClanDesc { ClanId = clanId, ClanName = "Test Clan" });
             client.Clans.Set(clanId, clan);
 
-            var channel = new TextChannel(client, new ApiChannelDescription
+            var channel = new SdkChannel(client, new ApiChannelDescription
             {
                 ClanId = clanId,
                 ChannelId = channelId,
@@ -120,7 +121,7 @@ namespace Mezon.Net.Sdk.Tests
             return (client, channel);
         }
 
-        private static Message SeedMessage(TextChannel channel, long messageId, string content)
+        private static Message SeedMessage(SdkChannel channel, long messageId, string content)
         {
             var message = new Message(
                 channel.Clan.GetClient(),
@@ -213,6 +214,137 @@ namespace Mezon.Net.Sdk.Tests
             var completed = await Task.WhenAny(task, Task.Delay(500)).ConfigureAwait(false);
             Assert.Same(task, completed);
             await task.ConfigureAwait(false);
+            Assert.True(client.Channels.TryGet(55, out _));
+        }
+
+        [Fact]
+        public async Task ClanJoined_stubs_clan_and_returns_without_awaiting_socket()
+        {
+            var client = new MezonClient(new MezonClientOptions { BotId = 1, Token = "token" });
+            BindCacheListeners(client);
+
+            var joinEvent = (ClanJoinEventData)CreateClanJoinResponse(new ClanJoin { ClanId = 77 });
+            var handler = typeof(MezonClient).GetMethod("OnClanJoinedInternalAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
+            var task = (Task)handler.Invoke(client, new object[] { joinEvent })!;
+
+            var completed = await Task.WhenAny(task, Task.Delay(500)).ConfigureAwait(false);
+            Assert.Same(task, completed);
+            await task.ConfigureAwait(false);
+            Assert.True(client.Clans.TryGet(77, out _));
+        }
+
+        [Fact]
+        public async Task ClanUserAdded_bot_stubs_clan_without_awaiting_socket()
+        {
+            var client = new MezonClient(new MezonClientOptions { BotId = 1, Token = "token" });
+            BindCacheListeners(client);
+
+            var added = new AddClanUserEvent { ClanId = 88 };
+            added.User = new UserProfileRedis { UserId = 1, Username = "bot" };
+            var addedEvent = (AddClanUserEventEventData)CreateAddClanUserResponse(added);
+
+            var handler = typeof(MezonClient).GetMethod("OnClanUserAddedInternalAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
+            var task = (Task)handler.Invoke(client, new object[] { addedEvent })!;
+
+            var completed = await Task.WhenAny(task, Task.Delay(500)).ConfigureAwait(false);
+            Assert.Same(task, completed);
+            await task.ConfigureAwait(false);
+            Assert.True(client.Clans.TryGet(88, out _));
+            Assert.True(client.Users.TryGet(1, out var user));
+            Assert.Equal("bot", user!.Username);
+        }
+
+        [Fact]
+        public async Task UserChannelRemoved_bot_removes_channel_without_awaiting_socket()
+        {
+            var (client, _) = CreateFixture(clanId: 1, channelId: 55);
+            BindCacheListeners(client);
+
+            var removed = new UserChannelRemoved
+            {
+                ClanId = 1,
+                ChannelId = 55,
+                ChannelType = 1,
+            };
+            removed.UserIds.Add(1);
+            var removedEvent = (UserChannelRemovedEventData)CreateUserChannelRemovedResponse(removed);
+
+            var handler = typeof(MezonClient).GetMethod("OnUserChannelRemovedInternalAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
+            var task = (Task)handler.Invoke(client, new object[] { removedEvent })!;
+
+            var completed = await Task.WhenAny(task, Task.Delay(500)).ConfigureAwait(false);
+            Assert.Same(task, completed);
+            await task.ConfigureAwait(false);
+            Assert.False(client.Channels.TryGet(55, out _));
+        }
+
+        [Fact]
+        public async Task RoleChanged_upserts_role_from_payload()
+        {
+            var client = new MezonClient(new MezonClientOptions { BotId = 1, Token = "token" });
+            BindCacheListeners(client);
+
+            var roleEvent = new RoleEvent
+            {
+                Status = 1,
+                Role = new global::Mezon.Net.Internal.Api.Role
+                {
+                    Id = 9,
+                    ClanId = 1,
+                    Title = "Admin",
+                    Color = "#ff0000",
+                },
+            };
+            roleEvent.UserAddIds.Add(42);
+            var evt = (RoleEventEventData)CreateRoleEventResponse(roleEvent);
+
+            await InvokeCacheHandlerAsync(client, "OnRoleChangedInternalAsync", evt);
+
+            Assert.True(client.Roles.TryGet(9, out var role));
+            Assert.Equal("Admin", role!.Title);
+            Assert.Contains(42L, role.MemberIds);
+        }
+
+        [Fact]
+        public async Task RoleAssigned_stubs_role_and_applies_membership()
+        {
+            var client = new MezonClient(new MezonClientOptions { BotId = 1, Token = "token" });
+            BindCacheListeners(client);
+
+            var assigned = new RoleAssignedEvent
+            {
+                ClanId = "1",
+                RoleId = 11,
+            };
+            assigned.UserIdsAssigned.Add(5);
+            assigned.UserIdsRemoved.Add(6);
+            var evt = (RoleAssignedEventEventData)CreateRoleAssignedResponse(assigned);
+
+            await InvokeCacheHandlerAsync(client, "OnRoleAssignedInternalAsync", evt);
+
+            Assert.True(client.Roles.TryGet(11, out var role));
+            Assert.Equal(1, role!.ClanId);
+            Assert.Contains(5L, role.MemberIds);
+            Assert.DoesNotContain(6L, role.MemberIds);
+        }
+
+        [Fact]
+        public async Task RoleChanged_delete_status_removes_role()
+        {
+            var client = new MezonClient(new MezonClientOptions { BotId = 1, Token = "token" });
+            client.Roles.Set(9, new Sdk.Entities.Role(new global::Mezon.Net.Internal.Api.Role { Id = 9, ClanId = 1, Title = "Gone" }));
+            BindCacheListeners(client);
+
+            var roleEvent = new RoleEvent
+            {
+                Status = 3,
+                Role = new global::Mezon.Net.Internal.Api.Role { Id = 9, ClanId = 1 },
+            };
+            var evt = (RoleEventEventData)CreateRoleEventResponse(roleEvent);
+
+            await InvokeCacheHandlerAsync(client, "OnRoleChangedInternalAsync", evt);
+
+            Assert.False(client.Roles.TryGet(9, out _));
         }
 
         private static ChannelUpdatedEventResponse CreateChannelUpdatedResponse(ChannelUpdatedEvent proto)
@@ -220,6 +352,21 @@ namespace Mezon.Net.Sdk.Tests
 
         private static UserChannelAddedResponse CreateUserChannelAddedResponse(UserChannelAdded proto)
             => InvokeInternalFactory<UserChannelAddedResponse>(typeof(UserChannelAddedResponse), proto);
+
+        private static UserChannelRemovedResponse CreateUserChannelRemovedResponse(UserChannelRemoved proto)
+            => InvokeInternalFactory<UserChannelRemovedResponse>(typeof(UserChannelRemovedResponse), proto);
+
+        private static ClanJoinResponse CreateClanJoinResponse(ClanJoin proto)
+            => InvokeInternalFactory<ClanJoinResponse>(typeof(ClanJoinResponse), proto);
+
+        private static AddClanUserEventResponse CreateAddClanUserResponse(AddClanUserEvent proto)
+            => InvokeInternalFactory<AddClanUserEventResponse>(typeof(AddClanUserEventResponse), proto);
+
+        private static RoleEventResponse CreateRoleEventResponse(RoleEvent proto)
+            => InvokeInternalFactory<RoleEventResponse>(typeof(RoleEventResponse), proto);
+
+        private static RoleAssignedEventResponse CreateRoleAssignedResponse(RoleAssignedEvent proto)
+            => InvokeInternalFactory<RoleAssignedEventResponse>(typeof(RoleAssignedEventResponse), proto);
 
         private static ChannelMessageResponse CreateMessageResponse(ChannelMessage proto)
             => InvokeInternalFactory<ChannelMessageResponse>(typeof(ChannelMessageResponse), proto);

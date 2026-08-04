@@ -7,11 +7,13 @@ Implementation notes for the hybrid cache + typed content + commands/interaction
 ```text
 Server/event stream authoritative
 → normalize event + revision
-→ apply L1 in-place
-→ persist L3 (messages, optional SQLite)
-→ update/invalidate L2 (optional Redis)
+→ apply L1 in-place (no REST from event handlers)
+→ persist L3 (messages, optional SQLite) — app-owned background
+→ update/invalidate L2 (optional Redis) — app-owned background
 → raise app events after local apply
 ```
+
+See [`caching-l2-l3.md`](caching-l2-l3.md) and [`events-and-cache.md`](events-and-cache.md).
 
 ## Phase checklist
 

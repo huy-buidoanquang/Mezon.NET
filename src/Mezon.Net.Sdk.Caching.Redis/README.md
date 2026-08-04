@@ -2,6 +2,8 @@
 
 Optional Redis/Valkey **L2 snapshot cache** for `Mezon.Net.Sdk`. Store **DTO snapshots only** — never live entities, sockets, JWT/session state, send locks, MMN keys, or `SemaphoreSlim`.
 
+**Integration guide (L1 + L2 + L3):** [docs/caching-l2-l3.md](../../docs/caching-l2-l3.md)
+
 Shared abstractions live in `Mezon.Net.Sdk`:
 
 - `IEntitySnapshotStore`
@@ -52,6 +54,7 @@ await listener.StartListeningAsync();
 var key = new CacheKey("prod", accountId: 42, entityType: "channel", id: "9001");
 
 // Read-through pattern: L2 miss falls back to API, then populate Redis.
+// Call API only from explicit app paths — never from realtime event handlers.
 var cached = await store.GetAsync<ChannelSnapshotDto>(key, cancellationToken);
 if (cached is null)
 {
@@ -78,8 +81,6 @@ await store.InvalidateAsync(key, cancellationToken);
 | Key format | `{KeyPrefix}:{env}:{accountId}:{entityType}:{id}` (+ `:rev` for CAS) |
 | Redis failure | Logged and treated as cache miss / no-op (never thrown to callers) |
 | Revision / CAS | Optional `CacheEntryOptions.Revision` uses a Lua compare-and-set on `:rev` |
-| Pub/sub | Set `InvalidationChannel` to publish on `InvalidateAsync`; use `RedisCacheInvalidationListener` to react |
+| Invalidation | `InvalidateAsync` publishes when `InvalidationChannel` is set; listener drops L1 |
 
-## What not to cache here
-
-Use `EntityCache<T>` in `Mezon.Net.Sdk` for process-local live entities. Use this package only for serializable DTO snapshots suitable for Redis strings.
+Wire L2 updates from Sdk events in the **background** after L1 apply. Do not block the websocket dispatch path.

@@ -36,7 +36,7 @@ namespace Mezon.Net.Client
         public async Task JoinChannelChatRtAsync(Mezon.Net.Models.ChannelJoinParams body, RequestOptions? options = null)
         {
             var envelope = new global::Mezon.Net.Internal.Realtime.Envelope { ChannelJoin = ChannelJoinParamsMapper.ToProto(body) };
-            await ApiClient.SendRtAwaitAckAsync(envelope, options).ConfigureAwait(false);
+            await ApiClient.SendRtAsync(envelope, options).ConfigureAwait(false);
         }
 
         /// <summary>Realtime envelope send (ChannelLeave). mezon-js: leaveChat.</summary>
