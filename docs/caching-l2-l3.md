@@ -34,7 +34,7 @@ Do not serialize live `Channel` / `Role` / socket / JWT into L2 — only plain D
 
 ## L1 (built-in)
 
-On `LoginAsync` / connect, Sdk seeds clans and joins clan chat. Membership events stub clans/channels/roles and schedule RT joins. See [Sdk README](../src/Mezon.Net.Sdk/README.md#event--l1-side-effects).
+On `LoginAsync` / connect, Sdk seeds **clans** and `JoinClanChat` only — not all channels, roles, or messages (keeps `Ready` fast and avoids a fake-complete cache). Membership events stub clans/channels/roles and schedule RT joins. Rationale: [Sdk README](../src/Mezon.Net.Sdk/README.md#why-login-does-not-seed-every-entity). Event map: [events-and-cache.md](events-and-cache.md).
 
 ## L2 — Redis / Valkey
 

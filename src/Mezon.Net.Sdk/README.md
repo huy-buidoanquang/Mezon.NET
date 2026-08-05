@@ -44,6 +44,19 @@ Clan-scoped views: `clan.Channels`, `clan.Roles` (`EntityCacheView`).
 
 `Channel` exposes `ParentId`, `CategoryId`, `CategoryName`, `CreatorId`, `AppId`, `MeetingCode`, and `Type`. Call `clan.LoadChannelsAsync()` to hydrate L1 from the API when the app chooses to (not from event handlers).
 
+### Why login does not seed every entity
+
+After `LoginAsync`, Sdk only seeds **clans** (`ListClanDescs` + `JoinClanChat`) and DM channel ids. It does **not** bulk-load all channels, roles, users, or messages.
+
+| Reason | Detail |
+|--------|--------|
+| Connect must stay light | A bot may be in many clans with hundreds/thousands of channels and roles. Full seed delays `Ready` and risks timeout/reconnect storms. |
+| Public chat does not need per-channel join | `JoinClanChat` is enough for public clan streams; per-channel `JoinChannelChat` is for private/DM/thread/add cases (events handle those). |
+| Avoid a false “complete” cache | A full snapshot at login still drifts (new threads, role edits, private adds). L1 stays correct via events + explicit loads. |
+| Same spirit as no-API-in-events | Connect *may* call API, but only the minimum. Channels/roles hydrate via `LoadChannelsAsync` / `ListRolesAsync` / `GetChannelAsync`, or from rich events (`UserChannelAdded`, `RoleChanged`). |
+
+**When to hydrate more:** in a `Ready` handler (or an admin command), call `clan.LoadChannelsAsync()` / `ListRolesAsync()` if the bot needs a full directory immediately — never from message/reaction handlers.
+
 ## Architecture notes
 
 - **Hot path**: ordered realtime dispatch, opt-in handler timeout, cached nested `ProtoListView`, LRU `EntityCache` with single-flight `GetOrFetchAsync`.

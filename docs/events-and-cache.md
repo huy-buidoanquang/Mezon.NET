@@ -2,6 +2,8 @@
 
 Sdk past-tense events and what the built-in L1 cache listeners do. Handlers never call REST APIs; membership joins use realtime presence in the background only.
 
+Login seeds **clans + JoinClanChat** only — not every channel/role/message. See [Why login does not seed every entity](../src/Mezon.Net.Sdk/README.md#why-login-does-not-seed-every-entity).
+
 ## Membership
 
 | Event | Payload | L1 | Presence |

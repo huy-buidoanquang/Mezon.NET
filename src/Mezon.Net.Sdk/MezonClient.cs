@@ -248,6 +248,16 @@ namespace Mezon.Net.Sdk
         public Task<UploadAttachmentResponse> UploadAttachmentFileAsync(UploadAttachmentParams body, RequestOptions? options = null)
             => _engine.UploadAttachmentFileAsync(body, options);
 
+        public Task<MultipartUploadAttachmentResponse> MultipartUploadAttachmentFileStartAsync(
+            UploadAttachmentParams body,
+            RequestOptions? options = null)
+            => _engine.MultipartUploadAttachmentFileStartAsync(body, options);
+
+        public Task<UploadAttachmentResponse> MultipartUploadAttachmentFileFinishAsync(
+            MultipartUploadAttachmentFinishParams body,
+            RequestOptions? options = null)
+            => _engine.MultipartUploadAttachmentFileFinishAsync(body, options);
+
         public Task<ChannelDescListResponse> ListChannelDescsAsync(ListChannelDescsParams request, RequestOptions? options = null)
             => _engine.ListChannelDescsAsync(request, options);
 
