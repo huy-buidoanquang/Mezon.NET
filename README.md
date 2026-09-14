@@ -36,7 +36,7 @@ Public API types live in `Mezon.Net.Models` (generated under `Mezon.Net.Client/M
 Facades are generated on base classes (not on `MezonClient` directly):
 
 - `BaseMezonClient` — REST/auth bootstrap (~7 methods)
-- `BaseSocketClient` — socket API (~210 methods) + **realtime envelope** (21 `*RtAsync` methods) + payload events
+- `BaseSocketClient` — socket API (~211 methods) + **realtime envelope** (22 `*RtAsync` methods) + payload events
 - `MezonClient` — connect, heartbeat, event dispatch only
 
 Two socket send paths (parity with mezon-js):

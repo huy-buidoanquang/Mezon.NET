@@ -42,6 +42,8 @@ namespace Mezon.Net.Client.Models.Internal
                 foreach (var item in p.References)
                     proto.References.Add(MessageRefParamsMapper.ToProto(item));
             }
+            if (p.TopicId.HasValue)
+                proto.TopicId = p.TopicId.Value;
             return proto;
         }
     }

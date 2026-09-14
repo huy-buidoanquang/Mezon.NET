@@ -355,6 +355,9 @@ namespace Mezon.Net.Client
                     case Envelope.MessageOneofCase.ScreenShareEvent:
                         ScheduleEvent(() => TimedInvokeAsync(_screenShareReceivedEvent, nameof(ScreenShareReceivedEvent), new ScreenShareEventEventData(new ScreenShareEventResponse(envelope.ScreenShareEvent))));
                         break;
+                    case Envelope.MessageOneofCase.VoiceInteractiveEvent:
+                        ScheduleEvent(() => TimedInvokeAsync(_voiceInteractiveReceivedEvent, nameof(VoiceInteractiveReceivedEvent), new VoiceInteractiveEventEventData(new VoiceInteractiveEventResponse(envelope.VoiceInteractiveEvent))));
+                        break;
                     default:
                         ScheduleEvent(() => _logger.WarningAsync($"Unknown message type ({envelope.MessageCase})"));
                         break;

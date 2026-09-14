@@ -259,5 +259,6 @@ namespace Mezon.Net.Abstractions
         Task<UploadAttachment> MultipartUploadAttachmentFileFinishAsync(MultipartUploadAttachmentFinishRequest body, RequestOptions? options = null);
         Task SessionLogoutAsync(SessionLogoutRequest body, RequestOptions? options = null);
         Task<UploadAttachmentBatch> UploadBatchAttachmentFileAsync(UploadBatchAttachmentRequest body, RequestOptions? options = null);
+        Task<SearchCtrlKResponse> SearchCtrlKAsync(SearchCtrlKRequest body, RequestOptions? options = null);
     }
 }

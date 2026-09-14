@@ -16,6 +16,8 @@ namespace Mezon.Net.Client.Models.Internal
                 proto.ClanId = p.ClanId.Value;
             if (p.Limit.HasValue)
                 proto.Limit = p.Limit.Value;
+            if (p.Page.HasValue)
+                proto.Page = p.Page.Value;
             return proto;
         }
     }

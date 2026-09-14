@@ -8,10 +8,12 @@ namespace Mezon.Net.Models
     {
         public readonly long? ClanId;
         public readonly int? Limit;
-        public ListSdTopicParams(long? clanId = null, int? limit = null)
+        public readonly int? Page;
+        public ListSdTopicParams(long? clanId = null, int? limit = null, int? page = null)
         {
             ClanId = clanId;
             Limit = limit;
+            Page = page;
         }
     }
 }

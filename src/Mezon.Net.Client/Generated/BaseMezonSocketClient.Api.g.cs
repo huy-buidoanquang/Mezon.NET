@@ -1178,5 +1178,11 @@ namespace Mezon.Net.Client
             return new Mezon.Net.Models.UploadAttachmentBatchResponse(result);
         }
 
+        public async Task<Mezon.Net.Models.SearchCtrlKResponse> SearchCtrlKAsync(Mezon.Net.Models.SearchCtrlKParams body, RequestOptions? options = null)
+        {
+            var result = await ApiClient.SearchCtrlKAsync(SearchCtrlKParamsMapper.ToProto(body), options).ConfigureAwait(false);
+            return new Mezon.Net.Models.SearchCtrlKResponse(result);
+        }
+
     }
 }

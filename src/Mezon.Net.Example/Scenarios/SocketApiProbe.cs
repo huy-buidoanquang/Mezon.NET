@@ -225,6 +225,7 @@ internal static class SocketApiProbe
             await Probe(results, logger, options, cancellationToken, "ListChannelTimelineAsync", () => client.ListChannelTimelineAsync(new ListChannelTimelineParams(clanId: ctx.ClanId, channelId: ctx.ChannelId), opts));
             await Probe(results, logger, options, cancellationToken, "ListOnboardingStepAsync", () => client.ListOnboardingStepAsync(ctx.ClanId, opts));
             await Probe(results, logger, options, cancellationToken, "GetChannelDetailAsync", () => client.GetChannelDetailAsync(ctx.ChannelId, opts));
+            await Probe(results, logger, options, cancellationToken, "SearchCtrlKAsync", () => client.SearchCtrlKAsync(new SearchCtrlKParams(text: ctx.Username, type: 0), opts));
         });
 
         if (maxStage <= 0 || maxStage >= 11)

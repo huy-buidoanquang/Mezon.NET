@@ -12,10 +12,8 @@ namespace Mezon.Net.Client.Models.Internal
         internal static global::Mezon.Net.Internal.Api.MeetParticipantRequest ToProto(in MeetParticipantParams p)
         {
             var proto = new global::Mezon.Net.Internal.Api.MeetParticipantRequest();
-            if (p.Username is not null)
-                proto.Username = p.Username;
-            if (p.RoomName is not null)
-                proto.RoomName = p.RoomName;
+            if (p.UserId.HasValue)
+                proto.UserId = p.UserId.Value;
             if (p.ChannelId.HasValue)
                 proto.ChannelId = p.ChannelId.Value;
             if (p.ClanId.HasValue)

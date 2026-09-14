@@ -2073,6 +2073,12 @@ namespace Mezon.Net.Client
             return SendApiAsync("UploadBatchAttachmentFile", body, UploadAttachmentBatch.Parser, options);
         }
 
+        public override Task<SearchCtrlKResponse> SearchCtrlKAsync(SearchCtrlKRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            return SendApiAsync("SearchCtrlK", body, SearchCtrlKResponse.Parser, options);
+        }
+
         #endregion
     }
 }

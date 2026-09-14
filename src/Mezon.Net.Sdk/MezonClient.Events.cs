@@ -157,6 +157,12 @@ namespace Mezon.Net.Sdk
             remove => _engine.VoiceLeavedEvent -= value;
         }
 
+        public event Func<VoiceInteractiveEventEventData, Task> VoiceInteractiveReceived
+        {
+            add => _engine.VoiceInteractiveReceivedEvent += value;
+            remove => _engine.VoiceInteractiveReceivedEvent -= value;
+        }
+
         public event Func<Task> AIAgentEnabled
         {
             add => _engine.AIAgentEnabledEvent += value;

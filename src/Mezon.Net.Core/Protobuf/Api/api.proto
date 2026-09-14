@@ -3227,6 +3227,7 @@ message SdTopicList {
 message ListSdTopicRequest {
   int64 clan_id = 1;
   int32 limit = 2;
+  int32 page = 3;
 }
 
 message SdTopicDetailRequest {
@@ -3245,10 +3246,9 @@ message GenerateMeetTokenRequest {
 }
 
 message MeetParticipantRequest {
-  string username = 1;
-  string room_name = 2;
-  int64 channel_id = 3;
-  int64 clan_id = 4;
+  int64 user_id = 1;
+  int64 channel_id = 2;
+  int64 clan_id = 3;
 }
 
 message GenerateMeetTokenResponse {
@@ -3351,6 +3351,7 @@ message Message2InboxRequest {
   repeated MessageAttachment attachments = 7;
   repeated MessageReaction reactions = 8;
   repeated MessageRef references = 9;
+  int64 topic_id = 10;
 }
 
 // Send an email with password to the server. Used with authenticate/link/unlink.
@@ -3475,6 +3476,7 @@ message DirectFcmProto {
   bool has_more_attachment = 17;
   repeated bool is_mention_role = 18 [packed = true];
   int64 message_id = 19;
+  int64 topic_id = 20;
 }
 
 message MessageMentionList {
@@ -3804,6 +3806,16 @@ message ListUserOnlineRequest {
 message ListUserOnlineResponse {
   repeated User users = 1;
   int32 total_count = 2;
+}
+
+message SearchCtrlKRequest {
+  string text = 1;
+  int32 type = 2;
+}
+
+message SearchCtrlKResponse {
+  repeated User users = 1;
+  repeated ChannelDescription channels = 2;
 }
 
 message NoParams {}

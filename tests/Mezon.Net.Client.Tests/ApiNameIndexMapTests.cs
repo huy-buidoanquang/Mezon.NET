@@ -64,7 +64,7 @@ public sealed class ApiNameIndexMapTests
     [Fact]
     public void Map_contains_all_expected_api_names()
     {
-        Assert.Equal(210, MezonApiMap.NameToIndex.Count);
+        Assert.Equal(211, MezonApiMap.NameToIndex.Count);
     }
 
     [Fact]

@@ -141,6 +141,13 @@ namespace Mezon.Net.Client
             await ApiClient.SendRtAsync(envelope, options).ConfigureAwait(false);
         }
 
+        /// <summary>Realtime envelope send (VoiceInteractiveEvent). mezon-js: writeVoiceInteractiveEvent.</summary>
+        public async Task SendVoiceInteractiveEventRtAsync(Mezon.Net.Models.VoiceInteractiveEventParams body, RequestOptions? options = null)
+        {
+            var envelope = new global::Mezon.Net.Internal.Realtime.Envelope { VoiceInteractiveEvent = VoiceInteractiveEventParamsMapper.ToProto(body) };
+            await ApiClient.SendRtAsync(envelope, options).ConfigureAwait(false);
+        }
+
         /// <summary>Realtime envelope send (WebrtcSignalingFwd). mezon-js: forwardWebrtcSignaling.</summary>
         public async Task ForwardWebrtcSignalingRtAsync(Mezon.Net.Models.WebrtcSignalingFwdParams body, RequestOptions? options = null)
         {

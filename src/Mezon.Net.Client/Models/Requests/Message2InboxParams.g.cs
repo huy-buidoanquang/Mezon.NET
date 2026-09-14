@@ -15,7 +15,8 @@ namespace Mezon.Net.Models
         public readonly IEnumerable<MessageAttachmentParams>? Attachments;
         public readonly IEnumerable<MessageReactionParams>? Reactions;
         public readonly IEnumerable<MessageRefParams>? References;
-        public Message2InboxParams(long? messageId = null, long? channelId = null, long? clanId = null, string? avatar = null, string? content = null, IEnumerable<MessageMentionParams>? mentions = null, IEnumerable<MessageAttachmentParams>? attachments = null, IEnumerable<MessageReactionParams>? reactions = null, IEnumerable<MessageRefParams>? references = null)
+        public readonly long? TopicId;
+        public Message2InboxParams(long? messageId = null, long? channelId = null, long? clanId = null, string? avatar = null, string? content = null, IEnumerable<MessageMentionParams>? mentions = null, IEnumerable<MessageAttachmentParams>? attachments = null, IEnumerable<MessageReactionParams>? reactions = null, IEnumerable<MessageRefParams>? references = null, long? topicId = null)
         {
             MessageId = messageId;
             ChannelId = channelId;
@@ -26,6 +27,7 @@ namespace Mezon.Net.Models
             Attachments = attachments;
             Reactions = reactions;
             References = references;
+            TopicId = topicId;
         }
     }
 }

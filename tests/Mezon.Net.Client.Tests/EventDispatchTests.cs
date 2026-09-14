@@ -18,12 +18,14 @@ public sealed class EventDispatchTests
         Session? session = null;
         ChannelArchiveEventEventData? archive = null;
         TopicInMessageEventEventData? topic = null;
+        VoiceInteractiveEventEventData? voiceInteractive = null;
 
         client.ApiRequestReceivedEvent += payload => { apiRequest = payload; return Task.CompletedTask; };
         client.ChannelUsersBannedListedEvent += payload => { banned = payload; return Task.CompletedTask; };
         client.SessionRefreshedEvent += payload => { session = payload; return Task.CompletedTask; };
         client.ChannelArchivedEvent += payload => { archive = payload; return Task.CompletedTask; };
         client.TopicInMessageReceivedEvent += payload => { topic = payload; return Task.CompletedTask; };
+        client.VoiceInteractiveReceivedEvent += payload => { voiceInteractive = payload; return Task.CompletedTask; };
 
         var envelopes = new[]
         {
@@ -32,16 +34,21 @@ public sealed class EventDispatchTests
             new Envelope { RefreshSessionEvent = new global::Mezon.Net.Internal.Api.Session { SessionId = "s", Token = CreateJwt(), RefreshToken = CreateJwt() } },
             new Envelope { ChannelArchiveEvent = new ChannelArchiveEvent { ChannelId = 7, ClanId = 3 } },
             new Envelope { TopicInMessageEvent = new TopicInMessageEvent { MessageId = 99, TpId = "topic" } },
+            new Envelope { VoiceInteractiveEvent = new VoiceInteractiveEvent { ClanId = 11, VoiceChannelId = 22, SenderId = 33, ReceiverId = 44, EventType = 1, Params = "raise-hand" } },
         };
 
         await DispatchAllAsync(client, envelopes);
-        await WaitUntilAsync(() => apiRequest.HasValue && banned.HasValue && session != null && archive.HasValue && topic.HasValue);
+        await WaitUntilAsync(() => apiRequest.HasValue && banned.HasValue && session != null && archive.HasValue && topic.HasValue && voiceInteractive.HasValue);
 
         Assert.Equal("Healthcheck", ((ApiRequestEventResponse)apiRequest!.Value).ApiName);
         Assert.Equal(42L, ((ListChannelUsersBannedEventResponse)banned!.Value).BannedUserIds[0]);
         Assert.Equal(CreateJwt(), session?.AuthToken);
         Assert.Equal(7, ((ChannelArchiveEventResponse)archive!.Value).ChannelId);
         Assert.Equal(99, ((TopicInMessageEventResponse)topic!.Value).MessageId);
+        Assert.Equal(11, ((VoiceInteractiveEventResponse)voiceInteractive!.Value).ClanId);
+        Assert.Equal(22, ((VoiceInteractiveEventResponse)voiceInteractive!.Value).VoiceChannelId);
+        Assert.Equal(33, ((VoiceInteractiveEventResponse)voiceInteractive!.Value).SenderId);
+        Assert.Equal("raise-hand", ((VoiceInteractiveEventResponse)voiceInteractive!.Value).Params);
     }
 
     [Fact]

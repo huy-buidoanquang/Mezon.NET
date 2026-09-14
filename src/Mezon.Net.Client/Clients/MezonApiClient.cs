@@ -1456,6 +1456,11 @@ namespace Mezon.Net.Client
             throw new NotSupportedException("Socket API is not available on REST-only client.");
         }
 
+        public virtual Task<SearchCtrlKResponse> SearchCtrlKAsync(SearchCtrlKRequest body, RequestOptions? options = null)
+        {
+            throw new NotSupportedException("Socket API is not available on REST-only client.");
+        }
+
         #endregion
     }
 }

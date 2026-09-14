@@ -6,14 +6,12 @@ namespace Mezon.Net.Models
 {
     public readonly struct MeetParticipantParams
     {
-        public readonly string? Username;
-        public readonly string? RoomName;
+        public readonly long? UserId;
         public readonly long? ChannelId;
         public readonly long? ClanId;
-        public MeetParticipantParams(string? username = null, string? roomName = null, long? channelId = null, long? clanId = null)
+        public MeetParticipantParams(long? userId = null, long? channelId = null, long? clanId = null)
         {
-            Username = username;
-            RoomName = roomName;
+            UserId = userId;
             ChannelId = channelId;
             ClanId = clanId;
         }

@@ -220,6 +220,7 @@ namespace Mezon.Net.Core
             ["DeletePinMessage"] = 207,
             ["MarkAsRead"] = 208,
             ["UploadBatchAttachmentFile"] = 209,
+            ["SearchCtrlK"] = 210,
         };
 
 #if NET8_0_OR_GREATER

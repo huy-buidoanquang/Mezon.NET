@@ -258,6 +258,15 @@ REALTIME_METHODS: List[RealtimeMethod] = [
         "{Mapper}.ToProto(body)",
     ),
     RealtimeMethod(
+        "writeVoiceInteractiveEvent",
+        "SendVoiceInteractiveEventRtAsync",
+        "VoiceInteractiveEvent",
+        "VoiceInteractiveEvent",
+        "VoiceInteractiveEventParams",
+        "body",
+        "{Mapper}.ToProto(body)",
+    ),
+    RealtimeMethod(
         "forwardWebrtcSignaling",
         "ForwardWebrtcSignalingRtAsync",
         "WebrtcSignalingFwd",
@@ -332,7 +341,8 @@ def read_text(path: Path) -> str:
 
 def write_file(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
+        handle.write(content)
 
 
 def parse_proto_messages(path: Path, namespace: str) -> Tuple[Dict[str, ProtoMessage], Dict[str, str]]:
@@ -938,11 +948,12 @@ def gen_params_struct(msg: ProtoMessage, api_msgs: Dict[str, ProtoMessage], rt_m
         for fld in msg.fields:
             prop = snake_to_pascal(fld.name)
             cs_type = proto_field_cs_type(fld, api_msgs, rt_msgs, for_params=True)
+            param = ctor_param_name(prop)
             if cs_type.endswith("?") or cs_type == "byte[]":
-                ctor_params.append(f"{cs_type} {camel_case(prop)} = null")
+                ctor_params.append(f"{cs_type} {param} = null")
             else:
-                ctor_params.append(f"{cs_type} {camel_case(prop)} = default")
-            ctor_assign.append(f"            {prop} = {camel_case(prop)};")
+                ctor_params.append(f"{cs_type} {param} = default")
+            ctor_assign.append(f"            {prop} = {param};")
         lines.append(f"        public {type_name}({', '.join(ctor_params)})")
         lines.append("        {")
         lines.extend(ctor_assign)
@@ -955,6 +966,94 @@ def camel_case(name: str) -> str:
     if not name:
         return name
     return name[0].lower() + name[1:]
+
+
+CS_KEYWORDS = frozenset(
+    {
+        "abstract",
+        "as",
+        "base",
+        "bool",
+        "break",
+        "byte",
+        "case",
+        "catch",
+        "char",
+        "checked",
+        "class",
+        "const",
+        "continue",
+        "decimal",
+        "default",
+        "delegate",
+        "do",
+        "double",
+        "else",
+        "enum",
+        "event",
+        "explicit",
+        "extern",
+        "false",
+        "finally",
+        "fixed",
+        "float",
+        "for",
+        "foreach",
+        "goto",
+        "if",
+        "implicit",
+        "in",
+        "int",
+        "interface",
+        "internal",
+        "is",
+        "lock",
+        "long",
+        "namespace",
+        "new",
+        "null",
+        "object",
+        "operator",
+        "out",
+        "override",
+        "params",
+        "private",
+        "protected",
+        "public",
+        "readonly",
+        "ref",
+        "return",
+        "sbyte",
+        "sealed",
+        "short",
+        "sizeof",
+        "stackalloc",
+        "static",
+        "string",
+        "struct",
+        "switch",
+        "this",
+        "throw",
+        "true",
+        "try",
+        "typeof",
+        "uint",
+        "ulong",
+        "unchecked",
+        "unsafe",
+        "ushort",
+        "using",
+        "virtual",
+        "void",
+        "volatile",
+        "while",
+    }
+)
+
+
+def ctor_param_name(prop: str) -> str:
+    name = camel_case(prop)
+    return f"@{name}" if name in CS_KEYWORDS else name
 
 
 def proto_csharp_property_name(msg: ProtoMessage, fld: ProtoField) -> str:
@@ -1271,6 +1370,7 @@ SOCKET_EVENT_MANIFEST: List[Tuple[str, str, str]] = [
     ("ChannelArchivedEvent", "ChannelArchiveEvent", RT_NS),
     ("TopicInMessageReceivedEvent", "TopicInMessageEvent", RT_NS),
     ("ScreenShareReceivedEvent", "ScreenShareEvent", RT_NS),
+    ("VoiceInteractiveReceivedEvent", "VoiceInteractiveEvent", RT_NS),
     ("MessageButtonClickedEvent", "MessageButtonClicked", RT_NS),
     ("DropdownBoxSelectedEvent", "DropdownBoxSelected", RT_NS),
 ]
@@ -1336,9 +1436,9 @@ def parse_realtime_transport_methods(transport_path: Path) -> Set[str]:
 
 def assert_realtime_transport_parity() -> None:
     manifest = {m.js_name for m in REALTIME_METHODS}
-    if len(REALTIME_METHODS) != 21:
-        raise RuntimeError(f"REALTIME_METHODS must contain 21 entries, got {len(REALTIME_METHODS)}")
-    if len(manifest) != 21:
+    if len(REALTIME_METHODS) != 22:
+        raise RuntimeError(f"REALTIME_METHODS must contain 22 entries, got {len(REALTIME_METHODS)}")
+    if len(manifest) != 22:
         raise RuntimeError("REALTIME_METHODS contains duplicate js_name entries")
     if not MEZON_JS_TRANSPORT.is_file():
         print(f"Warning: mezon-js transport not found at {MEZON_JS_TRANSPORT}; skipping transport parity assert")

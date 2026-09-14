@@ -325,6 +325,13 @@ namespace Mezon.Net.Client
         }
         internal readonly AsyncEvent<Func<ScreenShareEventEventData, Task>> _screenShareReceivedEvent = new AsyncEvent<Func<ScreenShareEventEventData, Task>>();
 
+        public event Func<VoiceInteractiveEventEventData, Task> VoiceInteractiveReceivedEvent
+        {
+            add { _voiceInteractiveReceivedEvent.Add(value); }
+            remove { _voiceInteractiveReceivedEvent.Remove(value); }
+        }
+        internal readonly AsyncEvent<Func<VoiceInteractiveEventEventData, Task>> _voiceInteractiveReceivedEvent = new AsyncEvent<Func<VoiceInteractiveEventEventData, Task>>();
+
         public event Func<MessageButtonClickedEventData, Task> MessageButtonClickedEvent
         {
             add { _messageButtonClickedEvent.Add(value); }

@@ -54,7 +54,7 @@ namespace Mezon.Net.Client.Tests.Generated
         }
 
         [Fact]
-        public void Generated_realtime_facade_has_21_methods()
+        public void Generated_realtime_facade_has_22_methods()
         {
             var root = FindRepoRoot();
             var facade = File.ReadAllText(Path.Combine(root, "src", "Mezon.Net.Client", "Generated", "BaseMezonSocketClient.Realtime.g.cs"));
@@ -62,7 +62,8 @@ namespace Mezon.Net.Client.Tests.Generated
             var methodCount = System.Text.RegularExpressions.Regex.Matches(
                 facade,
                 @"public async Task(?:<[^>]+>)? (\w+RtAsync)\s*\(").Count;
-            Assert.Equal(21, methodCount);
+            Assert.Equal(22, methodCount);
+            Assert.Contains("SendVoiceInteractiveEventRtAsync", facade);
             Assert.Contains("SendChatMessageRtAsync", facade);
             Assert.Contains("LeaveChannelChatRtAsync", facade);
             Assert.Contains("JoinClanChatRtAsync", facade);

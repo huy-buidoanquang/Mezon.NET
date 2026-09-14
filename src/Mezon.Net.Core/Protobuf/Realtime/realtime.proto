@@ -229,7 +229,18 @@ message Envelope {
     TopicInMessageEvent topic_in_message_event = 98;
     // share screen event
     ScreenShareEvent screen_share_event = 99;
+    // VoiceInteractiveEvent
+    VoiceInteractiveEvent voice_interactive_event = 100;
   }
+}
+
+message VoiceInteractiveEvent {
+  int64 clan_id = 1;
+  int64 voice_channel_id = 2;
+  int64 sender_id = 3;
+  int64 receiver_id = 4;
+  int32 event_type = 5;
+  string params = 6;
 }
 
 message ScreenShareEvent {
@@ -1447,7 +1458,7 @@ message ListDataSocket {
 }
 
 message MeetParticipantEvent {
-  string username = 1;
+  int64 user_id = 1;
   string room_name = 2;
   int64 channel_id = 3;
   int64 clan_id = 4;
