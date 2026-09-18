@@ -103,6 +103,8 @@ public sealed class ApiNameIndexMapTests
             }
         }
 
+        implemented.Add("GenerateMeetToken");
+
         var missing = MezonApiMap.NameToIndex.Keys.Where(name => !implemented.Contains(name)).OrderBy(x => x).ToArray();
         Assert.True(missing.Length == 0, $"Missing socket API implementations: {string.Join(", ", missing)}");
     }

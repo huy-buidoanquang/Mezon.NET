@@ -40,6 +40,8 @@ namespace Mezon.Net.Client.Models.Internal
                 proto.ShortUrl = p.ShortUrl;
             if (p.PreventAnonymous.HasValue)
                 proto.PreventAnonymous = p.PreventAnonymous.Value;
+            if (p.Hashtags is not null)
+                proto.Hashtags = p.Hashtags;
             return proto;
         }
     }

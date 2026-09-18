@@ -339,12 +339,6 @@ namespace Mezon.Net.Client
             return new Mezon.Net.Models.ListUserActivityResponse(result);
         }
 
-        public async Task<Mezon.Net.Models.GenerateMeetTokenResponse> GenerateMeetTokenAsync(Mezon.Net.Models.GenerateMeetTokenParams body, RequestOptions? options = null)
-        {
-            var result = await ApiClient.GenerateMeetTokenAsync(GenerateMeetTokenParamsMapper.ToProto(body), options).ConfigureAwait(false);
-            return new Mezon.Net.Models.GenerateMeetTokenResponse(result);
-        }
-
         public async Task TransferOwnershipAsync(Mezon.Net.Models.TransferOwnershipParams body, RequestOptions? options = null)
         {
             await ApiClient.TransferOwnershipAsync(TransferOwnershipParamsMapper.ToProto(body), options).ConfigureAwait(false);

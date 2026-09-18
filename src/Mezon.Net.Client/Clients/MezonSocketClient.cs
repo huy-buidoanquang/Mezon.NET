@@ -1,6 +1,7 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf;
@@ -1051,10 +1052,55 @@ namespace Mezon.Net.Client
             return SendApiAsync("ListActivity", new Empty(), ListUserActivity.Parser, options);
         }
 
-        public override Task<GenerateMeetTokenResponse> GenerateMeetTokenAsync(GenerateMeetTokenRequest body, RequestOptions? options = null)
+        public override async Task<GenerateMeetTokenResponse> GenerateMeetTokenAsync(GenerateMeetTokenRequest body, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
-            return SendApiAsync("GenerateMeetToken", body, GenerateMeetTokenResponse.Parser, options);
+            if (!MezonApiMap.TryGetIndex("GenerateMeetToken", out var apiIndex))
+            {
+                throw new ArgumentException("Unknown socket API name 'GenerateMeetToken'.");
+            }
+
+            var envelope = new Envelope
+            {
+                ApiRequestEvent = new ApiRequestEvent
+                {
+                    ApiIndex = apiIndex,
+                    ApiName = "GenerateMeetToken",
+                    Body = body.ToByteString(),
+                }
+            };
+
+            options ??= RequestOptions.CreateOrClone(options);
+            CheckState();
+
+            var cid = _correlationHub.AllocateCid();
+            envelope.Cid = cid;
+            var timeout = options.SocketSendTimeout ?? MezonOptions.SocketTimeoutInMilliseconds;
+            var pendingRequest = _correlationHub.Register(cid, options.CancelToken);
+            var payload = SerializeEnvelop(envelope);
+            LogTrace($"[SOCKET-SEND] api={envelope.ApiRequestEvent.ApiName} cid={cid} bytes={payload.Length} timeout={timeout}ms");
+
+            try
+            {
+                await SendSocketInternalAsync(MezonMessageType.Api, cid, payload, options).ConfigureAwait(false);
+                pendingRequest.StartTimeout(timeout);
+                var socketResponse = await pendingRequest.Task.ConfigureAwait(false);
+
+                if (socketResponse.Code != 0)
+                {
+                    throw MezonApiException.FromSocketResponse(socketResponse.Code, envelope.ApiRequestEvent?.ApiName, socketResponse.Payload);
+                }
+
+                // Server returns a raw JWT (UTF-8 bytes), not GenerateMeetTokenResponse protobuf.
+                // Parity with mezon-js generateMeetToken which TextDecoder-decodes response.message.
+                return new GenerateMeetTokenResponse { Token = Encoding.UTF8.GetString(socketResponse.Payload.Span) };
+            }
+            catch
+            {
+                pendingRequest.Abort(new OperationCanceledException("Socket API send failed before a response was received."));
+                NetworkTransporter.RemoveApiChunkBuffer(cid);
+                throw;
+            }
         }
 
         public override async Task TransferOwnershipAsync(TransferOwnershipRequest body, RequestOptions? options = null)

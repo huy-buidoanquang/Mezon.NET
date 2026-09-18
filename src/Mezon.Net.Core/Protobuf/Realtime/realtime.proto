@@ -1228,6 +1228,10 @@ message ClanUpdatedEvent {
   string description = 12;
   // prevent anonymous
   bool prevent_anonymous = 13;
+  // comma-separated clan hashtags
+  string hashtags = 14;
+  // community vanity short url (clan_discover)
+  string short_url = 15;
 }
 
 // clan profile updated event

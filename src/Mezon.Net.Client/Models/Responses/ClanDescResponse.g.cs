@@ -28,5 +28,6 @@ namespace Mezon.Net.Models
         public string ShortUrl => _proto.ShortUrl;
         public bool PreventAnonymous => _proto.PreventAnonymous;
         public bool HasUnreadMessage => _proto.HasUnreadMessage;
+        public string Hashtags => _proto.Hashtags;
     }
 }

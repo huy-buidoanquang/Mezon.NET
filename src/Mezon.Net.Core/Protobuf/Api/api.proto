@@ -991,6 +991,8 @@ message ClanDesc {
   bool prevent_anonymous = 17;
   // has unread message
   bool has_unread_message = 18;
+  // comma-separated clan hashtags
+  string hashtags = 19;
 }
 
 // Clan information
@@ -1032,6 +1034,8 @@ message UpdateClanDescRequest {
   google.protobuf.StringValue short_url = 13;
   // Prevent anonymous
   bool prevent_anonymous = 14;
+  // comma-separated clan hashtags
+  google.protobuf.StringValue hashtags = 15;
 }
 
 // Delete a clan the user has access to.
@@ -3529,6 +3533,7 @@ message ClanDiscover {
   string about = 10;
   string short_url = 11;
   uint32 create_time_seconds = 12;
+  string hashtags = 13;
 }
 
 message ListClanDiscover {

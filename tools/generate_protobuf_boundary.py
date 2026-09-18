@@ -124,6 +124,11 @@ HAND_WRITTEN_RESPONSES = {
     "ChannelMessageUpdate",
 }
 
+# Socket API facades implemented by hand (non-protobuf socket payload).
+HAND_WRITTEN_SOCKET_METHODS = {
+    "GenerateMeetTokenAsync",
+}
+
 
 @dataclass
 class RealtimeMethod:
@@ -1688,6 +1693,8 @@ def main() -> int:
         "    {",
     ]
     for m in socket_api_methods:
+        if m.name in HAND_WRITTEN_SOCKET_METHODS:
+            continue
         socket_lines.append(gen_method_impl(m, is_socket=True, api_msgs=api_messages, rt_msgs=rt_messages))
         socket_lines.append("")
     socket_lines.extend(["    }", "}", ""])

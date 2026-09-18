@@ -1,5 +1,8 @@
 using System.Threading.Tasks;
 using Mezon.Net.Abstractions;
+using Mezon.Net.Client.Models.Internal;
+using Mezon.Net.Core;
+using Mezon.Net.Models;
 
 namespace Mezon.Net.Client
 {
@@ -32,5 +35,15 @@ namespace Mezon.Net.Client
         public abstract Task DisconnectAsync();
 
         IMezonClient IApiClientProvider.MezonApiClient => this;
+
+        /// <summary>
+        ///     Server returns a raw JWT (UTF-8 bytes), not protobuf. Hand-written so
+        ///     <c>generate_protobuf_boundary.py</c> cannot restore <c>ParseFrom</c> on this RPC.
+        /// </summary>
+        public async Task<GenerateMeetTokenResponse> GenerateMeetTokenAsync(GenerateMeetTokenParams body, RequestOptions? options = null)
+        {
+            var result = await ApiClient.GenerateMeetTokenAsync(GenerateMeetTokenParamsMapper.ToProto(body), options).ConfigureAwait(false);
+            return new GenerateMeetTokenResponse(result);
+        }
     }
 }
