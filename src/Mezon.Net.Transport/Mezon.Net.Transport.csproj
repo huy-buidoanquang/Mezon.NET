@@ -25,5 +25,6 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Mezon.Net.Transport.Tests" />
+    <InternalsVisibleTo Include="Mezon.Net.Client.Benchmarks" />
   </ItemGroup>
 </Project>

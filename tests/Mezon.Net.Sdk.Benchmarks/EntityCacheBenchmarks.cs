@@ -17,5 +17,12 @@ namespace Mezon.Net.Sdk.Benchmarks
         {
             return await _cache.GetOrFetchAsync(42, static (_, __) => new ValueTask<string>("miss"));
         }
+
+        [Benchmark]
+        public string? DirectGet() => _cache.Get(42);
+
+        [Benchmark]
+        public ValueTask<string> CacheHitWithoutAsyncWrapper()
+            => _cache.GetOrFetchAsync(42, static (_, __) => new ValueTask<string>("miss"));
     }
 }

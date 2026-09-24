@@ -328,6 +328,15 @@ namespace Mezon.Net.Sdk
         public Task DeleteChannelMessageAsync(ChannelMessageRemoveParams body, RequestOptions? options = null)
             => _engine.DeleteChannelMessageAsync(body, options);
 
+        public Task<CreatePollResponse> CreatePollAsync(CreatePollParams body, RequestOptions? options = null)
+            => _engine.CreatePollAsync(body, options);
+
+        public Task ClosePollAsync(ClosePollParams body, RequestOptions? options = null)
+            => _engine.ClosePollAsync(body, options);
+
+        public Task<GetPollResponse> GetPollAsync(GetPollParams body, RequestOptions? options = null)
+            => _engine.GetPollAsync(body, options);
+
         public ValueTask<Clan> GetClanAsync(long clanId, CancellationToken cancellationToken = default)
             => Clans.GetOrFetchAsync(clanId, FetchClanAsync, cancellationToken);
 
