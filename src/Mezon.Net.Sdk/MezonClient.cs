@@ -24,6 +24,7 @@ namespace Mezon.Net.Sdk
         private readonly ChannelSendQueue _sendQueue = new ChannelSendQueue();
         private bool _cacheListenersBound;
         private AgentSseManager? _agentManager;
+        private int _agentEventsHooked;
         internal readonly Logger _logger;
 
         private readonly SemaphoreSlim _initializeGate = new SemaphoreSlim(1, 1);
@@ -244,31 +245,35 @@ namespace Mezon.Net.Sdk
                     "AgentEventUrl is not configured. Set MezonClientOptions.AgentEventUrl to your agent SSE base URL.");
             }
 
-            _agentManager ??= new AgentSseManager(Options.AgentEventUrl, Options.BotId, Options.Token);
-            _agentManager.MessageReceived += async evt =>
+            _agentManager ??= new AgentSseManager(Options.AgentEventUrl, Options.BotId, Options.Token, maxReconnectAttempts: 0);
+            if (System.Threading.Interlocked.Exchange(ref _agentEventsHooked, 1) == 0)
             {
-                switch (evt.EventType)
+                _agentManager.MessageReceived += async evt =>
                 {
-                    case "room_started":
-                        if (AgentSessionStartedInternal != null)
-                        {
-                            await AgentSessionStartedInternal(evt).ConfigureAwait(false);
-                        }
-                        break;
-                    case "room_ended":
-                        if (AgentSessionEndedInternal != null)
-                        {
-                            await AgentSessionEndedInternal(evt).ConfigureAwait(false);
-                        }
-                        break;
-                    case "room_summary_done":
-                        if (AgentSessionSummaryDoneInternal != null)
-                        {
-                            await AgentSessionSummaryDoneInternal(evt).ConfigureAwait(false);
-                        }
-                        break;
-                }
-            };
+                    switch (evt.EventType)
+                    {
+                        case "room_started":
+                            if (AgentSessionStartedInternal != null)
+                            {
+                                await AgentSessionStartedInternal(evt).ConfigureAwait(false);
+                            }
+                            break;
+                        case "room_ended":
+                            if (AgentSessionEndedInternal != null)
+                            {
+                                await AgentSessionEndedInternal(evt).ConfigureAwait(false);
+                            }
+                            break;
+                        case "room_summary_done":
+                            if (AgentSessionSummaryDoneInternal != null)
+                            {
+                                await AgentSessionSummaryDoneInternal(evt).ConfigureAwait(false);
+                            }
+                            break;
+                    }
+                };
+            }
+
             return _agentManager.ConnectAsync(cancellationToken);
         }
 
