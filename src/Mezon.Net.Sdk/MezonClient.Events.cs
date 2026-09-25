@@ -175,6 +175,12 @@ namespace Mezon.Net.Sdk
             remove => _engine.QuickMenuReceivedEvent -= value;
         }
 
+        public event Func<Task> OwnershipTransferred
+        {
+            add => _engine.OwnershipTransferredEvent += value;
+            remove => _engine.OwnershipTransferredEvent -= value;
+        }
+
         public event Func<AgentSseSessionEvent, Task> AgentSessionStarted
         {
             add => AgentSessionStartedInternal += value;

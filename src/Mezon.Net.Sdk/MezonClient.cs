@@ -86,6 +86,27 @@ namespace Mezon.Net.Sdk
 
         private readonly AsyncEvent<Func<Task>> _readyEvent = new AsyncEvent<Func<Task>>();
 
+        /// <summary>Raised after every successful socket connection, including automatic reconnects.</summary>
+        public event Func<Task> Connected
+        {
+            add => _engine.Connected += value;
+            remove => _engine.Connected -= value;
+        }
+
+        /// <summary>Raised after the socket session is torn down.</summary>
+        public event Func<Exception, Task> Disconnected
+        {
+            add => _engine.Disconnected += value;
+            remove => _engine.Disconnected -= value;
+        }
+
+        /// <summary>Raised when the client starts an automatic reconnect attempt.</summary>
+        public event Func<Exception, Task> Reconnecting
+        {
+            add => _engine.Reconnecting += value;
+            remove => _engine.Reconnecting -= value;
+        }
+
         public async Task<bool> LoginAsync(CancellationToken cancellationToken = default)
         {
             if (Options.BotId == 0 || string.IsNullOrWhiteSpace(Options.Token))
@@ -251,9 +272,20 @@ namespace Mezon.Net.Sdk
             return _agentManager.ConnectAsync(cancellationToken);
         }
 
-        /// <summary>Re-list clans and JoinClanChat (safe to call after Ready if seed failed).</summary>
         public Task RefreshClanMembershipAsync(CancellationToken cancellationToken = default)
             => SeedClanCacheAsync(cancellationToken);
+
+        public async Task JoinClanAsync(long clanId, CancellationToken cancellationToken = default)
+        {
+            if (clanId <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(clanId));
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            EnsureClanStub(clanId);
+            await _engine.JoinClanChatRtAsync(new ClanJoinParams(clanId)).ConfigureAwait(false);
+            MarkClanChatJoined(clanId);
+        }
 
         public Task<UploadAttachmentResponse> UploadAttachmentFileAsync(UploadAttachmentParams body, RequestOptions? options = null)
             => _engine.UploadAttachmentFileAsync(body, options);
@@ -276,6 +308,19 @@ namespace Mezon.Net.Sdk
 
         public Task<ClanDescListResponse> ListClanDescsAsync(ListClanDescParams body, RequestOptions? options = null)
             => _engine.ListClanDescsAsync(body, options);
+
+        public Task<ClanUserListResponse> ListClanUsersAsync(long clanId, RequestOptions? options = null)
+            => _engine.ListClanUsersAsync(clanId, options);
+
+        public Task<ChannelMessageListResponse> ListChannelMessagesAsync(
+            long clanId,
+            long channelId,
+            long? messageId = null,
+            int? direction = null,
+            int? limit = null,
+            long? topicId = null,
+            RequestOptions? options = null)
+            => _engine.ListChannelMessagesAsync(clanId, channelId, messageId, direction, limit, topicId, options);
 
         public Task<ChannelDescriptionResponse> CreateChannelDescAsync(CreateChannelDescParams body, RequestOptions? options = null)
             => _engine.CreateChannelDescAsync(body, options);
@@ -321,6 +366,10 @@ namespace Mezon.Net.Sdk
 
         public Task<ChannelMessageAckResponse> SendChannelMessageAsync(SendChannelMessageParams message, RequestOptions? options = null)
             => MessageSendHelper.SendAsync(_engine, message, options);
+
+        public Task<ChannelMessageAckResponse> SendEphemeralMessageToBotAsync(
+            SendEphemeralMessageParams message, RequestOptions? options = null)
+            => _engine.SendEphemeralMessageRtAsync(message, options);
 
         public Task UpdateChannelMessageAsync(ChannelMessageUpdateParams body, RequestOptions? options = null)
             => _engine.UpdateChannelMessageAsync(body, options);

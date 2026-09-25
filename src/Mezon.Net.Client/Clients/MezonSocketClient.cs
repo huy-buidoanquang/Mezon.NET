@@ -113,7 +113,7 @@ namespace Mezon.Net.Client
                 NetworkTransporter.SetCancelToken(_connectCancelToken.Token);
                 var socketOptions = (MezonSocketClientOptions)MezonOptions;
                 var (host, port, token) = GetTransportEndpoint();
-                await NetworkTransporter.ConnectAsync(host, port, token, useSsl: true, createStatus: socketOptions.CreateStatusOnConnect).ConfigureAwait(false);
+                await NetworkTransporter.ConnectAsync(host, port, token, useSsl: socketOptions.UseSSL, createStatus: socketOptions.CreateStatusOnConnect).ConfigureAwait(false);
                 ConnectionState = ConnectionState.Connected;
             }
             catch
