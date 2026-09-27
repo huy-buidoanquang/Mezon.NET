@@ -42,6 +42,12 @@ namespace Mezon.Net.Client
             _serializeFromSnapshot = serializeFromSnapshot;
         }
 
+        internal static MessageContent FromSnapshot(in MessageContentSnapshot snapshot)
+        {
+            var rawJson = MessageContentCodec.Serialize(snapshot);
+            return new MessageContent(rawJson, snapshot, serializeFromSnapshot: true);
+        }
+
         /// <summary>Normalized content JSON kept for send / round-trip.</summary>
         public string RawJson => _rawJson;
 

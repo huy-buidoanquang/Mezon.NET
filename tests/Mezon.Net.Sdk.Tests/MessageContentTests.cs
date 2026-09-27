@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json;
 using Mezon.Net.Client;
 using Mezon.Net.Sdk.Builders;
 using Xunit;
@@ -50,6 +51,46 @@ namespace Mezon.Net.Sdk.Tests
             var builder = new ButtonBuilder().AddButton("btn-1", "Go");
             builder.Build();
             Assert.Throws<InvalidOperationException>(() => builder.AddButton("btn-2", "Again"));
+        }
+
+        [Fact]
+        public void MessageContentBuilder_round_trips_all_typed_roots()
+        {
+            using var extension = JsonDocument.Parse("{\"source\":\"test\"}");
+            var content = new MessageContentBuilder()
+                .SetText("hello world with voice room")
+                .AddHashtag("channel-label", 0, 5)
+                .AddEmoji("emoji-1", 5, 6)
+                .AddLink(6, 12)
+                .AddMarkdown(MarkdownMarkerType.Bold, 0, 5)
+                .AddVoiceLink(12, 18)
+                .AddEmbed(new MessageEmbedBuilder()
+                    .SetTitle("Title")
+                    .AddField("Status", "Ready")
+                    .Build())
+                .AddActionRow(new ButtonBuilder().AddButton("ok", "OK").BuildComponents())
+                .SetExtension("custom", extension.RootElement)
+                .Build();
+
+            var parsed = MessageContent.Parse(content.ToJson());
+            Assert.Equal("hello world with voice room", parsed.Text);
+            Assert.Single(parsed.Hashtags!);
+            Assert.Single(parsed.Emojis!);
+            Assert.Single(parsed.Links!);
+            Assert.Single(parsed.Markdown!);
+            Assert.Single(parsed.VoiceLinks!);
+            Assert.Equal("Title", Assert.Single(parsed.Embeds!).Title);
+            Assert.Single(parsed.Components!);
+            Assert.Equal("Ready", Assert.Single(parsed.Embeds!).Fields![0].Value);
+            Assert.Equal("test", parsed.UnknownExtensions!["custom"].GetProperty("source").GetString());
+        }
+
+        [Fact]
+        public void MessageContentBuilder_is_immutable_after_build()
+        {
+            var builder = new MessageContentBuilder().SetText("hello");
+            builder.Build();
+            Assert.Throws<InvalidOperationException>(() => builder.SetText("again"));
         }
     }
 }
