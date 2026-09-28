@@ -24,18 +24,19 @@ namespace Mezon.Net.Client.Tests
         }
 
         [Fact]
-        public void Parse_preserves_poll_and_canvas_via_raw_passthrough()
+        public void Parse_reads_poll_canvas_and_call_log_as_typed_metadata()
         {
             const string raw =
-                "{\"t\":\"vote?\",\"question\":\"Best color?\",\"answers\":[\"red\",\"blue\"],\"canvas\":{\"id\":\"c1\"},\"callLog\":{\"duration\":12}}";
+                "{\"t\":\"vote?\",\"question\":\"Best color?\",\"answers\":[{\"index\":0,\"label\":\"red\"},{\"index\":1,\"label\":\"blue\"}],\"canvas\":{\"id\":\"c1\"},\"callLog\":{\"isVideo\":false,\"callLogType\":12}}";
             var content = MessageContent.Parse(raw);
             Assert.Equal(raw, content.ToJson());
             Assert.Equal("vote?", content.Text);
-            Assert.NotNull(content.UnknownExtensions);
-            Assert.True(content.UnknownExtensions!.ContainsKey("question"));
-            Assert.True(content.UnknownExtensions.ContainsKey("answers"));
-            Assert.True(content.UnknownExtensions.ContainsKey("canvas"));
-            Assert.True(content.UnknownExtensions.ContainsKey("callLog"));
+            Assert.Equal("Best color?", content.Poll!.Question);
+            Assert.Equal("red", content.Poll.Answers![0].Label);
+            Assert.Equal("blue", content.Poll.Answers[1].Label);
+            Assert.Equal("c1", content.Canvas!.Value.GetProperty("id").GetString());
+            Assert.Equal(12, content.CallLog!.Value.CallLogType);
+            Assert.Null(content.UnknownExtensions);
         }
 
         [Fact]
@@ -57,16 +58,16 @@ namespace Mezon.Net.Client.Tests
         }
 
         [Fact]
-        public void Parse_keeps_legacy_root_pre_bm_lky_in_unknown()
+        public void Parse_reads_legacy_root_pre_bm_lky_as_typed_markers()
         {
             const string raw =
                 "{\"t\":\"hi\",\"pre\":[{\"l\":\"cs\",\"s\":0,\"e\":2}],\"bm\":[{\"s\":0,\"e\":2}],\"lky\":[{\"s\":0,\"e\":2}]}";
             var content = MessageContent.Parse(raw);
             Assert.Equal(raw, content.ToJson());
-            Assert.NotNull(content.UnknownExtensions);
-            Assert.True(content.UnknownExtensions!.ContainsKey("pre"));
-            Assert.True(content.UnknownExtensions.ContainsKey("bm"));
-            Assert.True(content.UnknownExtensions.ContainsKey("lky"));
+            Assert.Equal("cs", Assert.Single(content.Pre!).Language);
+            Assert.Equal(0, Assert.Single(content.Bold!).Start);
+            Assert.Equal(0, Assert.Single(content.YoutubeLinks!).Start);
+            Assert.Null(content.UnknownExtensions);
             Assert.Null(content.Markdown);
         }
 

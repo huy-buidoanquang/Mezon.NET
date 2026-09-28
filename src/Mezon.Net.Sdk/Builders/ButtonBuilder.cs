@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Mezon.Net.Client;
 
@@ -23,6 +23,23 @@ namespace Mezon.Net.Sdk.Builders
         {
             EnsureMutable();
             _components.Add(new ButtonMessageComponent(id, label, style, disable, url, icon));
+            return this;
+        }
+
+        /// <summary>
+        /// Adds an already constructed component. This keeps the builder open to new
+        /// component payloads and lets callers preserve <see cref="UnknownMessageComponent"/>
+        /// instances received from a newer server.
+        /// </summary>
+        public ButtonBuilder AddComponent(MessageComponent component)
+        {
+            EnsureMutable();
+            if (component is null)
+            {
+                throw new ArgumentNullException(nameof(component));
+            }
+
+            _components.Add(component);
             return this;
         }
 
@@ -57,7 +74,8 @@ namespace Mezon.Net.Sdk.Builders
             bool textarea = false,
             bool required = false,
             bool disabled = false,
-            int? style = null)
+            int? style = null,
+            string? nestedComponentId = null)
         {
             EnsureMutable();
             _components.Add(new InputMessageComponent(
@@ -69,7 +87,7 @@ namespace Mezon.Net.Sdk.Builders
                 required,
                 disabled,
                 style,
-                nestedComponentId: $"{id}-component"));
+                nestedComponentId ?? $"{id}-component"));
             return this;
         }
 
@@ -89,11 +107,14 @@ namespace Mezon.Net.Sdk.Builders
 
         public ButtonBuilder AddAnimation(
             string id,
-            string urlImage,
-            string urlPosition,
-            IReadOnlyList<string> pool,
+            string? urlImage = null,
+            string? urlPosition = null,
+            IReadOnlyList<string>? pool = null,
             int? repeat = null,
-            int? duration = null)
+            int? duration = null,
+            IReadOnlyList<IReadOnlyList<string>>? poolRows = null,
+            bool? vertical = null,
+            int? isResult = null)
         {
             EnsureMutable();
             _components.Add(new AnimationMessageComponent(
@@ -101,9 +122,11 @@ namespace Mezon.Net.Sdk.Builders
                 urlImage,
                 urlPosition,
                 pool,
-                poolRows: null,
+                poolRows,
                 repeat,
-                duration));
+                duration,
+                vertical,
+                isResult));
             return this;
         }
 

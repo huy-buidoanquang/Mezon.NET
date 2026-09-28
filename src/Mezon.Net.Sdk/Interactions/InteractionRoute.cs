@@ -22,6 +22,7 @@ namespace Mezon.Net.Sdk.Interactions
         public InteractionHandler Handler { get; }
         public long? OwnerUserId { get; set; }
         public bool OneShot { get; set; }
+        public bool RequiresServerAuthenticatedActor { get; set; }
         public DateTimeOffset? ExpiresAt { get; set; }
 
         public bool IsExpired(DateTimeOffset now)

@@ -14,7 +14,12 @@ namespace Mezon.Net.Client
     internal static class MessageContentCodec
     {
         private static bool IsKnownRootProperty(string name) =>
-            name is "t" or "hg" or "ej" or "lk" or "mk" or "vk" or "embed" or "components";
+            name is "t" or "e2ee" or "hg" or "ej" or "lk" or "mk" or "pre" or "bm" or "vk" or "lky"
+                or "embed" or "components" or "canvas" or "cvtt" or "callLog" or "tp" or "cid" or "fwd"
+                or "isCard" or "rpl" or "lsnt" or "question" or "question_emoji_id" or "answers"
+                or "answer_emoji_ids" or "answer_counts" or "expire_time" or "is_closed" or "total_votes"
+                or "allow_multiple_answers" or "user_votes" or "id" or "expire_at" or "type"
+                or "presign_finish" or "create_time_seconds";
 
         internal static string NormalizeRawJson(string? rawJson)
         {
@@ -196,9 +201,16 @@ namespace Mezon.Net.Client
                 var emojis = ReadArray(root, "ej", ReadEmoji);
                 var links = ReadArray(root, "lk", ReadLink);
                 var markdown = ReadArray(root, "mk", ReadMarkdown);
+                var pre = ReadArray(root, "pre", ReadPre);
+                var bold = ReadArray(root, "bm", ReadBold);
                 var voiceLinks = ReadArray(root, "vk", ReadVoiceLink);
+                var youtubeLinks = ReadArray(root, "lky", ReadYoutubeLink);
                 var embeds = ReadArray(root, "embed", ReadEmbed);
                 var components = ReadComponents(root);
+                var poll = ReadPoll(root);
+                var canvas = ReadJsonValue(root, "canvas");
+                var canvasTitles = ReadStringMap(root, "cvtt");
+                var callLog = ReadCallLog(root);
 
                 Dictionary<string, JsonElement>? unknown = null;
                 foreach (var property in root.EnumerateObject())
@@ -212,7 +224,7 @@ namespace Mezon.Net.Client
                     unknown[property.Name] = property.Value.Clone();
                 }
 
-                ValidateOffsets(text, hashtags, emojis, links, markdown, voiceLinks);
+                ValidateOffsets(text, hashtags, emojis, links, markdown, pre, bold, voiceLinks, youtubeLinks);
 
                 return new MessageContentSnapshot(
                     text,
@@ -223,7 +235,23 @@ namespace Mezon.Net.Client
                     voiceLinks,
                     embeds,
                     components,
-                    unknown);
+                    unknown,
+                    pre,
+                    bold,
+                    youtubeLinks,
+                    ReadOptionalInt(root, "e2ee"),
+                    canvas,
+                    canvasTitles,
+                    callLog,
+                    ReadStringProperty(root, "tp"),
+                    ReadStringProperty(root, "cid"),
+                    ReadOptionalBool(root, "fwd"),
+                    ReadOptionalBool(root, "isCard"),
+                    ReadOptionalLong(root, "rpl"),
+                    ReadOptionalLong(root, "lsnt"),
+                    poll,
+                    ReadStringArray(root, "presign_finish"),
+                    ReadOptionalLong(root, "create_time_seconds"));
             }
         }
 
@@ -269,10 +297,26 @@ namespace Mezon.Net.Client
             }
 
             WriteHashtagArray(writer, "hg", snapshot.Hashtags);
+            WriteOptionalInt(writer, "e2ee", snapshot.E2ee);
             WriteEmojiArray(writer, "ej", snapshot.Emojis);
             WriteLinkArray(writer, "lk", snapshot.Links);
             WriteMarkdownArray(writer, "mk", snapshot.Markdown);
+            WritePreArray(writer, "pre", snapshot.Pre);
+            WriteBoldArray(writer, "bm", snapshot.Bold);
             WriteVoiceLinkArray(writer, "vk", snapshot.VoiceLinks);
+            WriteYoutubeLinkArray(writer, "lky", snapshot.YoutubeLinks);
+            WriteJsonValue(writer, "canvas", snapshot.Canvas);
+            WriteStringMap(writer, "cvtt", snapshot.CanvasTitles);
+            WriteCallLog(writer, snapshot.CallLog);
+            WriteOptionalString(writer, "tp", snapshot.Type);
+            WriteOptionalString(writer, "cid", snapshot.ChannelId);
+            WriteOptionalBool(writer, "fwd", snapshot.Forwarded);
+            WriteOptionalBool(writer, "isCard", snapshot.IsCard);
+            WriteOptionalLong(writer, "rpl", snapshot.ReplyToMessageId);
+            WriteOptionalLong(writer, "lsnt", snapshot.LastSeenSeconds);
+            WritePoll(writer, snapshot.Poll);
+            WriteStringArray(writer, "presign_finish", snapshot.PresignFinish);
+            WriteOptionalLong(writer, "create_time_seconds", snapshot.CreateTimeSeconds);
             WriteEmbedArray(writer, snapshot.Embeds);
             WriteComponents(writer, snapshot.Components);
 
@@ -280,6 +324,11 @@ namespace Mezon.Net.Client
             {
                 foreach (var pair in snapshot.Unknown)
                 {
+                    if (IsKnownRootProperty(pair.Key))
+                    {
+                        throw new InvalidOperationException($"Message extension '{pair.Key}' duplicates a typed root property.");
+                    }
+
                     writer.WritePropertyName(pair.Key);
                     pair.Value.WriteTo(writer);
                 }
@@ -310,6 +359,141 @@ namespace Mezon.Net.Client
             }
 
             writer.WriteEndArray();
+        }
+
+        private static void WritePoll(Utf8JsonWriter writer, MessagePoll? poll)
+        {
+            if (poll is null)
+            {
+                return;
+            }
+
+            WriteOptionalString(writer, "question", poll.Question);
+            WriteOptionalString(writer, "question_emoji_id", poll.QuestionEmojiId);
+            if (poll.Answers is not null)
+            {
+                writer.WriteStartArray("answers");
+                foreach (var answer in poll.Answers)
+                {
+                    writer.WriteStartObject();
+                    writer.WriteNumber("index", answer.Index);
+                    writer.WriteString("label", answer.Label);
+                    writer.WriteEndObject();
+                }
+
+                writer.WriteEndArray();
+            }
+
+            WriteStringArray(writer, "answer_emoji_ids", poll.AnswerEmojiIds);
+            WriteIntArray(writer, "answer_counts", poll.AnswerCounts);
+            WriteOptionalLong(writer, "expire_time", poll.ExpireTime);
+            WriteOptionalBool(writer, "is_closed", poll.IsClosed);
+            WriteOptionalInt(writer, "total_votes", poll.TotalVotes);
+            WriteOptionalBool(writer, "allow_multiple_answers", poll.AllowMultipleAnswers);
+            WriteIntArray(writer, "user_votes", poll.UserVotes);
+            WriteOptionalLong(writer, "id", poll.Id);
+            WriteOptionalLong(writer, "expire_at", poll.ExpireAt);
+            WriteOptionalInt(writer, "type", poll.Type);
+        }
+
+        private static void WriteCallLog(Utf8JsonWriter writer, MessageCallLog? callLog)
+        {
+            if (callLog is not MessageCallLog value)
+            {
+                return;
+            }
+
+            writer.WriteStartObject("callLog");
+            writer.WriteBoolean("isVideo", value.IsVideo);
+            writer.WriteNumber("callLogType", value.CallLogType);
+            WriteOptionalBool(writer, "showCallBack", value.ShowCallBack);
+            writer.WriteEndObject();
+        }
+
+        private static void WriteStringArray(Utf8JsonWriter writer, string propertyName, IReadOnlyList<string>? values)
+        {
+            if (values is null || values.Count == 0)
+            {
+                return;
+            }
+
+            writer.WriteStartArray(propertyName);
+            foreach (var value in values)
+            {
+                writer.WriteStringValue(value);
+            }
+
+            writer.WriteEndArray();
+        }
+
+        private static void WriteIntArray(Utf8JsonWriter writer, string propertyName, IReadOnlyList<int>? values)
+        {
+            if (values is null || values.Count == 0)
+            {
+                return;
+            }
+
+            writer.WriteStartArray(propertyName);
+            foreach (var value in values)
+            {
+                writer.WriteNumberValue(value);
+            }
+
+            writer.WriteEndArray();
+        }
+
+        private static void WriteStringMap(
+            Utf8JsonWriter writer,
+            string propertyName,
+            IReadOnlyDictionary<string, string>? values)
+        {
+            if (values is null || values.Count == 0)
+            {
+                return;
+            }
+
+            writer.WriteStartObject(propertyName);
+            foreach (var pair in values)
+            {
+                writer.WriteString(pair.Key, pair.Value);
+            }
+
+            writer.WriteEndObject();
+        }
+
+        private static void WriteJsonValue(Utf8JsonWriter writer, string propertyName, JsonElement? value)
+        {
+            if (value is not JsonElement element)
+            {
+                return;
+            }
+
+            writer.WritePropertyName(propertyName);
+            element.WriteTo(writer);
+        }
+
+        private static void WriteOptionalString(Utf8JsonWriter writer, string propertyName, string? value)
+        {
+            if (value is not null)
+            {
+                writer.WriteString(propertyName, value);
+            }
+        }
+
+        private static void WriteOptionalBool(Utf8JsonWriter writer, string propertyName, bool? value)
+        {
+            if (value is bool flag)
+            {
+                writer.WriteBoolean(propertyName, flag);
+            }
+        }
+
+        private static void WriteOptionalLong(Utf8JsonWriter writer, string propertyName, long? value)
+        {
+            if (value is long number)
+            {
+                writer.WriteNumber(propertyName, number);
+            }
         }
 
         private static void WriteEmojiArray(Utf8JsonWriter writer, string propertyName, IReadOnlyList<EmojiOnMessage>? values)
@@ -407,11 +591,83 @@ namespace Mezon.Net.Client
                 {
                     foreach (var pair in value.Extensions)
                     {
+                        if (IsKnownMarkdownProperty(pair.Key))
+                        {
+                            throw new InvalidOperationException($"Markdown extension '{pair.Key}' duplicates a typed property.");
+                        }
+
                         writer.WritePropertyName(pair.Key);
                         pair.Value.WriteTo(writer);
                     }
                 }
 
+                writer.WriteEndObject();
+            }
+
+            writer.WriteEndArray();
+        }
+
+        private static void WritePreArray(Utf8JsonWriter writer, string propertyName, IReadOnlyList<PreOnMessage>? values)
+        {
+            if (values is null || values.Count == 0)
+            {
+                return;
+            }
+
+            writer.WriteStartArray(propertyName);
+            foreach (var value in values)
+            {
+                writer.WriteStartObject();
+                if (value.Language is not null)
+                {
+                    writer.WriteString("l", value.Language);
+                }
+
+                WriteOptionalInt(writer, "s", value.Start);
+                WriteOptionalInt(writer, "e", value.End);
+                writer.WriteEndObject();
+            }
+
+            writer.WriteEndArray();
+        }
+
+        private static void WriteBoldArray(Utf8JsonWriter writer, string propertyName, IReadOnlyList<BoldOnMessage>? values)
+        {
+            if (values is null || values.Count == 0)
+            {
+                return;
+            }
+
+            writer.WriteStartArray(propertyName);
+            foreach (var value in values)
+            {
+                writer.WriteStartObject();
+                if (value.Language is not null)
+                {
+                    writer.WriteString("l", value.Language);
+                }
+
+                WriteOptionalInt(writer, "s", value.Start);
+                WriteOptionalInt(writer, "e", value.End);
+                writer.WriteEndObject();
+            }
+
+            writer.WriteEndArray();
+        }
+
+        private static void WriteYoutubeLinkArray(Utf8JsonWriter writer, string propertyName, IReadOnlyList<LinkYoutubeOnMessage>? values)
+        {
+            if (values is null || values.Count == 0)
+            {
+                return;
+            }
+
+            writer.WriteStartArray(propertyName);
+            foreach (var value in values)
+            {
+                writer.WriteStartObject();
+                WriteOptionalInt(writer, "s", value.Start);
+                WriteOptionalInt(writer, "e", value.End);
                 writer.WriteEndObject();
             }
 
@@ -499,6 +755,11 @@ namespace Mezon.Net.Client
                         writer.WritePropertyName("inputs");
                         inputs.WriteTo(writer);
                     }
+                    else if (field.Input is not null)
+                    {
+                        writer.WritePropertyName("inputs");
+                        WriteComponent(writer, field.Input);
+                    }
 
                     if (field.Options is JsonElement options)
                     {
@@ -509,6 +770,37 @@ namespace Mezon.Net.Client
                     if (field.MaxOptions is int maxOptions)
                     {
                         writer.WriteNumber("max_options", maxOptions);
+                    }
+
+                    if (field.Shape is not null)
+                    {
+                        writer.WritePropertyName("shape");
+                        WriteComponent(writer, field.Shape);
+                    }
+
+                    if (field.Buttons is not null && field.Buttons.Count > 0)
+                    {
+                        writer.WriteStartArray("button");
+                        foreach (var button in field.Buttons)
+                        {
+                            WriteComponent(writer, button);
+                        }
+
+                        writer.WriteEndArray();
+                    }
+
+                    if (field.Extensions is not null)
+                    {
+                        foreach (var pair in field.Extensions)
+                        {
+                            if (pair.Key is "name" or "value" or "inline" or "inputs" or "options" or "max_options" or "shape" or "button")
+                            {
+                                throw new InvalidOperationException($"Embed field extension '{pair.Key}' duplicates a typed property.");
+                            }
+
+                            writer.WritePropertyName(pair.Key);
+                            pair.Value.WriteTo(writer);
+                        }
                     }
 
                     writer.WriteEndObject();
@@ -555,6 +847,11 @@ namespace Mezon.Net.Client
             {
                 foreach (var pair in embed.Extensions)
                 {
+                    if (IsKnownEmbedProperty(pair.Key))
+                    {
+                        throw new InvalidOperationException($"Embed extension '{pair.Key}' duplicates a typed property.");
+                    }
+
                     writer.WritePropertyName(pair.Key);
                     pair.Value.WriteTo(writer);
                 }
@@ -862,6 +1159,8 @@ namespace Mezon.Net.Client
                     writer.WriteBoolean("disabled", true);
                 }
 
+                WriteStringArray(writer, "extraData", option.ExtraData);
+
                 writer.WriteEndObject();
             }
 
@@ -916,6 +1215,128 @@ namespace Mezon.Net.Client
                 ReadOptionalInt(element, "e"));
         }
 
+        private static MessagePoll? ReadPoll(JsonElement root)
+        {
+            if (!root.TryGetProperty("question", out var question)
+                && !root.TryGetProperty("answers", out _)
+                && !root.TryGetProperty("answer_counts", out _))
+            {
+                return null;
+            }
+
+            var answers = ReadPollAnswers(root, "answers");
+            return new MessagePoll(
+                ReadStringProperty(root, "question"),
+                ReadStringProperty(root, "question_emoji_id"),
+                answers,
+                ReadStringArray(root, "answer_emoji_ids"),
+                ReadIntArray(root, "answer_counts"),
+                ReadOptionalLong(root, "expire_time"),
+                ReadOptionalBool(root, "is_closed"),
+                ReadOptionalInt(root, "total_votes"),
+                ReadOptionalBool(root, "allow_multiple_answers"),
+                ReadIntArray(root, "user_votes"),
+                ReadOptionalLong(root, "id"),
+                ReadOptionalLong(root, "expire_at"),
+                ReadOptionalInt(root, "type"));
+        }
+
+        private static IReadOnlyList<MessagePollAnswer>? ReadPollAnswers(JsonElement root, string propertyName)
+        {
+            if (!root.TryGetProperty(propertyName, out var value) || value.ValueKind != JsonValueKind.Array)
+            {
+                return null;
+            }
+
+            var answers = new List<MessagePollAnswer>(value.GetArrayLength());
+            foreach (var element in value.EnumerateArray())
+            {
+                if (element.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                answers.Add(new MessagePollAnswer(
+                    ReadOptionalInt(element, "index") ?? 0,
+                    ReadStringProperty(element, "label") ?? string.Empty));
+            }
+
+            return answers;
+        }
+
+        private static MessageCallLog? ReadCallLog(JsonElement root)
+        {
+            if (!root.TryGetProperty("callLog", out var value) || value.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            return new MessageCallLog(
+                ReadOptionalBool(value, "isVideo") ?? false,
+                ReadOptionalInt(value, "callLogType") ?? 0,
+                ReadOptionalBool(value, "showCallBack"));
+        }
+
+        private static JsonElement? ReadJsonValue(JsonElement root, string propertyName)
+            => root.TryGetProperty(propertyName, out var value) ? value.Clone() : null;
+
+        private static IReadOnlyDictionary<string, string>? ReadStringMap(JsonElement root, string propertyName)
+        {
+            if (!root.TryGetProperty(propertyName, out var value) || value.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            var result = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var property in value.EnumerateObject())
+            {
+                if (property.Value.ValueKind == JsonValueKind.String)
+                {
+                    result[property.Name] = property.Value.GetString() ?? string.Empty;
+                }
+            }
+
+            return result;
+        }
+
+        private static IReadOnlyList<string>? ReadStringArray(JsonElement root, string propertyName)
+        {
+            if (!root.TryGetProperty(propertyName, out var value) || value.ValueKind != JsonValueKind.Array)
+            {
+                return null;
+            }
+
+            var result = new List<string>(value.GetArrayLength());
+            foreach (var item in value.EnumerateArray())
+            {
+                if (item.ValueKind == JsonValueKind.String)
+                {
+                    result.Add(item.GetString() ?? string.Empty);
+                }
+            }
+
+            return result;
+        }
+
+        private static IReadOnlyList<int>? ReadIntArray(JsonElement root, string propertyName)
+        {
+            if (!root.TryGetProperty(propertyName, out var value) || value.ValueKind != JsonValueKind.Array)
+            {
+                return null;
+            }
+
+            var result = new List<int>(value.GetArrayLength());
+            foreach (var item in value.EnumerateArray())
+            {
+                if (item.TryGetInt32(out var number))
+                {
+                    result.Add(number);
+                }
+            }
+
+            return result;
+        }
+
         private static EmojiOnMessage ReadEmoji(JsonElement element)
         {
             return new EmojiOnMessage(
@@ -927,6 +1348,27 @@ namespace Mezon.Net.Client
         private static LinkOnMessage ReadLink(JsonElement element)
         {
             return new LinkOnMessage(ReadOptionalInt(element, "s"), ReadOptionalInt(element, "e"));
+        }
+
+        private static PreOnMessage ReadPre(JsonElement element)
+        {
+            return new PreOnMessage(
+                ReadStringProperty(element, "l"),
+                ReadOptionalInt(element, "s"),
+                ReadOptionalInt(element, "e"));
+        }
+
+        private static BoldOnMessage ReadBold(JsonElement element)
+        {
+            return new BoldOnMessage(
+                ReadStringProperty(element, "l"),
+                ReadOptionalInt(element, "s"),
+                ReadOptionalInt(element, "e"));
+        }
+
+        private static LinkYoutubeOnMessage ReadYoutubeLink(JsonElement element)
+        {
+            return new LinkYoutubeOnMessage(ReadOptionalInt(element, "s"), ReadOptionalInt(element, "e"));
         }
 
         private static MarkdownOnMessage ReadMarkdown(JsonElement element)
@@ -983,13 +1425,51 @@ namespace Mezon.Net.Client
                 var parsedFields = new List<MessageEmbedField>();
                 foreach (var fieldElement in fieldsElement.EnumerateArray())
                 {
+                    GridMessageComponent? shape = null;
+                    if (fieldElement.TryGetProperty("shape", out var shapeElement)
+                        && shapeElement.ValueKind == JsonValueKind.Object
+                        && ReadComponent(shapeElement) is GridMessageComponent grid)
+                    {
+                        shape = grid;
+                    }
+
+                    IReadOnlyList<MessageComponent>? buttons = null;
+                    if (fieldElement.TryGetProperty("button", out var buttonElement)
+                        && buttonElement.ValueKind == JsonValueKind.Array)
+                    {
+                        buttons = ReadComponentList(buttonElement);
+                    }
+
+                    MessageComponent? input = null;
+                    if (fieldElement.TryGetProperty("inputs", out var inputElement)
+                        && inputElement.ValueKind == JsonValueKind.Object)
+                    {
+                        input = ReadComponent(inputElement);
+                    }
+
+                    Dictionary<string, JsonElement>? fieldExtensions = null;
+                    foreach (var property in fieldElement.EnumerateObject())
+                    {
+                        if (property.Name is "name" or "value" or "inline" or "inputs" or "options" or "max_options" or "shape" or "button")
+                        {
+                            continue;
+                        }
+
+                        fieldExtensions ??= new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+                        fieldExtensions[property.Name] = property.Value.Clone();
+                    }
+
                     parsedFields.Add(new MessageEmbedField(
                         ReadRequiredString(fieldElement, "name"),
                         ReadRequiredString(fieldElement, "value"),
                         fieldElement.TryGetProperty("inline", out var inlineElement) && inlineElement.ValueKind == JsonValueKind.True,
                         fieldElement.TryGetProperty("inputs", out var inputsElement) ? inputsElement.Clone() : null,
                         fieldElement.TryGetProperty("options", out var optionsElement) ? optionsElement.Clone() : null,
-                        ReadOptionalInt(fieldElement, "max_options")));
+                        ReadOptionalInt(fieldElement, "max_options"),
+                        shape,
+                        buttons,
+                        fieldExtensions,
+                        input));
                 }
 
                 fields = parsedFields;
@@ -1192,7 +1672,8 @@ namespace Mezon.Net.Client
                     ReadStringProperty(element, "name"),
                     ReadStringProperty(element, "description"),
                     ReadOptionalInt(element, "style"),
-                    element.TryGetProperty("disabled", out var disabled) && disabled.ValueKind == JsonValueKind.True));
+                    element.TryGetProperty("disabled", out var disabled) && disabled.ValueKind == JsonValueKind.True,
+                    ReadStringArray(element, "extraData")));
             }
 
             return new RadioMessageComponent(id, options, ReadOptionalInt(envelope, "max_options"));
@@ -1358,13 +1839,47 @@ namespace Mezon.Net.Client
             };
         }
 
+        private static long? ReadOptionalLong(JsonElement element, string propertyName)
+        {
+            if (!element.TryGetProperty(propertyName, out var value))
+            {
+                return null;
+            }
+
+            return value.ValueKind switch
+            {
+                JsonValueKind.Number when value.TryGetInt64(out var number) => number,
+                JsonValueKind.String when long.TryParse(value.GetString(), out var parsed) => parsed,
+                _ => null,
+            };
+        }
+
+        private static bool? ReadOptionalBool(JsonElement element, string propertyName)
+        {
+            if (!element.TryGetProperty(propertyName, out var value))
+            {
+                return null;
+            }
+
+            return value.ValueKind switch
+            {
+                JsonValueKind.True => true,
+                JsonValueKind.False => false,
+                JsonValueKind.String when bool.TryParse(value.GetString(), out var parsed) => parsed,
+                _ => null,
+            };
+        }
+
         private static void ValidateOffsets(
             string? text,
             IReadOnlyList<HashtagOnMessage>? hashtags,
             IReadOnlyList<EmojiOnMessage>? emojis,
             IReadOnlyList<LinkOnMessage>? links,
             IReadOnlyList<MarkdownOnMessage>? markdown,
-            IReadOnlyList<LinkVoiceRoomOnMessage>? voiceLinks)
+            IReadOnlyList<PreOnMessage>? pre,
+            IReadOnlyList<BoldOnMessage>? bold,
+            IReadOnlyList<LinkVoiceRoomOnMessage>? voiceLinks,
+            IReadOnlyList<LinkYoutubeOnMessage>? youtubeLinks)
         {
             if (text is null)
             {
@@ -1376,7 +1891,10 @@ namespace Mezon.Net.Client
             ValidateOffsetRange(emojis, length, static item => (item.Start, item.End));
             ValidateOffsetRange(links, length, static item => (item.Start, item.End));
             ValidateOffsetRange(markdown, length, static item => (item.Start, item.End));
+            ValidateOffsetRange(pre, length, static item => (item.Start, item.End));
+            ValidateOffsetRange(bold, length, static item => (item.Start, item.End));
             ValidateOffsetRange(voiceLinks, length, static item => (item.Start, item.End));
+            ValidateOffsetRange(youtubeLinks, length, static item => (item.Start, item.End));
         }
 
         private static void ValidateOffsetRange<T>(IReadOnlyList<T>? items, int textLength, Func<T, (int? Start, int? End)> selector)

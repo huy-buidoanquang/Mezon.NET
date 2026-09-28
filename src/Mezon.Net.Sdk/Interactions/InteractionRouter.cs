@@ -67,7 +67,8 @@ namespace Mezon.Net.Sdk.Interactions
                 data.ButtonId,
                 data.UserId,
                 data.SenderId,
-                data.ExtraData);
+                data.ExtraData,
+                InteractionActorTrust.ClientSupplied);
             return await HandleAsync(client, interaction, cancellationToken).ConfigureAwait(false);
         }
 
@@ -89,7 +90,8 @@ namespace Mezon.Net.Sdk.Interactions
                 data.SelectboxId,
                 data.UserId,
                 data.SenderId,
-                values);
+                values,
+                InteractionActorTrust.ServerAuthenticated);
             return await HandleAsync(client, interaction, cancellationToken).ConfigureAwait(false);
         }
 
@@ -119,6 +121,13 @@ namespace Mezon.Net.Sdk.Interactions
             }
 
             if (!route.CanBeTriggeredBy(interaction.UserId))
+            {
+                return InteractionExecutionResult.Unauthorized;
+            }
+
+            if (route.RequiresServerAuthenticatedActor
+                && (interaction is not IInteractionActor actor
+                    || actor.ActorTrust != InteractionActorTrust.ServerAuthenticated))
             {
                 return InteractionExecutionResult.Unauthorized;
             }

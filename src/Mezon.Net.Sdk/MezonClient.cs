@@ -532,7 +532,10 @@ namespace Mezon.Net.Sdk
 
         public async ValueTask DisposeAsync()
         {
-            _agentManager?.Dispose();
+            if (_agentManager is not null)
+            {
+                await _agentManager.DisposeAsync().ConfigureAwait(false);
+            }
             DisposeMmn();
             try
             {

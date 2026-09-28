@@ -15,7 +15,23 @@ internal readonly struct MessageContentSnapshot
         IReadOnlyList<LinkVoiceRoomOnMessage>? voiceLinks,
         IReadOnlyList<MessageEmbed>? embeds,
         IReadOnlyList<MessageActionRow>? components,
-        IReadOnlyDictionary<string, JsonElement>? unknown)
+        IReadOnlyDictionary<string, JsonElement>? unknown,
+        IReadOnlyList<PreOnMessage>? pre = null,
+        IReadOnlyList<BoldOnMessage>? bold = null,
+        IReadOnlyList<LinkYoutubeOnMessage>? youtubeLinks = null,
+        int? e2ee = null,
+        JsonElement? canvas = null,
+        IReadOnlyDictionary<string, string>? canvasTitles = null,
+        MessageCallLog? callLog = null,
+        string? type = null,
+        string? channelId = null,
+        bool? forwarded = null,
+        bool? isCard = null,
+        long? replyToMessageId = null,
+        long? lastSeenSeconds = null,
+        MessagePoll? poll = null,
+        IReadOnlyList<string>? presignFinish = null,
+        long? createTimeSeconds = null)
     {
         Text = text;
         Hashtags = hashtags;
@@ -26,6 +42,22 @@ internal readonly struct MessageContentSnapshot
         Embeds = embeds;
         Components = components;
         Unknown = unknown;
+        Pre = pre;
+        Bold = bold;
+        YoutubeLinks = youtubeLinks;
+        E2ee = e2ee;
+        Canvas = canvas;
+        CanvasTitles = canvasTitles;
+        CallLog = callLog;
+        Type = type;
+        ChannelId = channelId;
+        Forwarded = forwarded;
+        IsCard = isCard;
+        ReplyToMessageId = replyToMessageId;
+        LastSeenSeconds = lastSeenSeconds;
+        Poll = poll;
+        PresignFinish = presignFinish;
+        CreateTimeSeconds = createTimeSeconds;
     }
 
     public string? Text { get; }
@@ -37,4 +69,20 @@ internal readonly struct MessageContentSnapshot
     public IReadOnlyList<MessageEmbed>? Embeds { get; }
     public IReadOnlyList<MessageActionRow>? Components { get; }
     public IReadOnlyDictionary<string, JsonElement>? Unknown { get; }
+    public IReadOnlyList<PreOnMessage>? Pre { get; }
+    public IReadOnlyList<BoldOnMessage>? Bold { get; }
+    public IReadOnlyList<LinkYoutubeOnMessage>? YoutubeLinks { get; }
+    public int? E2ee { get; }
+    public JsonElement? Canvas { get; }
+    public IReadOnlyDictionary<string, string>? CanvasTitles { get; }
+    public MessageCallLog? CallLog { get; }
+    public string? Type { get; }
+    public string? ChannelId { get; }
+    public bool? Forwarded { get; }
+    public bool? IsCard { get; }
+    public long? ReplyToMessageId { get; }
+    public long? LastSeenSeconds { get; }
+    public MessagePoll? Poll { get; }
+    public IReadOnlyList<string>? PresignFinish { get; }
+    public long? CreateTimeSeconds { get; }
 }

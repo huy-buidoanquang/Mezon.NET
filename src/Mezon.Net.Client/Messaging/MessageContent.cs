@@ -15,10 +15,11 @@ namespace Mezon.Net.Client
     /// </para>
     /// <para>
     /// Typed roots: <c>t</c>, <c>hg</c>, <c>ej</c>, <c>lk</c>, <c>mk</c>, <c>vk</c>, <c>embed</c>,
-    /// <c>components</c>. Bold / code / pre / YouTube markers are <see cref="MarkdownOnMessage.Type"/>
-    /// values under <c>mk</c>, not separate root arrays. Other roots (poll, canvas, legacy
-    /// <c>pre</c>/<c>bm</c>/<c>lky</c>, …) round-trip via <see cref="RawJson"/> and appear in
-    /// <see cref="UnknownExtensions"/> after the snapshot is materialized.
+    /// <c>components</c>. Poll, call-log, canvas metadata and message flags are also typed;
+    /// Bold / code / pre / YouTube markers may be represented under
+    /// <c>mk</c>; the legacy root arrays <c>pre</c>, <c>bm</c> and <c>lky</c> are also exposed
+    /// as typed properties for wire compatibility. Unknown future roots still round-trip via
+    /// <see cref="RawJson"/> and appear in <see cref="UnknownExtensions"/>.
     /// </para>
     /// <para>
     /// <see cref="Parse"/> only normalizes JSON. Typed arrays materialize lazily on first access
@@ -89,8 +90,56 @@ namespace Mezon.Net.Client
         /// </summary>
         public IReadOnlyList<MarkdownOnMessage>? Markdown => Snapshot.Markdown;
 
+        /// <summary>Legacy preformatted spans (<c>pre</c>).</summary>
+        public IReadOnlyList<PreOnMessage>? Pre => Snapshot.Pre;
+
+        /// <summary>Legacy bold spans (<c>bm</c>).</summary>
+        public IReadOnlyList<BoldOnMessage>? Bold => Snapshot.Bold;
+
         /// <summary>Voice-room link span tokens (<c>vk</c>).</summary>
         public IReadOnlyList<LinkVoiceRoomOnMessage>? VoiceLinks => Snapshot.VoiceLinks;
+
+        /// <summary>YouTube link spans (<c>lky</c>).</summary>
+        public IReadOnlyList<LinkYoutubeOnMessage>? YoutubeLinks => Snapshot.YoutubeLinks;
+
+        /// <summary>End-to-end encryption flag (<c>e2ee</c>).</summary>
+        public int? E2ee => Snapshot.E2ee;
+
+        /// <summary>Canvas payload (<c>canvas</c>) preserved as JSON.</summary>
+        public JsonElement? Canvas => Snapshot.Canvas;
+
+        /// <summary>Canvas title map (<c>cvtt</c>).</summary>
+        public IReadOnlyDictionary<string, string>? CanvasTitles => Snapshot.CanvasTitles;
+
+        /// <summary>Voice or direct-message call log metadata (<c>callLog</c>).</summary>
+        public MessageCallLog? CallLog => Snapshot.CallLog;
+
+        /// <summary>Message type metadata (<c>tp</c>).</summary>
+        public string? Type => Snapshot.Type;
+
+        /// <summary>Channel metadata (<c>cid</c>).</summary>
+        public string? ChannelId => Snapshot.ChannelId;
+
+        /// <summary>Forwarded-message flag (<c>fwd</c>).</summary>
+        public bool? Forwarded => Snapshot.Forwarded;
+
+        /// <summary>Card rendering flag (<c>isCard</c>).</summary>
+        public bool? IsCard => Snapshot.IsCard;
+
+        /// <summary>Reply count or reference metadata (<c>rpl</c>).</summary>
+        public long? ReplyToMessageId => Snapshot.ReplyToMessageId;
+
+        /// <summary>Last-seen topic metadata (<c>lsnt</c>).</summary>
+        public long? LastSeenSeconds => Snapshot.LastSeenSeconds;
+
+        /// <summary>Native poll payload.</summary>
+        public MessagePoll? Poll => Snapshot.Poll;
+
+        /// <summary>Upload completion keys (<c>presign_finish</c>).</summary>
+        public IReadOnlyList<string>? PresignFinish => Snapshot.PresignFinish;
+
+        /// <summary>Message creation timestamp metadata (<c>create_time_seconds</c>).</summary>
+        public long? CreateTimeSeconds => Snapshot.CreateTimeSeconds;
 
         /// <summary>Embed payloads (<c>embed</c>).</summary>
         public IReadOnlyList<MessageEmbed>? Embeds => Snapshot.Embeds;

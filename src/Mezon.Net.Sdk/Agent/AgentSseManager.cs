@@ -16,7 +16,7 @@ namespace Mezon.Net.Sdk.Agent
     ///     Long-lived Agent SSE client. Authentication matches mezon-sdk: <c>appid</c> and <c>token</c> query fields
     ///     on <c>api/sse/metadata</c>. The read loop rents buffers and allocates only the payload string handed to subscribers.
     /// </summary>
-    public sealed class AgentSseManager : IDisposable
+    public sealed class AgentSseManager : IDisposable, IAsyncDisposable
     {
         public const int DefaultReconnectDelayMs = 3000;
         public const int MaxReconnectDelayMs = 30000;
@@ -255,13 +255,65 @@ namespace Mezon.Net.Sdk.Agent
                 return;
             }
 
+            Task? loop;
+            CancellationTokenSource? cts;
             lock (_gate)
             {
-                _cts?.Cancel();
-                _cts?.Dispose();
+                cts = _cts;
+                loop = _loop;
+                cts?.Cancel();
                 _cts = null;
             }
 
+            if (loop is { IsCompleted: false })
+            {
+                try
+                {
+                    loop.GetAwaiter().GetResult();
+                }
+                catch (Exception)
+                {
+                    // The reconnect loop is best-effort during synchronous disposal.
+                }
+            }
+
+            cts?.Dispose();
+            if (_ownsHttp)
+            {
+                _http.Dispose();
+            }
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0)
+            {
+                return;
+            }
+
+            Task? loop;
+            CancellationTokenSource? cts;
+            lock (_gate)
+            {
+                cts = _cts;
+                loop = _loop;
+                cts?.Cancel();
+                _cts = null;
+            }
+
+            if (loop is not null)
+            {
+                try
+                {
+                    await loop.ConfigureAwait(false);
+                }
+                catch (Exception)
+                {
+                    // The reconnect loop is best-effort during shutdown.
+                }
+            }
+
+            cts?.Dispose();
             if (_ownsHttp)
             {
                 _http.Dispose();

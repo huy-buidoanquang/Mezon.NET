@@ -25,6 +25,12 @@ namespace Mezon.Net.Sdk.Interactions
             return this;
         }
 
+        public InteractionRouteRegistration RequireServerAuthenticatedActor()
+        {
+            _route.RequiresServerAuthenticatedActor = true;
+            return this;
+        }
+
         public InteractionRouteRegistration ExpiresAt(DateTimeOffset expiresAt)
         {
             _route.ExpiresAt = expiresAt;
