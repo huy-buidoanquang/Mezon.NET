@@ -175,6 +175,16 @@ namespace Mezon.Net.Sdk
             remove => _engine.QuickMenuReceivedEvent -= value;
         }
 
+        /// <summary>
+        /// Receives quick menu events with the menu name and source message metadata.
+        /// The parameterless <see cref="QuickMenuReceived"/> event remains for compatibility.
+        /// </summary>
+        public event Func<QuickMenuReceivedEventData, Task> QuickMenuReceivedData
+        {
+            add => _engine.QuickMenuReceivedDataEvent += value;
+            remove => _engine.QuickMenuReceivedDataEvent -= value;
+        }
+
         public event Func<Task> OwnershipTransferred
         {
             add => _engine.OwnershipTransferredEvent += value;

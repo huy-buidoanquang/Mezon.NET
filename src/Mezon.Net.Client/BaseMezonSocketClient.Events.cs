@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using Mezon.Net.Core;
+using Mezon.Net.Models;
 
 namespace Mezon.Net.Client
 {
@@ -306,6 +307,13 @@ namespace Mezon.Net.Client
             remove { _quickMenuReceivedEvent.Remove(value); }
         }
         internal readonly AsyncEvent<Func<Task>> _quickMenuReceivedEvent = new AsyncEvent<Func<Task>>();
+
+        public event Func<QuickMenuReceivedEventData, Task> QuickMenuReceivedDataEvent
+        {
+            add { _quickMenuReceivedDataEvent.Add(value); }
+            remove { _quickMenuReceivedDataEvent.Remove(value); }
+        }
+        internal readonly AsyncEvent<Func<QuickMenuReceivedEventData, Task>> _quickMenuReceivedDataEvent = new AsyncEvent<Func<QuickMenuReceivedEventData, Task>>();
 
         public event Func<Task> FriendUnblockedEvent
         {

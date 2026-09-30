@@ -64,5 +64,14 @@ namespace Mezon.Net.Sdk.Interactions
 
         public Task<ChannelMessageAckResponse> SendEphemeralTextAsync(string text, RequestOptions? options = null)
             => SendEphemeralAsync(MessageContent.CreateText(text), options);
+
+        public Task<ChannelMessageAckResponse> UpdateEphemeralAsync(long messageId, MessageContent content, RequestOptions? options = null)
+            => Channel.UpdateEphemeralAsync(content, User.Id, messageId, options: options);
+
+        public Task<ChannelMessageAckResponse> UpdateEphemeralTextAsync(long messageId, string text, RequestOptions? options = null)
+            => UpdateEphemeralAsync(messageId, MessageContent.CreateText(text), options);
+
+        public Task<ChannelMessageAckResponse> DeleteEphemeralAsync(long messageId, RequestOptions? options = null)
+            => Channel.DeleteEphemeralAsync(User.Id, messageId, options);
     }
 }

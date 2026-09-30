@@ -366,6 +366,13 @@ namespace Mezon.Net.Sdk
         public Task DeleteQuickMenuAccessAsync(QuickMenuAccessParams body, RequestOptions? options = null)
             => _engine.DeleteQuickMenuAccessAsync(body, options);
 
+        public Task<QuickMenuAccessListResponse> ListQuickMenuAccessAsync(
+            long botId,
+            long channelId,
+            int? menuType = null,
+            RequestOptions? options = null)
+            => _engine.ListQuickMenuAccessAsync(botId, channelId, menuType, options);
+
         public Task<GenerateMeetTokenResponse> GenerateMeetTokenAsync(GenerateMeetTokenParams body, RequestOptions? options = null)
             => _engine.GenerateMeetTokenAsync(body, options);
 

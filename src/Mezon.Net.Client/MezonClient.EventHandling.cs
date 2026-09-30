@@ -307,7 +307,27 @@ namespace Mezon.Net.Client
                         ScheduleEvent(() => TimedInvokeAsync(_dataSocketListedEvent, nameof(DataSocketListedEvent)));
                         break;
                     case Envelope.MessageOneofCase.QuickMenuEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_quickMenuReceivedEvent, nameof(QuickMenuReceivedEvent)));
+                        var quickMenu = envelope.QuickMenuEvent;
+                        if (quickMenu is null
+                            || string.IsNullOrWhiteSpace(quickMenu.MenuName)
+                            || quickMenu.Message is null
+                            || quickMenu.Message.Id <= 0
+                            || quickMenu.Message.ClanId <= 0
+                            || quickMenu.Message.ChannelId <= 0)
+                        {
+                            break;
+                        }
+
+                        if (_quickMenuReceivedDataEvent.HasSubscribers)
+                        {
+                            var quickMenuData = new QuickMenuReceivedEventData(quickMenu);
+                            ScheduleEvent(() => TimedInvokeAsync(_quickMenuReceivedDataEvent, nameof(QuickMenuReceivedDataEvent), quickMenuData));
+                        }
+
+                        if (_quickMenuReceivedEvent.HasSubscribers)
+                        {
+                            ScheduleEvent(() => TimedInvokeAsync(_quickMenuReceivedEvent, nameof(QuickMenuReceivedEvent)));
+                        }
                         break;
                     case Envelope.MessageOneofCase.UnBlockFriend:
                         ScheduleEvent(() => TimedInvokeAsync(_friendUnblockedEvent, nameof(FriendUnblockedEvent)));

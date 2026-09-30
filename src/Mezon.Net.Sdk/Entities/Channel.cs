@@ -119,6 +119,7 @@ namespace Mezon.Net.Sdk.Entities
                 content.ToJson(),
                 isPublic: IsPublic,
                 mode: mode,
+                code: EphemeralMessageCodes.Send,
                 mentions: mentions,
                 attachments: attachments,
                 references: references);
@@ -127,6 +128,76 @@ namespace Mezon.Net.Sdk.Entities
             {
                 return await _client.Engine.SendEphemeralMessageRtAsync(body, options).ConfigureAwait(false);
             });
+        }
+
+        public Task<ChannelMessageAckResponse> UpdateEphemeralAsync(
+            MessageContent content,
+            long receiverId,
+            long messageId,
+            IEnumerable<MessageMentionParams>? mentions = null,
+            IEnumerable<MessageAttachmentParams>? attachments = null,
+            IEnumerable<MessageRefParams>? references = null,
+            RequestOptions? options = null)
+        {
+            ValidateEphemeralTarget(receiverId, messageId);
+            var mode = ChannelModeConverter.ToStreamMode(Type);
+            var parameters = new SendChannelMessageParams(
+                ClanId,
+                Id,
+                content.ToJson(),
+                isPublic: IsPublic,
+                mode: mode,
+                code: EphemeralMessageCodes.Update,
+                mentions: mentions,
+                attachments: attachments,
+                references: references,
+                id: messageId);
+            var body = new SendEphemeralMessageParams(new[] { receiverId }, parameters);
+            return _client.SendQueue.EnqueueAsync(Id, () =>
+                _client.Engine.SendEphemeralMessageRtAsync(body, options));
+        }
+
+        public Task<ChannelMessageAckResponse> UpdateEphemeralTextAsync(
+            string text,
+            long receiverId,
+            long messageId,
+            IEnumerable<MessageMentionParams>? mentions = null,
+            IEnumerable<MessageAttachmentParams>? attachments = null,
+            IEnumerable<MessageRefParams>? references = null,
+            RequestOptions? options = null)
+            => UpdateEphemeralAsync(MessageContent.CreateText(text), receiverId, messageId, mentions, attachments, references, options);
+
+        public Task<ChannelMessageAckResponse> DeleteEphemeralAsync(
+            long receiverId,
+            long messageId,
+            RequestOptions? options = null)
+        {
+            ValidateEphemeralTarget(receiverId, messageId);
+            var mode = ChannelModeConverter.ToStreamMode(Type);
+            var parameters = new SendChannelMessageParams(
+                ClanId,
+                Id,
+                "{\"t\":\"deleteEphemeral\"}",
+                isPublic: IsPublic,
+                mode: mode,
+                code: EphemeralMessageCodes.Delete,
+                id: messageId);
+            var body = new SendEphemeralMessageParams(new[] { receiverId }, parameters);
+            return _client.SendQueue.EnqueueAsync(Id, () =>
+                _client.Engine.SendEphemeralMessageRtAsync(body, options));
+        }
+
+        private static void ValidateEphemeralTarget(long receiverId, long messageId)
+        {
+            if (receiverId <= 0)
+            {
+                throw new System.ArgumentOutOfRangeException(nameof(receiverId));
+            }
+
+            if (messageId <= 0)
+            {
+                throw new System.ArgumentOutOfRangeException(nameof(messageId));
+            }
         }
 
         public Task<ChannelMessageAckResponse> SendEphemeralAsync(

@@ -11,6 +11,7 @@ public sealed class BotSurfaceTests
     [InlineData(nameof(MezonClient.ListClanUsersAsync))]
     [InlineData(nameof(MezonClient.ListChannelMessagesAsync))]
     [InlineData(nameof(MezonClient.SendEphemeralMessageToBotAsync))]
+    [InlineData(nameof(MezonClient.ListQuickMenuAccessAsync))]
     public void Bot_snapshot_methods_are_public(string name)
     {
         Assert.NotNull(typeof(MezonClient).GetMethod(name, BindingFlags.Public | BindingFlags.Instance));
@@ -21,6 +22,7 @@ public sealed class BotSurfaceTests
     [InlineData(nameof(MezonClient.Disconnected))]
     [InlineData(nameof(MezonClient.Reconnecting))]
     [InlineData(nameof(MezonClient.OwnershipTransferred))]
+    [InlineData(nameof(MezonClient.QuickMenuReceivedData))]
     public void Bot_lifecycle_events_are_public(string name)
     {
         Assert.NotNull(typeof(MezonClient).GetEvent(name, BindingFlags.Public | BindingFlags.Instance));
