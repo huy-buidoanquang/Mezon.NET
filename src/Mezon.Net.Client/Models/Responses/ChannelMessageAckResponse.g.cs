@@ -6,18 +6,18 @@ namespace Mezon.Net.Models
 {
     public readonly struct ChannelMessageAckResponse
     {
-        private readonly global::Mezon.Net.Internal.Realtime.ChannelMessageAck _proto;
+        private readonly global::Mezon.Net.Internal.Realtime.ChannelMessageAck? _proto;
         internal ChannelMessageAckResponse(global::Mezon.Net.Internal.Realtime.ChannelMessageAck proto) => _proto = proto;
-        internal global::Mezon.Net.Internal.Realtime.ChannelMessageAck Proto => _proto;
+        internal global::Mezon.Net.Internal.Realtime.ChannelMessageAck Proto => _proto!;
 
-        public long ChannelId => _proto.ChannelId;
-        public long MessageId => _proto.MessageId;
-        public int Code => _proto.Code;
-        public string Username => _proto.Username;
-        public uint CreateTimeSeconds => _proto.CreateTimeSeconds;
-        public uint UpdateTimeSeconds => _proto.UpdateTimeSeconds;
-        public bool Persistent => _proto.Persistent ?? default;
-        public string ClanLogo => _proto.ClanLogo;
-        public string CategoryName => _proto.CategoryName;
+        public long ChannelId => _proto?.ChannelId ?? default;
+        public long MessageId => _proto?.MessageId ?? default;
+        public int Code => _proto?.Code ?? default;
+        public string Username => _proto?.Username ?? "";
+        public uint CreateTimeSeconds => _proto?.CreateTimeSeconds ?? default;
+        public uint UpdateTimeSeconds => _proto?.UpdateTimeSeconds ?? default;
+        public bool Persistent => _proto?.Persistent ?? default;
+        public string ClanLogo => _proto?.ClanLogo ?? "";
+        public string CategoryName => _proto?.CategoryName ?? "";
     }
 }

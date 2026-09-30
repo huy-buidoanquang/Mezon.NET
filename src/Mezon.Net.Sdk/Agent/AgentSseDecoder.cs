@@ -11,12 +11,14 @@ namespace Mezon.Net.Sdk.Agent
     {
         private byte[] _line = ArrayPool<byte>.Shared.Rent(256);
         private int _lineLength;
+        private byte[] _event = ArrayPool<byte>.Shared.Rent(64);
+        private int _eventLength;
         private byte[] _data = ArrayPool<byte>.Shared.Rent(1024);
         private int _dataLength;
         private bool _skipLf;
         private bool _disposed;
 
-        public void Push(ReadOnlySpan<byte> chunk, Action<ReadOnlyMemory<byte>> onEvent)
+        public void Push(ReadOnlySpan<byte> chunk, Action<ReadOnlyMemory<byte>, ReadOnlyMemory<byte>> onEvent)
         {
             if (_disposed)
             {
@@ -125,14 +127,15 @@ namespace Mezon.Net.Sdk.Agent
 
             _disposed = true;
             ArrayPool<byte>.Shared.Return(_line);
+            ArrayPool<byte>.Shared.Return(_event);
             ArrayPool<byte>.Shared.Return(_data);
         }
 
-        private void FinishLine(Action<ReadOnlyMemory<byte>> onEvent)
+        private void FinishLine(Action<ReadOnlyMemory<byte>, ReadOnlyMemory<byte>> onEvent)
         {
             if (_lineLength == 0)
             {
-                if (_dataLength == 0)
+                if (_dataLength == 0 && _eventLength == 0)
                 {
                     return;
                 }
@@ -143,7 +146,10 @@ namespace Mezon.Net.Sdk.Agent
                     length--;
                 }
 
-                onEvent(new ReadOnlyMemory<byte>(_data, 0, length));
+                onEvent(
+                    new ReadOnlyMemory<byte>(_event, 0, _eventLength),
+                    new ReadOnlyMemory<byte>(_data, 0, length));
+                _eventLength = 0;
                 _dataLength = 0;
                 return;
             }
@@ -159,6 +165,19 @@ namespace Mezon.Net.Sdk.Agent
             var name = separator < 0 ? line : line.Slice(0, separator);
             if (!name.SequenceEqual("data"u8))
             {
+                if (name.SequenceEqual("event"u8))
+                {
+                    var eventValue = separator < 0 ? ReadOnlySpan<byte>.Empty : line.Slice(separator + 1);
+                    if (eventValue.Length > 0 && eventValue[0] == (byte)' ')
+                    {
+                        eventValue = eventValue.Slice(1);
+                    }
+
+                    EnsureEvent(eventValue.Length);
+                    eventValue.CopyTo(_event.AsSpan(0, eventValue.Length));
+                    _eventLength = eventValue.Length;
+                }
+
                 return;
             }
 
@@ -204,6 +223,24 @@ namespace Mezon.Net.Sdk.Agent
             _data.AsSpan(0, _dataLength).CopyTo(grown);
             ArrayPool<byte>.Shared.Return(_data);
             _data = grown;
+        }
+
+        private void EnsureEvent(int length)
+        {
+            if (length <= _event.Length)
+            {
+                return;
+            }
+
+            var size = _event.Length;
+            while (size < length)
+            {
+                size *= 2;
+            }
+
+            var grown = ArrayPool<byte>.Shared.Rent(size);
+            ArrayPool<byte>.Shared.Return(_event);
+            _event = grown;
         }
 
         private static bool IsSpace(byte value) => value is (byte)' ' or (byte)'\t';

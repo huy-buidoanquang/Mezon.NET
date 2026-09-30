@@ -209,7 +209,7 @@ namespace Mezon.Net.Sdk.Agent
             return true;
         }
 
-        private void Dispatch(ReadOnlyMemory<byte> payload)
+        private void Dispatch(ReadOnlyMemory<byte> sseEventType, ReadOnlyMemory<byte> payload)
         {
             var handler = MessageReceived;
             if (handler is null || payload.Length == 0)
@@ -219,9 +219,11 @@ namespace Mezon.Net.Sdk.Agent
 
             var bytes = payload.Span;
             Span<char> typeBuffer = stackalloc char[64];
-            var eventType = AgentSseDecoder.TryReadEventType(bytes, typeBuffer, out var written)
-                ? new string(typeBuffer.Slice(0, written))
-                : string.Empty;
+            var eventType = sseEventType.Length > 0
+                ? Encoding.UTF8.GetString(sseEventType.Span)
+                : AgentSseDecoder.TryReadEventType(bytes, typeBuffer, out var written)
+                    ? new string(typeBuffer.Slice(0, written))
+                    : string.Empty;
             var raw = Encoding.UTF8.GetString(bytes);
             var evt = new AgentSseSessionEvent
             {

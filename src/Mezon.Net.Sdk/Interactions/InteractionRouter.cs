@@ -68,7 +68,7 @@ namespace Mezon.Net.Sdk.Interactions
                 data.UserId,
                 data.SenderId,
                 data.ExtraData,
-                InteractionActorTrust.ClientSupplied);
+                InteractionActorTrust.ServerAuthenticated);
             return await HandleAsync(client, interaction, cancellationToken).ConfigureAwait(false);
         }
 

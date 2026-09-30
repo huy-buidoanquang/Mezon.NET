@@ -17,7 +17,7 @@ namespace Mezon.Net.Sdk.Tests
     public class InteractionActorTrustTests
     {
         [Fact]
-        public async Task Button_event_marks_actor_as_client_supplied()
+        public async Task Button_event_marks_actor_as_server_authenticated()
         {
             var router = new InteractionRouter();
             InteractionActorTrust? trust = null;
@@ -34,7 +34,7 @@ namespace Mezon.Net.Sdk.Tests
                 CancellationToken.None).ConfigureAwait(false);
 
             Assert.Equal(InteractionExecutionResult.Handled, result);
-            Assert.Equal(InteractionActorTrust.ClientSupplied, trust);
+            Assert.Equal(InteractionActorTrust.ServerAuthenticated, trust);
         }
 
         [Fact]
@@ -59,7 +59,7 @@ namespace Mezon.Net.Sdk.Tests
         }
 
         [Fact]
-        public async Task Protected_route_rejects_button_actor_before_handler()
+        public async Task Protected_route_allows_server_authenticated_button()
         {
             var router = new InteractionRouter();
             var invoked = false;
@@ -74,8 +74,8 @@ namespace Mezon.Net.Sdk.Tests
                 CreateButtonEvent("welcome:save"),
                 CancellationToken.None);
 
-            Assert.Equal(InteractionExecutionResult.Unauthorized, result);
-            Assert.False(invoked);
+            Assert.Equal(InteractionExecutionResult.Handled, result);
+            Assert.True(invoked);
         }
 
         [Fact]
