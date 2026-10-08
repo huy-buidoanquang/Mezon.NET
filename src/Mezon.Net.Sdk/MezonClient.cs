@@ -207,7 +207,15 @@ namespace Mezon.Net.Sdk
                 await _logger.WarningAsync("Clan cache seed failed; continuing. Invite the bot to a clan and restart if commands never arrive.", ex).ConfigureAwait(false);
             }
 
-            await InitializeMmnAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await InitializeMmnAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                // MMN is optional: an unreachable MMN or ZK service must not block login or Ready.
+                await _logger.WarningAsync("MMN initialization failed; transfers are unavailable until the next connect.", ex).ConfigureAwait(false);
+            }
         }
 
         private async Task SeedClanCacheAsync(CancellationToken cancellationToken)
