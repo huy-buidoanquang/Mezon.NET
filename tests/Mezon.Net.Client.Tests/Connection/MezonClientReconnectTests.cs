@@ -161,6 +161,59 @@ public sealed class MezonClientReconnectTests
     }
 
     [Fact]
+    public async Task DisposeAsync_during_reconnect_backoff_stops_the_loop()
+    {
+        var transport = new FakeNetworkTransporter();
+        var options = SocketTestDoubles.CreateOptions(transport, heartbeatMs: 60_000);
+        var socketClient = await SocketTestDoubles.CreateLoggedInSocketClientAsync(options, transport);
+        var client = new MezonClient(options, socketClient);
+        client.SetReconnectDelayForTests(1_500);
+
+        await client.ConnectAsync();
+        transport.TriggerClosed();
+
+        var deadline = Environment.TickCount64 + 3000;
+        while (client.ConnectionState != ConnectionState.Disconnected && Environment.TickCount64 < deadline)
+        {
+            await Task.Delay(10);
+        }
+
+        Assert.Equal(ConnectionState.Disconnected, client.ConnectionState);
+        var connectsBeforeDispose = transport.ConnectCount;
+        await client.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3));
+
+        await Task.Delay(2_000);
+        Assert.Equal(connectsBeforeDispose, transport.ConnectCount);
+    }
+
+    [Fact]
+    public async Task Hung_transport_connect_is_cancelled_by_connect_timeout()
+    {
+        var transport = new FakeNetworkTransporter();
+        var connectCancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        transport.ConnectHandler = async () =>
+        {
+            try
+            {
+                await Task.Delay(Timeout.Infinite, transport.CancelToken);
+            }
+            catch (OperationCanceledException)
+            {
+                connectCancelled.TrySetResult();
+                throw;
+            }
+        };
+        var options = SocketTestDoubles.CreateOptions(transport, connectionTimeoutMs: 300);
+        var socketClient = await SocketTestDoubles.CreateLoggedInSocketClientAsync(options, transport);
+        var client = new MezonClient(options, socketClient);
+        client.SetReconnectDelayForTests(50_000);
+
+        await Assert.ThrowsAsync<TimeoutException>(() => client.ConnectAsync().WaitAsync(TimeSpan.FromSeconds(3)));
+        await connectCancelled.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        await client.DisconnectAsync().WaitAsync(TimeSpan.FromSeconds(3));
+    }
+
+    [Fact]
     public async Task WaitAsync_completes_when_connection_state_is_connected()
     {
         var transport = new FakeNetworkTransporter();

@@ -28,6 +28,9 @@ internal sealed class FakeNetworkTransporter : IMezonNetworkTransporter
     public int HeartbeatSendCount => _heartbeatSendCount;
     public int ClosedInvokeCount => _closedInvokeCount;
 
+    /// <summary>Token last passed to <see cref="SetCancelToken"/> (the connect token).</summary>
+    public CancellationToken CancelToken => _cancelToken;
+
     public Func<MezonMessageType, int, int, ReadOnlyMemory<byte>, ValueTask>? MessageReceived { get; set; }
     public Func<Task>? Opened { get; set; }
     public Func<Exception?, Task>? Closed { get; set; }

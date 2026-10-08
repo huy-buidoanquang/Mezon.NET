@@ -28,6 +28,7 @@ namespace Mezon.Net.Sdk
         internal readonly Logger _logger;
 
         private readonly SemaphoreSlim _initializeGate = new SemaphoreSlim(1, 1);
+        private readonly CancellationTokenSource _lifetimeCts = new CancellationTokenSource();
         private TaskCompletionSource<bool>? _firstConnectTcs;
         private CancellationToken _connectCancellationToken;
         private bool _readyInvoked;
@@ -148,10 +149,17 @@ namespace Mezon.Net.Sdk
 
         private async Task EngineConnectedHandlerAsync()
         {
-            await _initializeGate.WaitAsync(_connectCancellationToken).ConfigureAwait(false);
+            // The LoginAsync token only bounds the first connect. Reconnects must not inherit it: once it is cancelled
+            // (e.g. a login timeout) every later initialization would fail and clans would never be re-joined.
+            var firstConnect = _firstConnectTcs;
+            var cancellationToken = firstConnect is { Task.IsCompleted: false } && !_connectCancellationToken.IsCancellationRequested
+                ? _connectCancellationToken
+                : _lifetimeCts.Token;
+
+            await _initializeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                await InitializeAfterConnectedAsync(_connectCancellationToken).ConfigureAwait(false);
+                await InitializeAfterConnectedAsync(cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -514,6 +522,7 @@ namespace Mezon.Net.Sdk
 
         public async ValueTask DisposeAsync()
         {
+            _lifetimeCts.Cancel();
             if (_agentManager is not null)
             {
                 await _agentManager.DisposeAsync().ConfigureAwait(false);
@@ -521,10 +530,8 @@ namespace Mezon.Net.Sdk
             DisposeMmn();
             try
             {
-                if (_engine.ConnectionState != ConnectionState.Disconnected)
-                {
-                    await _engine.DisconnectAsync().ConfigureAwait(false);
-                }
+                // Always stop the engine: during a reconnect backoff its state is already Disconnected.
+                await _engine.DisconnectAsync().ConfigureAwait(false);
             }
             catch
             {
@@ -533,6 +540,7 @@ namespace Mezon.Net.Sdk
 
             await _engine.DisposeAsync().ConfigureAwait(false);
             _initializeGate.Dispose();
+            _lifetimeCts.Dispose();
             Clans.Clear();
             Channels.Clear();
             Users.Clear();

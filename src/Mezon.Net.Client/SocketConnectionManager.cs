@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,18 +20,21 @@ namespace Mezon.Net.Client
         public event Func<Exception, Task> Reconnecting { add { _reconnectingEvent.Add(value); } remove { _reconnectingEvent.Remove(value); } }
         private readonly AsyncEvent<Func<Exception, Task>> _reconnectingEvent = new AsyncEvent<Func<Exception, Task>>();
 
+        /// <summary>Consecutive unauthorized closes after which reconnecting stops with a critical error.</summary>
+        internal const int MaxConsecutiveAuthFailures = 3;
+
         private readonly SemaphoreSlim _stateLock;
         private readonly Logger _logger;
         private readonly int _connectionTimeoutInMilliseconds;
-        private readonly Func<Task> _onConnecting;
+        private readonly Func<CancellationToken, Task> _onConnecting;
         private readonly Func<Exception, Task> _onDisconnecting;
+        private readonly Func<Exception?, CancellationToken, Task>? _beforeReconnect;
 
         private TaskCompletionSource<bool> _connectionPromise = default!;
         private TaskCompletionSource<bool> _readyPromise = default!;
         private CancellationTokenSource? _combinedCancelToken;
         private CancellationTokenSource? _reconnectCancelToken;
         private CancellationTokenSource? _connectionCancelToken;
-        private CancellationTokenSource? _connectTimeoutCts;
         private Task? _task;
         private TaskCompletionSource<object?>? _lifecycleTcs;
 
@@ -41,6 +45,12 @@ namespace Mezon.Net.Client
 
         /// <summary>Maximum reconnect backoff for tests; production default is 30000ms.</summary>
         internal int MaxReconnectDelayMs { get; set; } = 30000;
+
+        /// <summary>
+        /// A connection must stay up this long before the backoff resets. Reaching "connected" only means the TCP
+        /// handshake was written, so a server that accepts and immediately closes must not cause a reconnect per second.
+        /// </summary>
+        internal int StableConnectionThresholdMs { get; set; } = 30000;
 
         public ConnectionState State { get; private set; }
         public CancellationToken CancelToken { get; private set; }
@@ -53,15 +63,17 @@ namespace Mezon.Net.Client
             SemaphoreSlim stateLock,
             Logger logger,
             int connectionTimeoutInMilliseconds,
-            Func<Task> onConnecting,
+            Func<CancellationToken, Task> onConnecting,
             Func<Exception, Task> onDisconnecting,
-            Action<Func<Exception, Task>> clientDisconnectHandler)
+            Action<Func<Exception, Task>> clientDisconnectHandler,
+            Func<Exception?, CancellationToken, Task>? beforeReconnect = null)
         {
             _stateLock = stateLock;
             _logger = logger;
             _connectionTimeoutInMilliseconds = connectionTimeoutInMilliseconds;
             _onConnecting = onConnecting;
             _onDisconnecting = onDisconnecting;
+            _beforeReconnect = beforeReconnect;
             clientDisconnectHandler(HandleTransportDisconnectedAsync);
         }
 
@@ -101,60 +113,106 @@ namespace Mezon.Net.Client
 
             await AcquireConnectionLock().ConfigureAwait(false);
             var reconnectCancelToken = new CancellationTokenSource();
-            _reconnectCancelToken?.Dispose();
-            _reconnectCancelToken = reconnectCancelToken;
+            var previousReconnectCancelToken = Interlocked.Exchange(ref _reconnectCancelToken, reconnectCancelToken);
+            previousReconnectCancelToken?.Dispose();
             _readyPromise = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             _connectionPromise = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             _lifecycleTcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
-            _task = Task.Run(async () =>
+            _task = Task.Run(() => RunConnectionLoopAsync(reconnectCancelToken));
+        }
+
+        private async Task RunConnectionLoopAsync(CancellationTokenSource reconnectCancelToken)
+        {
+            try
             {
-                try
+                var jitter = new Random();
+                var nextReconnectDelay = ReconnectBaseDelayMs;
+                var attempt = 0;
+                var consecutiveAuthFailures = 0;
+                Exception? lastError = null;
+                while (!reconnectCancelToken.IsCancellationRequested)
                 {
-                    var jitter = new Random();
-                    var nextReconnectDelay = ReconnectBaseDelayMs;
-                    while (!reconnectCancelToken.IsCancellationRequested)
+                    long connectedAt = 0;
+                    try
                     {
-                        try
+                        if (attempt++ > 0 && _beforeReconnect != null)
                         {
-                            await ConnectInternalAsync(reconnectCancelToken).ConfigureAwait(false);
-                            nextReconnectDelay = ReconnectBaseDelayMs;
-                            await _connectionPromise.Task.ConfigureAwait(false);
-                        }
-                        catch (OperationCanceledException ex)
-                        {
-                            await DisconnectInternalAsync(ex, !reconnectCancelToken.IsCancellationRequested).ConfigureAwait(false);
-                        }
-                        catch (Exception ex)
-                        {
-                            if (!reconnectCancelToken.IsCancellationRequested)
-                            {
-                                await _logger.WarningAsync(ex).ConfigureAwait(false);
-                                await DisconnectInternalAsync(ex, true).ConfigureAwait(false);
-                            }
-                            else
-                            {
-                                await _logger.ErrorAsync(ex).ConfigureAwait(false);
-                                await DisconnectInternalAsync(ex, false).ConfigureAwait(false);
-                            }
+                            await _beforeReconnect(lastError, reconnectCancelToken.Token).ConfigureAwait(false);
                         }
 
-                        if (!reconnectCancelToken.IsCancellationRequested)
-                        {
-                            await Task.Delay(nextReconnectDelay, reconnectCancelToken.Token).ConfigureAwait(false);
-                            nextReconnectDelay = (nextReconnectDelay * 2) + jitter.Next(-250, 250);
-                            if (nextReconnectDelay > MaxReconnectDelayMs)
-                            {
-                                nextReconnectDelay = MaxReconnectDelayMs;
-                            }
-                        }
+                        await ConnectInternalAsync(reconnectCancelToken).ConfigureAwait(false);
+                        connectedAt = Stopwatch.GetTimestamp();
+                        await _connectionPromise.Task.ConfigureAwait(false);
                     }
+                    catch (OperationCanceledException ex)
+                    {
+                        lastError = ex;
+                        await DisconnectInternalAsync(ex, !reconnectCancelToken.IsCancellationRequested).ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        lastError = ex;
+                        var isReconnecting = !reconnectCancelToken.IsCancellationRequested;
+                        await LogSafeAsync(isReconnecting ? LogLevel.Warning : LogLevel.Error, "Socket connection failed.", ex).ConfigureAwait(false);
+                        await DisconnectInternalAsync(ex, isReconnecting).ConfigureAwait(false);
+                    }
+
+                    if (connectedAt != 0 && ElapsedMilliseconds(connectedAt) >= StableConnectionThresholdMs)
+                    {
+                        nextReconnectDelay = ReconnectBaseDelayMs;
+                    }
+
+                    consecutiveAuthFailures = IsUnauthorized(lastError) ? consecutiveAuthFailures + 1 : 0;
+                    if (consecutiveAuthFailures >= MaxConsecutiveAuthFailures)
+                    {
+                        await LogSafeAsync(
+                            LogLevel.Error,
+                            $"Server rejected the session {consecutiveAuthFailures} times in a row; reconnecting stopped.",
+                            lastError).ConfigureAwait(false);
+                        CriticalError(lastError!);
+                        break;
+                    }
+
+                    if (reconnectCancelToken.IsCancellationRequested)
+                    {
+                        break;
+                    }
+
+                    try
+                    {
+                        await Task.Delay(nextReconnectDelay, reconnectCancelToken.Token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+
+                    nextReconnectDelay = Math.Max(1, Math.Min(MaxReconnectDelayMs, (nextReconnectDelay * 2) + jitter.Next(-250, 250)));
                 }
-                finally
+            }
+            finally
+            {
+                _stateLock.Release();
+                _lifecycleTcs?.TrySetResult(null);
+            }
+        }
+
+        private static long ElapsedMilliseconds(long startTimestamp)
+            => (Stopwatch.GetTimestamp() - startTimestamp) * 1000 / Stopwatch.Frequency;
+
+        internal static bool IsUnauthorized(Exception? ex)
+        {
+            for (var current = ex; current != null; current = current.InnerException)
+            {
+                if (current is NetworkTransportUnauthorizationException
+                    || current is MezonAuthenticationException
+                    || current is HttpException { HttpCode: System.Net.HttpStatusCode.Unauthorized })
                 {
-                    _stateLock.Release();
-                    _lifecycleTcs?.TrySetResult(null);
+                    return true;
                 }
-            });
+            }
+
+            return false;
         }
 
         public Task DisconnectAsync()
@@ -169,22 +227,20 @@ namespace Mezon.Net.Client
         {
             _readyPromise?.TrySetCanceled();
             _connectionPromise?.TrySetCanceled();
-            _reconnectCancelToken?.Cancel();
-            _connectionCancelToken?.Cancel();
-            _connectTimeoutCts?.Cancel();
+            TryCancel(Volatile.Read(ref _reconnectCancelToken));
+            TryCancel(Volatile.Read(ref _connectionCancelToken));
         }
 
         public void Error(Exception ex)
         {
             _readyPromise?.TrySetException(ex);
             _connectionPromise?.TrySetException(ex);
-            _connectionCancelToken?.Cancel();
-            _connectTimeoutCts?.Cancel();
+            TryCancel(Volatile.Read(ref _connectionCancelToken));
         }
 
         public void CriticalError(Exception ex)
         {
-            _reconnectCancelToken?.Cancel();
+            TryCancel(Volatile.Read(ref _reconnectCancelToken));
             Error(ex);
         }
 
@@ -193,18 +249,31 @@ namespace Mezon.Net.Client
         /// </summary>
         public void Reconnect()
         {
-            _connectionCancelToken?.Cancel();
+            TryCancel(Volatile.Read(ref _connectionCancelToken));
             _connectionPromise?.TrySetCanceled();
+        }
+
+        /// <summary>Cancel may race a connect attempt that swaps and disposes the token source.</summary>
+        private static void TryCancel(CancellationTokenSource? cancellationTokenSource)
+        {
+            try
+            {
+                cancellationTokenSource?.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+            }
         }
 
         private async Task ConnectInternalAsync(CancellationTokenSource reconnectCancelToken)
         {
-            _connectionCancelToken?.Dispose();
-            _combinedCancelToken?.Dispose();
-            _connectTimeoutCts?.Dispose();
-            _connectionCancelToken = new CancellationTokenSource();
-            _combinedCancelToken = CancellationTokenSource.CreateLinkedTokenSource(_connectionCancelToken.Token, reconnectCancelToken.Token);
-            CancelToken = _combinedCancelToken.Token;
+            // Publish the new token sources before disposing the old ones so a concurrent Cancel/Error/Reconnect sees
+            // either a live source or catches ObjectDisposedException.
+            var connectionCancelToken = new CancellationTokenSource();
+            var combinedCancelToken = CancellationTokenSource.CreateLinkedTokenSource(connectionCancelToken.Token, reconnectCancelToken.Token);
+            Interlocked.Exchange(ref _connectionCancelToken, connectionCancelToken)?.Dispose();
+            Interlocked.Exchange(ref _combinedCancelToken, combinedCancelToken)?.Dispose();
+            CancelToken = combinedCancelToken.Token;
 
             _connectionPromise = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             State = ConnectionState.Connecting;
@@ -216,23 +285,24 @@ namespace Mezon.Net.Client
             }
 
             var readyPromise = _readyPromise;
-            _connectTimeoutCts = new CancellationTokenSource();
-            var connectTimeoutLinked = CancellationTokenSource.CreateLinkedTokenSource(_connectTimeoutCts.Token, CancelToken);
+            using var timeoutCts = new CancellationTokenSource();
+            using var timeoutRegistration = timeoutCts.Token.Register(
+                static state => ((TaskCompletionSource<bool>)state!).TrySetException(new TimeoutException()),
+                readyPromise);
+            using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(timeoutCts.Token, CancelToken);
+            timeoutCts.CancelAfter(_connectionTimeoutInMilliseconds);
             try
             {
-                _ = Task.Run(async () =>
+                try
                 {
-                    try
-                    {
-                        await Task.Delay(_connectionTimeoutInMilliseconds, connectTimeoutLinked.Token).ConfigureAwait(false);
-                        readyPromise.TrySetException(new TimeoutException());
-                    }
-                    catch (OperationCanceledException)
-                    {
-                    }
-                });
+                    // The token aborts the transport connect on timeout, Cancel, Error or Reconnect.
+                    await _onConnecting(connectCts.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !CancelToken.IsCancellationRequested)
+                {
+                    throw new TimeoutException();
+                }
 
-                await _onConnecting().ConfigureAwait(false);
                 State = ConnectionState.Connected;
                 await _logger.InfoAsync("Connected").ConfigureAwait(false);
                 await _connectedEvent.InvokeAsync().ConfigureAwait(false);
@@ -243,15 +313,9 @@ namespace Mezon.Net.Client
                 Error(ex);
                 throw;
             }
-            finally
-            {
-                _connectTimeoutCts.Cancel();
-                _connectTimeoutCts.Dispose();
-                _connectTimeoutCts = null;
-                connectTimeoutLinked.Dispose();
-            }
         }
 
+        /// <summary>Tears the connection down. Never throws, so the reconnect loop cannot die here.</summary>
         private async Task DisconnectInternalAsync(Exception ex, bool isReconnecting)
         {
             if (State == ConnectionState.Disconnected)
@@ -260,17 +324,53 @@ namespace Mezon.Net.Client
             }
 
             State = ConnectionState.Disconnecting;
-            await _logger.InfoAsync("Disconnecting").ConfigureAwait(false);
+            try
+            {
+                await LogSafeAsync(LogLevel.Information, "Disconnecting").ConfigureAwait(false);
+                try
+                {
+                    await _onDisconnecting(ex).ConfigureAwait(false);
+                }
+                catch (Exception teardownError)
+                {
+                    await LogSafeAsync(LogLevel.Warning, "Socket teardown failed.", teardownError).ConfigureAwait(false);
+                }
+            }
+            finally
+            {
+                State = ConnectionState.Disconnected;
+            }
 
-            await _onDisconnecting(ex).ConfigureAwait(false);
-
-            State = ConnectionState.Disconnected;
-            await _logger.InfoAsync("Disconnected").ConfigureAwait(false);
-            await _disconnectedEvent.InvokeAsync(ex).ConfigureAwait(false);
+            await LogSafeAsync(LogLevel.Information, "Disconnected").ConfigureAwait(false);
+            await InvokeSafeAsync(_disconnectedEvent, ex).ConfigureAwait(false);
             if (isReconnecting)
             {
-                await _reconnectingEvent.InvokeAsync(ex).ConfigureAwait(false);
-                await _logger.InfoAsync("Reconnecting").ConfigureAwait(false);
+                await InvokeSafeAsync(_reconnectingEvent, ex).ConfigureAwait(false);
+                await LogSafeAsync(LogLevel.Information, "Reconnecting").ConfigureAwait(false);
+            }
+        }
+
+        private async Task InvokeSafeAsync(AsyncEvent<Func<Exception, Task>> eventHandler, Exception ex)
+        {
+            try
+            {
+                await eventHandler.InvokeAsync(ex).ConfigureAwait(false);
+            }
+            catch (Exception handlerError)
+            {
+                await LogSafeAsync(LogLevel.Warning, "A connection event handler failed.", handlerError).ConfigureAwait(false);
+            }
+        }
+
+        private async Task LogSafeAsync(LogLevel level, string message, Exception? ex = null)
+        {
+            try
+            {
+                await _logger.LogAsync(level, message, ex).ConfigureAwait(false);
+            }
+            catch
+            {
+                // A failing log sink must not stop the reconnect loop.
             }
         }
 
@@ -301,10 +401,10 @@ namespace Mezon.Net.Client
                     {
                     }
 
+                    // Disposed only after the loop has stopped (or the wait gave up); concurrent Cancel calls tolerate it.
                     _combinedCancelToken?.Dispose();
                     _reconnectCancelToken?.Dispose();
                     _connectionCancelToken?.Dispose();
-                    _connectTimeoutCts?.Dispose();
                 }
 
                 _isDisposed = true;

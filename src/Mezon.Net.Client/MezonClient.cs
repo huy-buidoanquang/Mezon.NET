@@ -66,12 +66,19 @@ namespace Mezon.Net.Client
         private static MezonSocketClient CreateSocketClient(MezonSocketClientOptions options)
             => new MezonSocketClient(options.RestClientProvider, options.NetworkTransportProvider, options);
 
-        private async Task OnConnectingAsync()
+        private async Task OnConnectingAsync(CancellationToken cancellationToken)
         {
             try
             {
                 await _logger.DebugAsync("Connecting MezonSocket").ConfigureAwait(false);
-                await ApiClient.ConnectAsync().ConfigureAwait(false);
+                if (ApiClient is MezonSocketClient socketApiClient)
+                {
+                    await socketApiClient.ConnectAsync(cancellationToken).ConfigureAwait(false);
+                }
+                else
+                {
+                    await ApiClient.ConnectAsync().ConfigureAwait(false);
+                }
 
                 await TimedInvokeAsync(_clientReadyEvent, nameof(ClientReadyEvent)).ConfigureAwait(false);
             }
@@ -118,17 +125,30 @@ namespace Mezon.Net.Client
             }
 
             _heartbeatTask = RunHeartbeatAsync(_connection.CancelToken);
-            _ = TimedInvokeAsync(_connectedEvent, nameof(Connected)).ConfigureAwait(false);
+            _ = ObserveLifecycleEventAsync(TimedInvokeAsync(_connectedEvent, nameof(Connected)), nameof(Connected));
         }
 
         private async Task SocketDisconnectedHandlerAsync(Exception ex)
         {
-            _ = TimedInvokeAsync(_disconnectedEvent, nameof(Disconnected), ex).ConfigureAwait(false);
+            _ = ObserveLifecycleEventAsync(TimedInvokeAsync(_disconnectedEvent, nameof(Disconnected), ex), nameof(Disconnected));
         }
 
         private async Task SocketReconnectingHandlerAsync(Exception ex)
         {
-            _ = TimedInvokeAsync(_reconnectingEvent, nameof(Reconnecting), ex).ConfigureAwait(false);
+            _ = ObserveLifecycleEventAsync(TimedInvokeAsync(_reconnectingEvent, nameof(Reconnecting), ex), nameof(Reconnecting));
+        }
+
+        /// <summary>Lifecycle events are not awaited by the connection loop; log their failures instead of losing them.</summary>
+        private async Task ObserveLifecycleEventAsync(Task invocation, string name)
+        {
+            try
+            {
+                await invocation.ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                await _logger.WarningAsync($"A {name} handler has thrown an unhandled exception.", ex).ConfigureAwait(false);
+            }
         }
 
         private async Task RunHeartbeatAsync(CancellationToken cancelToken)
@@ -308,21 +328,31 @@ namespace Mezon.Net.Client
             {
                 try
                 {
-                    if (ConnectionState != ConnectionState.Disconnected)
-                    {
-                        await DisconnectAsync().ConfigureAwait(false);
-                    }
+                    // Always stop the loop: while it waits out a reconnect backoff the state is already Disconnected.
+                    await DisconnectAsync().ConfigureAwait(false);
                 }
                 catch
                 {
                     // Best-effort disconnect before dispose.
                 }
 
+                _connection.Dispose();
                 _heartbeatTask = null;
                 _stateLock.Dispose();
             }
 
             await base.DisposeAsync(disposing).ConfigureAwait(false);
+        }
+
+        internal override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _connection.Dispose();
+                _heartbeatTask = null;
+            }
+
+            base.Dispose(disposing);
         }
     }
 }

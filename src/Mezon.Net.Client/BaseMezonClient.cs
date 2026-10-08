@@ -176,6 +176,7 @@ namespace Mezon.Net.Client
         {
             if (!_isDisposed)
             {
+                (ApiClient as IDisposable)?.Dispose();
                 StateLock?.Dispose();
                 _isDisposed = true;
             }
@@ -195,6 +196,16 @@ namespace Mezon.Net.Client
                 else
                 {
                     _sessionManager.Dispose();
+                }
+
+                // The API client owns the socket transport, request queue and HTTP client.
+                if (ApiClient is IAsyncDisposable asyncApiClient)
+                {
+                    await asyncApiClient.DisposeAsync().ConfigureAwait(false);
+                }
+                else
+                {
+                    (ApiClient as IDisposable)?.Dispose();
                 }
 
                 StateLock?.Dispose();

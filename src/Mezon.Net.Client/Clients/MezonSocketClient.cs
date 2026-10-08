@@ -86,12 +86,15 @@ namespace Mezon.Net.Client
             }
         }
 
-        public async Task ConnectAsync()
+        public Task ConnectAsync() => ConnectAsync(CancellationToken.None);
+
+        /// <summary>Connects the transport; <paramref name="cancellationToken"/> aborts a connect that hangs.</summary>
+        internal async Task ConnectAsync(CancellationToken cancellationToken)
         {
-            await _stateLock.WaitAsync().ConfigureAwait(false);
+            await _stateLock.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                await ConnectInternalAsync().ConfigureAwait(false);
+                await ConnectInternalAsync(cancellationToken).ConfigureAwait(false);
             }
             finally
             {
@@ -99,7 +102,9 @@ namespace Mezon.Net.Client
             }
         }
 
-        internal override async Task ConnectInternalAsync()
+        internal override Task ConnectInternalAsync() => ConnectInternalAsync(CancellationToken.None);
+
+        private async Task ConnectInternalAsync(CancellationToken cancellationToken)
         {
             if (LoginState != LoginState.LoggedIn)
             {
@@ -118,7 +123,7 @@ namespace Mezon.Net.Client
             try
             {
                 _connectCancelToken?.Dispose();
-                _connectCancelToken = new CancellationTokenSource();
+                _connectCancelToken = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 NetworkTransporter.SetCancelToken(_connectCancelToken.Token);
                 var socketOptions = (MezonSocketClientOptions)MezonOptions;
                 var (host, port, token) = GetTransportEndpoint();
@@ -449,18 +454,26 @@ namespace Mezon.Net.Client
             base.Dispose(disposing);
         }
 
-        internal override ValueTask DisposeAsync(bool disposing)
+        internal override async ValueTask DisposeAsync(bool disposing)
         {
             if (!_isDisposed)
             {
                 if (disposing)
                 {
+                    if (NetworkTransporter is IAsyncDisposable asyncTransporter)
+                    {
+                        await asyncTransporter.DisposeAsync().ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        (NetworkTransporter as IDisposable)?.Dispose();
+                    }
+
                     _connectCancelToken?.Dispose();
-                    (NetworkTransporter as IDisposable)?.Dispose();
                 }
             }
 
-            return base.DisposeAsync(disposing);
+            await base.DisposeAsync(disposing).ConfigureAwait(false);
         }
 
         #region Core
