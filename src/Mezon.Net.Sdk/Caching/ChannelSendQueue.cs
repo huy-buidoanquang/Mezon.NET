@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -8,6 +9,12 @@ namespace Mezon.Net.Sdk.Caching
     /// <summary>
     ///     Per-channel send serialization with idle gate pruning.
     /// </summary>
+    /// <remarks>
+    ///     Each gate counts the callers using it. A gate is retired (removed from the map) only under its own lock
+    ///     while nobody uses it, so a caller never waits on a gate that was pruned and two gates never exist for one
+    ///     channel. Semaphores are not disposed: without <see cref="SemaphoreSlim.AvailableWaitHandle"/> they hold no
+    ///     unmanaged resources.
+    /// </remarks>
     public sealed class ChannelSendQueue
     {
         private readonly ConcurrentDictionary<long, GateState> _locks = new ConcurrentDictionary<long, GateState>();
@@ -22,16 +29,22 @@ namespace Mezon.Net.Sdk.Caching
 
         public async Task<T> EnqueueAsync<T>(long channelId, Func<Task<T>> action, CancellationToken cancellationToken = default)
         {
-            var gate = GetOrAddGate(channelId);
-            await gate.Semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+            var gate = AcquireGate(channelId);
             try
             {
-                gate.LastUsedUtc = DateTime.UtcNow;
-                return await action().ConfigureAwait(false);
+                await gate.Semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    return await action().ConfigureAwait(false);
+                }
+                finally
+                {
+                    gate.Semaphore.Release();
+                }
             }
             finally
             {
-                gate.Semaphore.Release();
+                ReleaseGate(gate);
                 MaybePrune();
             }
         }
@@ -43,14 +56,36 @@ namespace Mezon.Net.Sdk.Caching
                 return true;
             }, cancellationToken);
 
-        private GateState GetOrAddGate(long channelId)
+        private GateState AcquireGate(long channelId)
         {
             if (_locks.Count >= _maxChannels)
             {
                 PruneIdleGates(force: true);
             }
 
-            return _locks.GetOrAdd(channelId, _ => new GateState());
+            while (true)
+            {
+                var gate = _locks.GetOrAdd(channelId, _ => new GateState());
+                lock (gate)
+                {
+                    if (!gate.Retired)
+                    {
+                        gate.Users++;
+                        return gate;
+                    }
+                }
+
+                // Pruned between the lookup and the lock; it is no longer in the map, so look up again.
+            }
+        }
+
+        private static void ReleaseGate(GateState gate)
+        {
+            lock (gate)
+            {
+                gate.Users--;
+                gate.LastUsedUtc = DateTime.UtcNow;
+            }
         }
 
         private void MaybePrune()
@@ -69,19 +104,19 @@ namespace Mezon.Net.Sdk.Caching
             foreach (var pair in _locks)
             {
                 var state = pair.Value;
-                if (!force && state.LastUsedUtc > cutoff)
+                lock (state)
                 {
-                    continue;
-                }
+                    if (state.Users != 0 || (!force && state.LastUsedUtc > cutoff))
+                    {
+                        continue;
+                    }
 
-                if (state.Semaphore.CurrentCount != 1)
-                {
-                    continue;
-                }
+                    if (!((ICollection<KeyValuePair<long, GateState>>)_locks).Remove(pair))
+                    {
+                        continue;
+                    }
 
-                if (_locks.TryRemove(pair.Key, out var removed))
-                {
-                    removed.Semaphore.Dispose();
+                    state.Retired = true;
                 }
 
                 if (!force && _locks.Count < _maxChannels / 2)
@@ -95,6 +130,12 @@ namespace Mezon.Net.Sdk.Caching
         {
             public SemaphoreSlim Semaphore { get; } = new SemaphoreSlim(1, 1);
             public DateTime LastUsedUtc { get; set; } = DateTime.UtcNow;
+
+            /// <summary>Callers that acquired this gate and have not released it; guarded by <c>lock(this)</c>.</summary>
+            public int Users { get; set; }
+
+            /// <summary>Removed from the map; guarded by <c>lock(this)</c>.</summary>
+            public bool Retired { get; set; }
         }
     }
 }
