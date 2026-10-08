@@ -1,9 +1,11 @@
 using System.Collections.Concurrent;
+using Google.Protobuf;
 using Mezon.Net.Client;
 using Mezon.Net.Client;
 using Mezon.Net.Core;
 using Mezon.Net.Logging;
 using Mezon.Net.Core.Abstractions;
+using Mezon.Net.Internal.Realtime;
 using static Mezon.Net.Core.Abstractions.IMezonNetworkTransporter;
 
 namespace Mezon.Net.Client.Tests.Helpers;
@@ -17,6 +19,9 @@ internal sealed class FakeNetworkTransporter : IMezonNetworkTransporter
     public Func<Task>? ConnectHandler { get; set; }
     public bool AutoRespondToHeartbeat { get; set; } = true;
     public bool InvokeClosedDuringDisconnect { get; set; }
+
+    /// <summary>Delay before a heartbeat is answered, so tests can observe a non-zero round trip.</summary>
+    public int PongDelayMilliseconds { get; set; }
 
     private int _heartbeatSendCount;
     private int _connectCount;
@@ -87,13 +92,31 @@ internal sealed class FakeNetworkTransporter : IMezonNetworkTransporter
 
         if (type == MezonMessageType.Heartbeat)
         {
-            Interlocked.Increment(ref _heartbeatSendCount);
             _pendingHeartbeats[cid] = 0;
-            if (AutoRespondToHeartbeat && MessageReceived != null)
-            {
-                await MessageReceived.Invoke(MezonMessageType.Heartbeat, cid, 0, ReadOnlyMemory<byte>.Empty).ConfigureAwait(false);
-            }
+            await AnswerHeartbeatAsync(MezonMessageType.Heartbeat, cid, ReadOnlyMemory<byte>.Empty).ConfigureAwait(false);
         }
+        else if (type == MezonMessageType.Realtime && Envelope.Parser.ParseFrom(data.Span) is { MessageCase: Envelope.MessageOneofCase.Ping } ping)
+        {
+            // A WebSocket heartbeat is a Ping envelope; MezonNetworkWebSocketTransporter delivers the Pong with cid 0.
+            var pong = new Envelope { Cid = ping.Cid, Pong = new Pong() };
+            await AnswerHeartbeatAsync(MezonMessageType.Realtime, 0, pong.ToByteArray()).ConfigureAwait(false);
+        }
+    }
+
+    private async ValueTask AnswerHeartbeatAsync(MezonMessageType type, int cid, ReadOnlyMemory<byte> pong)
+    {
+        Interlocked.Increment(ref _heartbeatSendCount);
+        if (!AutoRespondToHeartbeat || MessageReceived == null)
+        {
+            return;
+        }
+
+        if (PongDelayMilliseconds > 0)
+        {
+            await Task.Delay(PongDelayMilliseconds).ConfigureAwait(false);
+        }
+
+        await MessageReceived.Invoke(type, cid, 0, pong).ConfigureAwait(false);
     }
 
     public void TriggerClosed(Exception? exception = null)
@@ -130,13 +153,13 @@ internal sealed class FakeNetworkTransporter : IMezonNetworkTransporter
 
 internal static class SocketTestDoubles
 {
-    public static MezonSocketClientOptions CreateOptions(FakeNetworkTransporter transport, int heartbeatMs = 150, int connectionTimeoutMs = 5000)
+    public static MezonSocketClientOptions CreateOptions(FakeNetworkTransporter transport, int heartbeatMs = 150, int connectionTimeoutMs = 5000, TransportType transportType = TransportType.Tcp)
     {
         return new MezonSocketClientOptions
         {
             HeartbeatIntervalInMilliseconds = heartbeatMs,
             ConnectionTimeoutInMilliseconds = connectionTimeoutMs,
-            TransportType = TransportType.Tcp,
+            TransportType = transportType,
             NetworkTransportProvider = _ => transport,
         };
     }

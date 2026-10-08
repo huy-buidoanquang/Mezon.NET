@@ -126,15 +126,9 @@ namespace Mezon.Net.Client
                         ScheduleEvent(lane, () => TimedInvokeAsync(_streamPresenceChangedEvent, nameof(StreamPresenceChangedEvent), new StreamPresenceEventEventData(new StreamPresenceEventResponse(envelope.StreamPresenceEvent))));
                         break;
                     case Envelope.MessageOneofCase.Ping:
-                        break;
                     case Envelope.MessageOneofCase.Pong:
-                        if (_heartbeatTimes.TryDequeue(out long time))
-                        {
-                            long latency = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - time;
-                            Latency = latency;
-
-                            ScheduleEvent(lane, () => TimedInvokeAsync(_pongReceivedEvent, nameof(PongReceivedEvent), new PongEventData(new PongResponse(envelope.Pong))));
-                        }
+                        // A heartbeat pong completes its request by cid and MezonSocketClient.Heartbeat records the
+                        // latency. As in mezon-js, it raises no event.
                         break;
                     case Envelope.MessageOneofCase.MessageTypingEvent:
                         ScheduleEvent(lane, () => TimedInvokeAsync(_messageTypingReceivedEvent, nameof(MessageTypingReceivedEvent), new MessageTypingEventEventData(new MessageTypingEventResponse(envelope.MessageTypingEvent))));

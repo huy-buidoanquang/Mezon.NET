@@ -34,6 +34,9 @@
   closed caused a reconnect per second; the `LoginAsync` token was reused for every reconnect.
 - Correlation: response timeouts kept completed requests (and payloads) alive until the timeout; cids could collide at
   the 65535 wrap; pending requests now fail as soon as the connection closes.
+- `Latency` stayed 0 over WebSocket because only raw TCP pong frames were timed. Each heartbeat now records its round
+  trip when its pong arrives, on either transport. `PongReceivedEvent` is still not raised for heartbeat pongs (it
+  never was, since the queue it depended on was never filled), which matches mezon-js.
 - Interactions: one-shot routes could run twice under concurrent clicks; expired routes were never removed; handler
   failures were swallowed; replies in uncached channels went to clan 0 with stream mode 0 and cached a placeholder
   channel; fetching a DM channel tried to fetch clan 0.

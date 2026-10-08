@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 using Mezon.Net.Abstractions;
@@ -14,7 +13,6 @@ namespace Mezon.Net.Client
         private readonly SocketConnectionManager _connection;
         private readonly SemaphoreSlim _stateLock;
         private readonly Logger _logger;
-        private readonly ConcurrentQueue<long> _heartbeatTimes;
         private readonly RealtimeEventDispatcher? _dispatcher;
         private Task? _heartbeatTask;
         private long _lastMessageTime;
@@ -51,7 +49,6 @@ namespace Mezon.Net.Client
                 socketApiClient.ConfigureSocketLogging(LogManager);
             }
 
-            _heartbeatTimes = new ConcurrentQueue<long>();
             HandlerTimeout = options.SocketHandlerTimeoutInMilliseconds;
             if (options.EventDispatchMode == EventDispatchMode.Ordered)
             {
@@ -142,9 +139,6 @@ namespace Mezon.Net.Client
             }
 
             _heartbeatTask = null;
-
-            while (_heartbeatTimes.TryDequeue(out _))
-            { }
             await _logger.DebugAsync("Disconnected MezonSocket").ConfigureAwait(false);
         }
 

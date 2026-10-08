@@ -199,6 +199,7 @@ namespace Mezon.Net.Client
         internal async Task Heartbeat(RequestOptions? options = null)
         {
             _lastPingSentMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var sentAt = Stopwatch.GetTimestamp();
             options ??= RequestOptions.CreateOrClone(options);
             CheckState();
 
@@ -231,6 +232,11 @@ namespace Mezon.Net.Client
                 NetworkTransporter.RemoveApiChunkBuffer(cid);
                 throw;
             }
+
+            // Measured here because each transport completes the heartbeat's cid differently: TCP with a raw pong
+            // frame, WebSocket with a Pong envelope.
+            LatencyMilliseconds = (int)((Stopwatch.GetTimestamp() - sentAt) * 1000 / Stopwatch.Frequency);
+            _lastPongReceivedMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         }
 
         private (string host, int port, string token) GetTransportEndpoint()
@@ -334,13 +340,6 @@ namespace Mezon.Net.Client
                         return default;
                     }
 
-                    var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                    if (_lastPingSentMs > 0)
-                    {
-                        LatencyMilliseconds = (int)Math.Max(0, now - _lastPingSentMs);
-                    }
-
-                    _lastPongReceivedMs = now;
                     _ = _correlationHub.TryComplete(cid, code, ReadOnlyMemory<byte>.Empty);
                     if (IsTraceEnabled)
                     {
