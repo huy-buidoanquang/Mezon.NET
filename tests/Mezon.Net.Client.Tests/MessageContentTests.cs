@@ -92,11 +92,71 @@ namespace Mezon.Net.Client.Tests
         }
 
         [Fact]
-        public void Parse_rejects_offsets_outside_utf16_text_length_on_typed_access()
+        public void Parse_drops_tokens_with_offsets_outside_utf16_text_length()
         {
-            const string raw = "{\"t\":\"abc\",\"lk\":[{\"s\":0,\"e\":9}]}";
+            const string raw = "{\"t\":\"abc\",\"lk\":[{\"s\":0,\"e\":9},{\"s\":0,\"e\":3}],\"hg\":[{\"channelId\":\"1\",\"s\":-1,\"e\":1}]}";
             var content = MessageContent.Parse(raw);
-            Assert.Throws<ArgumentOutOfRangeException>(() => _ = content.Links);
+
+            var link = Assert.Single(content.Links!);
+            Assert.Equal(3, link.End);
+            Assert.Empty(content.Hashtags!);
+            Assert.Equal(raw, content.ToJson());
+        }
+
+        [Fact]
+        public void Parse_skips_token_items_that_are_not_objects()
+        {
+            const string raw =
+                "{\"t\":\"abc\",\"hg\":[null,{\"channelId\":\"5\",\"s\":0,\"e\":1}],\"mk\":[\"x\"],\"embed\":[1,{\"title\":\"ok\",\"fields\":[null,{\"name\":\"n\",\"value\":\"v\"}]}]}";
+            var content = MessageContent.Parse(raw);
+
+            Assert.Equal("5", Assert.Single(content.Hashtags!).ChannelId);
+            Assert.Empty(content.Markdown!);
+            var embed = Assert.Single(content.Embeds!);
+            Assert.Equal("ok", embed.Title);
+            Assert.Equal("n", Assert.Single(embed.Fields!).Name);
+        }
+
+        [Fact]
+        public void Parse_reads_json_null_strings_as_null()
+        {
+            const string raw = "{\"t\":\"abc\",\"embed\":[{\"title\":null,\"url\":null}]}";
+            var content = MessageContent.Parse(raw);
+
+            var embed = Assert.Single(content.Embeds!);
+            Assert.Null(embed.Title);
+            Assert.Null(embed.Url);
+        }
+
+        [Fact]
+        public void Typed_access_parses_once_and_is_cached()
+        {
+            var content = MessageContent.Parse("{\"t\":\"abc\",\"hg\":[{\"channelId\":\"5\",\"s\":0,\"e\":1}]}");
+
+            Assert.Same(content.Hashtags, content.Hashtags);
+        }
+
+        [Fact]
+        public void Lone_surrogate_text_does_not_throw()
+        {
+            var content = MessageContent.Parse("{\"t\":\"\\ud800\",\"hg\":[{\"channelId\":\"5\",\"s\":0,\"e\":1}]}");
+
+            _ = content.Text;
+            _ = content.Hashtags;
+            _ = content.Embeds;
+        }
+
+        [Fact]
+        public void Concurrent_first_access_observes_one_snapshot()
+        {
+            for (var round = 0; round < 50; round++)
+            {
+                var content = MessageContent.Parse("{\"t\":\"abc\",\"hg\":[{\"channelId\":\"5\",\"s\":0,\"e\":1}]}");
+                var seen = new System.Collections.Concurrent.ConcurrentBag<object?>();
+                System.Threading.Tasks.Parallel.For(0, 8, _ => seen.Add(content.Hashtags));
+
+                Assert.Single(System.Linq.Enumerable.Distinct(seen));
+            }
         }
 
         [Fact]
