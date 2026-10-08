@@ -103,6 +103,11 @@ internal sealed class LoopbackNetworkTransporter : IMezonNetworkTransporter
         _inbound.Writer.TryWrite((MezonMessageType.Realtime, 0, 0, envelope.ToByteArray()));
     }
 
+    public void InjectRawRealtime(byte[] payload)
+    {
+        _inbound.Writer.TryWrite((MezonMessageType.Realtime, 0, 0, payload));
+    }
+
     public void Dispose()
     {
         _loopCts?.Cancel();

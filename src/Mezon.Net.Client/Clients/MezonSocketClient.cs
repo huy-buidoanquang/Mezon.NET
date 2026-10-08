@@ -1,6 +1,7 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -26,6 +27,11 @@ namespace Mezon.Net.Client
         private readonly SocketCorrelationHub _correlationHub = new();
         private long _lastPingSentMs;
         private long _lastPongReceivedMs;
+        private const int UndecodableFrameAlwaysLogCount = 4;
+        private const int UndecodableFrameWarningIntervalSeconds = 60;
+        private int _undecodableFrameCount;
+        private long _lastUndecodableFrameWarning;
+        internal int UndecodableFrameCount => Volatile.Read(ref _undecodableFrameCount);
         internal long LastPingSentMs => _lastPingSentMs;
         internal long LastPongReceivedMs => _lastPongReceivedMs;
         public event Func<string, Task> SocketMessageSent { add { _socketMessageSent.Add(value); } remove { _socketMessageSent.Remove(value); } }
@@ -359,10 +365,35 @@ namespace Mezon.Net.Client
             }
             catch (Exception ex)
             {
-                LogTrace($"[SOCKET-RECEIVE] parse error type={type} cid={cid}: {ex.Message}");
+                ReportUndecodableFrame(type, cid, data.Length, ex);
             }
 
             return default;
+        }
+
+        /// <summary>
+        /// Warns about dropped frames without flooding the log: the first few are always reported, then at most one
+        /// warning per interval. Payload bytes are never logged because frames carry private message content.
+        /// </summary>
+        private void ReportUndecodableFrame(MezonMessageType type, int cid, int length, Exception ex)
+        {
+            var count = Interlocked.Increment(ref _undecodableFrameCount);
+            if (_logger == null)
+            {
+                return;
+            }
+
+            var now = Stopwatch.GetTimestamp();
+            var last = Volatile.Read(ref _lastUndecodableFrameWarning);
+            if (count > UndecodableFrameAlwaysLogCount
+                && (now - last < Stopwatch.Frequency * UndecodableFrameWarningIntervalSeconds
+                    || Interlocked.CompareExchange(ref _lastUndecodableFrameWarning, now, last) != last))
+            {
+                return;
+            }
+
+            Volatile.Write(ref _lastUndecodableFrameWarning, now);
+            _ = _logger.WarningAsync($"[SOCKET-RECEIVE] Dropped undecodable {type} frame (cid={cid}, bytes={length}, total={count}): {ex.Message}");
         }
 
         #endregion

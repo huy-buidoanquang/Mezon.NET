@@ -94,20 +94,46 @@ public class MezonTransportFrameCodecTests
         Assert.Equal(payload, frame.ToArray());
     }
 
-    [Fact]
-    public void TrimPadding_StripsAllTrailingZeros()
+    // Vectors from mezon-desktop abridged_tcp_adapter.rs protobuf_message_len tests.
+    [Theory]
+    [InlineData(new byte[] { 0x10, 0x80, 0xa0, 0x80, 0xf0, 0xfe, 0xd1, 0xd3, 0xc5, 0x19, 0x0c, 0xc2, 0x01, 0x2a }, 10)]
+    [InlineData(new byte[] { 0x10, 0x80, 0xa0, 0x80, 0xf0, 0xfe, 0xd1, 0xd3, 0xc5, 0x19 }, 10)]
+    [InlineData(new byte[] { 0x0a, 0x03, 0x61, 0x62, 0x63, 0x17, 0x32, 0x57 }, 5)]
+    [InlineData(new byte[] { 0x10, 0x80, 0xa0 }, -1)]
+    [InlineData(new byte[] { 0x0a, 0x05, 0x61, 0x62 }, -1)]
+    [InlineData(new byte[] { 0x0a, 0xff, 0xff, 0xff, 0xff, 0x0f, 0x00, 0x00 }, 0)]
+    [InlineData(new byte[] { 0x08, 0x58, 0x22, 0x00, 0x00, 0x00, 0x00, 0x00 }, 4)]
+    public void ProtobufMessageLength_MatchesRustVectors(byte[] buffer, int expected)
     {
-        var frame = new ReadOnlyMemory<byte>([0x0A, 0x0B, 0x0C, 0x00]);
-        var trimmed = MezonTransportFrameCodec.TrimRealtimePadding(frame);
-        Assert.Equal([0x0A, 0x0B, 0x0C], trimmed.ToArray());
+        Assert.Equal(expected, MezonTransportFrameCodec.ProtobufMessageLength(buffer));
     }
 
     [Fact]
-    public void TrimPadding_StripsMoreThanThreeTrailingZeros()
+    public void TrimPadding_KeepsEnvelopeEndingInEmptyField()
     {
-        var frame = new ReadOnlyMemory<byte>([0x01, 0x00, 0x00, 0x00, 0x00]);
+        // Envelope{cid=88, channel_join={}} legitimately ends in 0x00 and has no padding.
+        var frame = new ReadOnlyMemory<byte>([0x08, 0x58, 0x22, 0x00]);
         var trimmed = MezonTransportFrameCodec.TrimRealtimePadding(frame);
-        Assert.Equal([0x01], trimmed.ToArray());
+        Assert.Equal(4, trimmed.Length);
+        var envelope = Mezon.Net.Internal.Realtime.Envelope.Parser.ParseFrom(trimmed.Span);
+        Assert.Equal(88, envelope.Cid);
+        Assert.Equal(Mezon.Net.Internal.Realtime.Envelope.MessageOneofCase.ChannelJoin, envelope.MessageCase);
+    }
+
+    [Fact]
+    public void TrimPadding_StripsZeroPadding()
+    {
+        var frame = new ReadOnlyMemory<byte>([0x08, 0x2A, 0x00, 0x00]);
+        var trimmed = MezonTransportFrameCodec.TrimRealtimePadding(frame);
+        Assert.Equal([0x08, 0x2A], trimmed.ToArray());
+    }
+
+    [Fact]
+    public void TrimPadding_KeepsFullFrameWhenFieldIsTruncated()
+    {
+        var frame = new ReadOnlyMemory<byte>([0x0A, 0x05, 0x61, 0x62]);
+        var trimmed = MezonTransportFrameCodec.TrimRealtimePadding(frame);
+        Assert.Equal(4, trimmed.Length);
     }
 
     [Fact]
@@ -181,7 +207,7 @@ public class MezonTransportFrameCodecTests
     [Fact]
     public void TryReadFrame_Abridged_TrimsTrailingZeros()
     {
-        var bytes = MezonTransportFrameBuilder.BuildAbridgedFrame([0x0A, 0x0B, 0x0C]);
+        var bytes = MezonTransportFrameBuilder.BuildAbridgedFrame([0x0A, 0x01, 0x41]);
         var buffer = new ReadOnlySequence<byte>(bytes);
         Assert.True(MezonTransportFrameCodec.TryReadFrame(
             ref buffer,
@@ -191,7 +217,45 @@ public class MezonTransportFrameCodecTests
             out _,
             out var frame));
         Assert.Equal(MezonMessageType.Realtime, type);
-        Assert.Equal([0x0A, 0x0B, 0x0C], frame.ToArray());
+        Assert.Equal([0x0A, 0x01, 0x41], frame.ToArray());
+    }
+
+    [Fact]
+    public void TryReadFrame_Abridged_KeepsTrailingZeroOfEmptyField()
+    {
+        var bytes = MezonTransportFrameBuilder.BuildAbridgedFrame([0x08, 0x58, 0x22, 0x00]);
+        var buffer = new ReadOnlySequence<byte>(bytes);
+        Assert.True(MezonTransportFrameCodec.TryReadFrame(
+            ref buffer,
+            new System.Collections.Concurrent.ConcurrentDictionary<int, ArrayBufferWriter<byte>>(),
+            out _,
+            out _,
+            out _,
+            out var frame));
+        Assert.Equal([0x08, 0x58, 0x22, 0x00], frame.ToArray());
+    }
+
+    [Fact]
+    public void TryReadFrame_LargeAbridgedFrame_IsAccepted()
+    {
+        // 64 KiB realtime push: larger than the old 8 KiB cap, which tore down the connection.
+        var payload = new byte[64 * 1024];
+        payload[0] = 0x0A;
+        payload[1] = 0xFC;
+        payload[2] = 0xFF;
+        payload[3] = 0x03; // field 1, length 65532
+        payload.AsSpan(4).Fill(0x41);
+        var bytes = MezonTransportFrameBuilder.BuildAbridgedFrame(payload);
+        var buffer = new ReadOnlySequence<byte>(bytes);
+        Assert.True(MezonTransportFrameCodec.TryReadFrame(
+            ref buffer,
+            new System.Collections.Concurrent.ConcurrentDictionary<int, ArrayBufferWriter<byte>>(),
+            out var type,
+            out _,
+            out _,
+            out var frame));
+        Assert.Equal(MezonMessageType.Realtime, type);
+        Assert.Equal(payload.Length, frame.Length);
     }
 
     [Fact]
@@ -207,7 +271,7 @@ public class MezonTransportFrameCodecTests
     public void TryReadFrame_OversizedAbridged_Throws()
     {
         // Extended header claiming payload larger than MaxAbridgedReceiveFrameLen.
-        var header = new byte[] { 0x7f, 0x00, 0x08, 0x00 }; // lenDiv4 = 0x800 → payload = 8192, total = 8196
+        var header = new byte[] { 0x7f, 0x01, 0x00, 0x04 }; // lenDiv4 = 0x40001 → payload = 1 MiB + 4
         var buffer = new ReadOnlySequence<byte>(header);
         var apiChunkBuffers = new System.Collections.Concurrent.ConcurrentDictionary<int, ArrayBufferWriter<byte>>();
         Assert.Throws<InvalidDataException>(() =>
