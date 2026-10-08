@@ -12,7 +12,9 @@ namespace Mezon.Net.Models
         public readonly int? Width;
         public readonly int? Height;
         public readonly int? PartCount;
-        public UploadAttachmentParams(string? filename = null, string? filetype = null, int? size = null, int? width = null, int? height = null, int? partCount = null)
+        public readonly long? ChannelId;
+        public readonly bool? TranscodeHls;
+        public UploadAttachmentParams(string? filename = null, string? filetype = null, int? size = null, int? width = null, int? height = null, int? partCount = null, long? channelId = null, bool? transcodeHls = null)
         {
             Filename = filename;
             Filetype = filetype;
@@ -20,6 +22,8 @@ namespace Mezon.Net.Models
             Width = width;
             Height = height;
             PartCount = partCount;
+            ChannelId = channelId;
+            TranscodeHls = transcodeHls;
         }
     }
 }

@@ -12,5 +12,6 @@ namespace Mezon.Net.Models
 
         public string Filename => _proto.Filename;
         public string Url => _proto.Url;
+        public int TypeCdn => _proto.TypeCdn;
     }
 }

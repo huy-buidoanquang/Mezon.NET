@@ -13,5 +13,6 @@ namespace Mezon.Net.Models
         public string Filename => _proto.Filename;
         public ProtoListView<string> Urls => ProtoListView<string>.FromRepeated(_proto.Urls);
         public string UploadId => _proto.UploadId;
+        public int TypeCdn => _proto.TypeCdn;
     }
 }

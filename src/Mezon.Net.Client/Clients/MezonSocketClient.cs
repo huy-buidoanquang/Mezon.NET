@@ -1181,9 +1181,7 @@ namespace Mezon.Net.Client
                     throw MezonApiException.FromSocketResponse(socketResponse.Code, envelope.ApiRequestEvent?.ApiName, socketResponse.Payload);
                 }
 
-                // Server returns a raw JWT (UTF-8 bytes), not GenerateMeetTokenResponse protobuf.
-                // Parity with mezon-js generateMeetToken which TextDecoder-decodes response.message.
-                return new GenerateMeetTokenResponse { Token = Encoding.UTF8.GetString(socketResponse.Payload.Span) };
+                return DecodeGenerateMeetTokenResponse(socketResponse.Payload.Span);
             }
             catch
             {
@@ -1191,6 +1189,27 @@ namespace Mezon.Net.Client
                 NetworkTransporter.RemoveApiChunkBuffer(cid);
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Current servers reply with a protobuf GenerateMeetTokenResponse; older ones send the raw JWT bytes. Both are
+        /// accepted during mixed-version rollouts. Port of mezon-js decodeGenerateMeetTokenResponse.
+        /// </summary>
+        internal static GenerateMeetTokenResponse DecodeGenerateMeetTokenResponse(ReadOnlySpan<byte> payload)
+        {
+            // A protobuf reply starts with field 1 (token) or field 2 (url); a JWT starts with "eyJ".
+            if (payload.Length == 0 || payload[0] == 0x0A || payload[0] == 0x12)
+            {
+                try
+                {
+                    return GenerateMeetTokenResponse.Parser.ParseFrom(payload);
+                }
+                catch (InvalidProtocolBufferException)
+                {
+                }
+            }
+
+            return new GenerateMeetTokenResponse { Token = Encoding.UTF8.GetString(payload) };
         }
 
         public override async Task TransferOwnershipAsync(TransferOwnershipRequest body, RequestOptions? options = null)
@@ -2213,6 +2232,18 @@ namespace Mezon.Net.Client
         {
             Check.NotNull(body, nameof(body));
             return SendApiAsync("SearchCtrlK", body, SearchCtrlKResponse.Parser, options);
+        }
+
+        public override Task<SearchMentionUsersResponse> SearchMentionUsersAsync(SearchMentionUsersRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            return SendApiAsync("SearchMentionUsers", body, SearchMentionUsersResponse.Parser, options);
+        }
+
+        public override Task<GenerateCDNSignatureResponse> GenerateCDNSignatureAsync(GenerateCDNSignatureRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            return SendApiAsync("GenerateCDNSignature", body, GenerateCDNSignatureResponse.Parser, options);
         }
 
         #endregion

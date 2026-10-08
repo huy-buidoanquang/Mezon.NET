@@ -37,8 +37,9 @@ namespace Mezon.Net.Client
         IMezonClient IApiClientProvider.MezonApiClient => this;
 
         /// <summary>
-        ///     Server returns a raw JWT (UTF-8 bytes), not protobuf. Hand-written so
-        ///     <c>generate_protobuf_boundary.py</c> cannot restore <c>ParseFrom</c> on this RPC.
+        ///     Current servers return a protobuf GenerateMeetTokenResponse, older ones a raw JWT; the socket client
+        ///     accepts both. Hand-written so <c>generate_protobuf_boundary.py</c> cannot restore a plain
+        ///     <c>ParseFrom</c> on this RPC.
         /// </summary>
         public async Task<GenerateMeetTokenResponse> GenerateMeetTokenAsync(GenerateMeetTokenParams body, RequestOptions? options = null)
         {

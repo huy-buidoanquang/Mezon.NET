@@ -221,6 +221,8 @@ namespace Mezon.Net.Core
             ["MarkAsRead"] = 208,
             ["UploadBatchAttachmentFile"] = 209,
             ["SearchCtrlK"] = 210,
+            ["SearchMentionUsers"] = 211,
+            ["GenerateCDNSignature"] = 212,
         };
 
 #if NET8_0_OR_GREATER

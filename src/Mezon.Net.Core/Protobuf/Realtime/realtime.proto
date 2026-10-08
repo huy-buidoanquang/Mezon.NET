@@ -19,16 +19,14 @@ syntax = "proto3";
 
 package mezon.realtime;
 
-import "google/protobuf/wrappers.proto";
 import "Api/api.proto";
+import "google/protobuf/wrappers.proto";
 
+option csharp_namespace = "Mezon.Net.Internal.Realtime";
 option go_package = "github.com/mezonai/mezon-protocol/v2/rtapi";
-
 option java_multiple_files = true;
 option java_outer_classname = "MezonRealtime";
 option java_package = "com.mezon.mezon.rtapi";
-
-option csharp_namespace = "Mezon.Net.Internal.Realtime";
 
 // An envelope for a realtime message.
 message Envelope {
@@ -786,6 +784,8 @@ message VoiceLeavedEvent {
   int64 voice_channel_id = 3;
   // voice user_id
   int64 voice_user_id = 4;
+  // peer id
+  int32 peer_id = 5;
 }
 
 // Voice Joined event
@@ -806,6 +806,8 @@ message VoiceJoinedEvent {
   int64 voice_channel_id = 7;
   // last screenshot
   string last_screenshot = 8;
+  // peer id
+  int32 peer_id = 9;
 }
 
 // Voice start event
@@ -1462,11 +1464,10 @@ message ListDataSocket {
 }
 
 message MeetParticipantEvent {
-  int64 user_id = 1;
-  string room_name = 2;
-  int64 channel_id = 3;
-  int64 clan_id = 4;
-  int32 action = 5;
+    int64 user_id = 1;
+    string room_name = 2;
+    int64 channel_id = 3;
+    int64 clan_id = 4;
 }
 
 message TransferOwnershipEvent {

@@ -341,6 +341,7 @@ namespace Mezon.Net.Sdk
         public Task<VoiceChannelUserListResponse> ListChannelVoiceUsersAsync(long clanId, long channelId, int channelType, RequestOptions? options = null)
             => _engine.ListChannelVoiceUsersAsync(clanId, channelId, channelType, options);
 
+        [Obsolete("mezon-api no longer handles StreamingServerCallback (api index 136 is a placeholder); the request is ignored. This method will be removed in a future major version.")]
         public Task<StreamHttpCallbackResponse> StreamingServerCallbackAsync(StreamHttpCallbackParams body, RequestOptions? options = null)
             => _engine.StreamingServerCallbackAsync(body, options);
 

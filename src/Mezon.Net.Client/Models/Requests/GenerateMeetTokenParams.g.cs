@@ -8,10 +8,12 @@ namespace Mezon.Net.Models
     {
         public readonly long? ChannelId;
         public readonly string? RoomName;
-        public GenerateMeetTokenParams(long? channelId = null, string? roomName = null)
+        public readonly string? Metadata;
+        public GenerateMeetTokenParams(long? channelId = null, string? roomName = null, string? metadata = null)
         {
             ChannelId = channelId;
             RoomName = roomName;
+            Metadata = metadata;
         }
     }
 }

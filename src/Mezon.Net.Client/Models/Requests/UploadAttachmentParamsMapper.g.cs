@@ -24,6 +24,10 @@ namespace Mezon.Net.Client.Models.Internal
                 proto.Height = p.Height.Value;
             if (p.PartCount.HasValue)
                 proto.PartCount = p.PartCount.Value;
+            if (p.ChannelId.HasValue)
+                proto.ChannelId = p.ChannelId.Value;
+            if (p.TranscodeHls.HasValue)
+                proto.TranscodeHls = p.TranscodeHls.Value;
             return proto;
         }
     }

@@ -1178,5 +1178,17 @@ namespace Mezon.Net.Client
             return new Mezon.Net.Models.SearchCtrlKResponse(result);
         }
 
+        public async Task<Mezon.Net.Models.SearchMentionUsersResponse> SearchMentionUsersAsync(Mezon.Net.Models.SearchMentionUsersParams body, RequestOptions? options = null)
+        {
+            var result = await ApiClient.SearchMentionUsersAsync(SearchMentionUsersParamsMapper.ToProto(body), options).ConfigureAwait(false);
+            return new Mezon.Net.Models.SearchMentionUsersResponse(result);
+        }
+
+        public async Task<Mezon.Net.Models.GenerateCDNSignatureResponse> GenerateCDNSignatureAsync(Mezon.Net.Models.GenerateCDNSignatureParams body, RequestOptions? options = null)
+        {
+            var result = await ApiClient.GenerateCDNSignatureAsync(GenerateCDNSignatureParamsMapper.ToProto(body), options).ConfigureAwait(false);
+            return new Mezon.Net.Models.GenerateCDNSignatureResponse(result);
+        }
+
     }
 }

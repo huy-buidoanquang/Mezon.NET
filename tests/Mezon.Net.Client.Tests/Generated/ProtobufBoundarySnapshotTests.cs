@@ -14,6 +14,20 @@ namespace Mezon.Net.Client.Tests.Generated
             Assert.Contains("ListClanDescsAsync", facade);
             Assert.Contains("SendChannelMessageAsync", facade);
             Assert.Contains("Task<Mezon.Net.Models.ChannelMessageAckResponse> SendChannelMessageAsync", facade);
+            Assert.Contains("SearchMentionUsersAsync", facade);
+            Assert.Contains("GenerateCDNSignatureAsync", facade);
+        }
+
+        [Fact]
+        public void Generated_models_follow_the_synced_protocol_fields()
+        {
+            var root = FindRepoRoot();
+            var models = Path.Combine(root, "src", "Mezon.Net.Client", "Models");
+            var upload = File.ReadAllText(Path.Combine(models, "Requests", "UploadAttachmentParams.g.cs"));
+            var meetToken = File.ReadAllText(Path.Combine(models, "Responses", "GenerateMeetTokenResponse.g.cs"));
+
+            Assert.Contains("long? channelId = null", upload);
+            Assert.Contains("public string Url =>", meetToken);
         }
 
         [Fact]
