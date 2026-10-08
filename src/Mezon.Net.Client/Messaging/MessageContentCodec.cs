@@ -139,8 +139,9 @@ namespace Mezon.Net.Client
 
                 return null;
             }
-            catch (JsonException)
+            catch (Exception ex) when (ex is JsonException or InvalidOperationException)
             {
+                // InvalidOperationException: the text holds an escaped lone surrogate that cannot be transcoded.
                 return null;
             }
             finally
@@ -194,65 +195,98 @@ namespace Mezon.Net.Client
 
             using (document)
             {
-                var root = document.RootElement;
-                var text = ReadOptionalString(root, "t");
-
-                var hashtags = ReadArray(root, "hg", ReadHashtag);
-                var emojis = ReadArray(root, "ej", ReadEmoji);
-                var links = ReadArray(root, "lk", ReadLink);
-                var markdown = ReadArray(root, "mk", ReadMarkdown);
-                var pre = ReadArray(root, "pre", ReadPre);
-                var bold = ReadArray(root, "bm", ReadBold);
-                var voiceLinks = ReadArray(root, "vk", ReadVoiceLink);
-                var youtubeLinks = ReadArray(root, "lky", ReadYoutubeLink);
-                var embeds = ReadArray(root, "embed", ReadEmbed);
-                var components = ReadComponents(root);
-                var poll = ReadPoll(root);
-                var canvas = ReadJsonValue(root, "canvas");
-                var canvasTitles = ReadStringMap(root, "cvtt");
-                var callLog = ReadCallLog(root);
-
-                Dictionary<string, JsonElement>? unknown = null;
-                foreach (var property in root.EnumerateObject())
+                try
                 {
-                    if (IsKnownRootProperty(property.Name))
-                    {
-                        continue;
-                    }
+                    return ReadSnapshot(document.RootElement);
+                }
+                catch (Exception ex) when (ex is InvalidOperationException or JsonException or FormatException or ArgumentException)
+                {
+                    // Content comes from any user; a malformed payload must not make typed access throw in handlers.
+                    return new MessageContentSnapshot(
+                        text: TryReadTextProperty(rawJson),
+                        hashtags: null,
+                        emojis: null,
+                        links: null,
+                        markdown: null,
+                        voiceLinks: null,
+                        embeds: null,
+                        components: null,
+                        unknown: null);
+                }
+            }
+        }
 
-                    unknown ??= new Dictionary<string, JsonElement>(StringComparer.Ordinal);
-                    unknown[property.Name] = property.Value.Clone();
+        private static MessageContentSnapshot ReadSnapshot(JsonElement root)
+        {
+            var text = ReadOptionalString(root, "t");
+
+            var hashtags = ReadArray(root, "hg", ReadHashtag);
+            var emojis = ReadArray(root, "ej", ReadEmoji);
+            var links = ReadArray(root, "lk", ReadLink);
+            var markdown = ReadArray(root, "mk", ReadMarkdown);
+            var pre = ReadArray(root, "pre", ReadPre);
+            var bold = ReadArray(root, "bm", ReadBold);
+            var voiceLinks = ReadArray(root, "vk", ReadVoiceLink);
+            var youtubeLinks = ReadArray(root, "lky", ReadYoutubeLink);
+            var embeds = ReadArray(root, "embed", ReadEmbed);
+            var components = ReadComponents(root);
+            var poll = ReadPoll(root);
+            var canvas = ReadJsonValue(root, "canvas");
+            var canvasTitles = ReadStringMap(root, "cvtt");
+            var callLog = ReadCallLog(root);
+
+            Dictionary<string, JsonElement>? unknown = null;
+            foreach (var property in root.EnumerateObject())
+            {
+                if (IsKnownRootProperty(property.Name))
+                {
+                    continue;
                 }
 
-                ValidateOffsets(text, hashtags, emojis, links, markdown, pre, bold, voiceLinks, youtubeLinks);
-
-                return new MessageContentSnapshot(
-                    text,
-                    hashtags,
-                    emojis,
-                    links,
-                    markdown,
-                    voiceLinks,
-                    embeds,
-                    components,
-                    unknown,
-                    pre,
-                    bold,
-                    youtubeLinks,
-                    ReadOptionalInt(root, "e2ee"),
-                    canvas,
-                    canvasTitles,
-                    callLog,
-                    ReadStringProperty(root, "tp"),
-                    ReadStringProperty(root, "cid"),
-                    ReadOptionalBool(root, "fwd"),
-                    ReadOptionalBool(root, "isCard"),
-                    ReadOptionalLong(root, "rpl"),
-                    ReadOptionalLong(root, "lsnt"),
-                    poll,
-                    ReadStringArray(root, "presign_finish"),
-                    ReadOptionalLong(root, "create_time_seconds"));
+                unknown ??= new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+                unknown[property.Name] = property.Value.Clone();
             }
+
+            if (text is not null)
+            {
+                // Tokens whose offsets fall outside the text are dropped rather than failing the whole parse.
+                var length = text.Length;
+                hashtags = WithinText(hashtags, length, static item => (item.Start, item.End));
+                emojis = WithinText(emojis, length, static item => (item.Start, item.End));
+                links = WithinText(links, length, static item => (item.Start, item.End));
+                markdown = WithinText(markdown, length, static item => (item.Start, item.End));
+                pre = WithinText(pre, length, static item => (item.Start, item.End));
+                bold = WithinText(bold, length, static item => (item.Start, item.End));
+                voiceLinks = WithinText(voiceLinks, length, static item => (item.Start, item.End));
+                youtubeLinks = WithinText(youtubeLinks, length, static item => (item.Start, item.End));
+            }
+
+            return new MessageContentSnapshot(
+                text,
+                hashtags,
+                emojis,
+                links,
+                markdown,
+                voiceLinks,
+                embeds,
+                components,
+                unknown,
+                pre,
+                bold,
+                youtubeLinks,
+                ReadOptionalInt(root, "e2ee"),
+                canvas,
+                canvasTitles,
+                callLog,
+                ReadStringProperty(root, "tp"),
+                ReadStringProperty(root, "cid"),
+                ReadOptionalBool(root, "fwd"),
+                ReadOptionalBool(root, "isCard"),
+                ReadOptionalLong(root, "rpl"),
+                ReadOptionalLong(root, "lsnt"),
+                poll,
+                ReadStringArray(root, "presign_finish"),
+                ReadOptionalLong(root, "create_time_seconds"));
         }
 
         internal static string WriteText(string text)
@@ -1201,7 +1235,11 @@ namespace Mezon.Net.Client
             var items = new List<T>(length);
             foreach (var element in value.EnumerateArray())
             {
-                items.Add(readItem(element));
+                // Token arrays hold objects; skip anything else instead of failing the whole payload.
+                if (element.ValueKind == JsonValueKind.Object)
+                {
+                    items.Add(readItem(element));
+                }
             }
 
             return items;
@@ -1425,6 +1463,11 @@ namespace Mezon.Net.Client
                 var parsedFields = new List<MessageEmbedField>();
                 foreach (var fieldElement in fieldsElement.EnumerateArray())
                 {
+                    if (fieldElement.ValueKind != JsonValueKind.Object)
+                    {
+                        continue;
+                    }
+
                     GridMessageComponent? shape = null;
                     if (fieldElement.TryGetProperty("shape", out var shapeElement)
                         && shapeElement.ValueKind == JsonValueKind.Object
@@ -1816,7 +1859,12 @@ namespace Mezon.Net.Client
                 return null;
             }
 
-            return value.ValueKind == JsonValueKind.String ? value.GetString() : value.GetRawText();
+            return value.ValueKind switch
+            {
+                JsonValueKind.String => value.GetString(),
+                JsonValueKind.Null or JsonValueKind.Undefined => null,
+                _ => value.GetRawText(),
+            };
         }
 
         private static string ReadRequiredString(JsonElement element, string propertyName)
@@ -1870,53 +1918,37 @@ namespace Mezon.Net.Client
             };
         }
 
-        private static void ValidateOffsets(
-            string? text,
-            IReadOnlyList<HashtagOnMessage>? hashtags,
-            IReadOnlyList<EmojiOnMessage>? emojis,
-            IReadOnlyList<LinkOnMessage>? links,
-            IReadOnlyList<MarkdownOnMessage>? markdown,
-            IReadOnlyList<PreOnMessage>? pre,
-            IReadOnlyList<BoldOnMessage>? bold,
-            IReadOnlyList<LinkVoiceRoomOnMessage>? voiceLinks,
-            IReadOnlyList<LinkYoutubeOnMessage>? youtubeLinks)
-        {
-            if (text is null)
-            {
-                return;
-            }
-
-            var length = text.Length;
-            ValidateOffsetRange(hashtags, length, static item => (item.Start, item.End));
-            ValidateOffsetRange(emojis, length, static item => (item.Start, item.End));
-            ValidateOffsetRange(links, length, static item => (item.Start, item.End));
-            ValidateOffsetRange(markdown, length, static item => (item.Start, item.End));
-            ValidateOffsetRange(pre, length, static item => (item.Start, item.End));
-            ValidateOffsetRange(bold, length, static item => (item.Start, item.End));
-            ValidateOffsetRange(voiceLinks, length, static item => (item.Start, item.End));
-            ValidateOffsetRange(youtubeLinks, length, static item => (item.Start, item.End));
-        }
-
-        private static void ValidateOffsetRange<T>(IReadOnlyList<T>? items, int textLength, Func<T, (int? Start, int? End)> selector)
+        /// <summary>Keeps the items whose offsets lie within the text; returns the same list when all do.</summary>
+        private static IReadOnlyList<T>? WithinText<T>(IReadOnlyList<T>? items, int textLength, Func<T, (int? Start, int? End)> selector)
         {
             if (items is null)
             {
-                return;
+                return null;
             }
 
-            foreach (var item in items)
+            List<T>? kept = null;
+            for (var i = 0; i < items.Count; i++)
             {
-                var (start, end) = selector(item);
-                if (start is int startIndex && (startIndex < 0 || startIndex > textLength))
+                var (start, end) = selector(items[i]);
+                var valid = (start is not int s || (s >= 0 && s <= textLength))
+                    && (end is not int e || (e >= 0 && e <= textLength));
+                if (valid)
                 {
-                    throw new ArgumentOutOfRangeException(nameof(start), startIndex, $"Start offset must be between 0 and {textLength} UTF-16 code units.");
+                    kept?.Add(items[i]);
+                    continue;
                 }
 
-                if (end is int endIndex && (endIndex < 0 || endIndex > textLength))
+                if (kept is null)
                 {
-                    throw new ArgumentOutOfRangeException(nameof(end), endIndex, $"End offset must be between 0 and {textLength} UTF-16 code units.");
+                    kept = new List<T>(items.Count);
+                    for (var j = 0; j < i; j++)
+                    {
+                        kept.Add(items[j]);
+                    }
                 }
             }
+
+            return kept ?? items;
         }
     }
 

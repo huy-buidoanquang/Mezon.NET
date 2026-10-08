@@ -145,26 +145,112 @@ namespace Mezon.Net.Sdk.Tests
         }
 
         [Fact]
-        public async Task HandleButtonAsync_creates_channel_stub_without_cache_hit()
+        public async Task HandleButtonAsync_one_shot_route_runs_once_under_concurrent_dispatch()
         {
             var router = new InteractionRouter();
-            long? seenChannelId = null;
-            router.OnButton("confirm", ctx =>
+            var runs = 0;
+            var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            router.OnButton("buy", async _ =>
             {
-                seenChannelId = ctx.Channel.Id;
+                Interlocked.Increment(ref runs);
+                await release.Task.ConfigureAwait(false);
+            }).OneShot();
+
+            var client = CreateClient(out _);
+            var dispatches = new Task<InteractionExecutionResult>[20];
+            for (var i = 0; i < dispatches.Length; i++)
+            {
+                dispatches[i] = Task.Run(() => router.HandleButtonAsync(client, CreateButtonEvent("buy"), CancellationToken.None));
+            }
+
+            await Task.Delay(100);
+            release.TrySetResult();
+            var results = await Task.WhenAll(dispatches);
+
+            Assert.Equal(1, runs);
+            Assert.Single(results, r => r == InteractionExecutionResult.Handled);
+        }
+
+        [Fact]
+        public async Task HandleButtonAsync_unauthorized_click_does_not_consume_one_shot_route()
+        {
+            var router = new InteractionRouter();
+            var runs = 0;
+            router.OnButton("owned", _ =>
+            {
+                runs++;
+                return Task.CompletedTask;
+            }).WithOwner(999).OneShot();
+
+            var client = CreateClient(out _);
+            var denied = await router.HandleButtonAsync(client, CreateButtonEvent("owned", userId: 40), CancellationToken.None);
+            var allowed = await router.HandleButtonAsync(client, CreateButtonEvent("owned", userId: 999), CancellationToken.None);
+
+            Assert.Equal(InteractionExecutionResult.Unauthorized, denied);
+            Assert.Equal(InteractionExecutionResult.Handled, allowed);
+            Assert.Equal(1, runs);
+        }
+
+        [Fact]
+        public async Task HandleButtonAsync_expired_route_is_pruned()
+        {
+            var router = new InteractionRouter();
+            router.OnButton("expired", _ => Task.CompletedTask).ExpiresAt(DateTimeOffset.UtcNow.AddSeconds(-1));
+
+            var client = CreateClient(out _);
+            var first = await router.HandleButtonAsync(client, CreateButtonEvent("expired"), CancellationToken.None);
+            var second = await router.HandleButtonAsync(client, CreateButtonEvent("expired"), CancellationToken.None);
+
+            Assert.Equal(InteractionExecutionResult.Expired, first);
+            Assert.Equal(InteractionExecutionResult.NotHandled, second);
+        }
+
+        [Fact]
+        public async Task HandleButtonAsync_handler_exception_is_logged_and_returns_failed()
+        {
+            var router = new InteractionRouter();
+            router.OnButton("boom", _ => throw new InvalidOperationException("handler failed"));
+
+            var client = CreateClient(out _);
+            var logged = new TaskCompletionSource<Mezon.Net.Logging.LogMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
+            client.Log += message =>
+            {
+                if (message.Exception is InvalidOperationException)
+                {
+                    logged.TrySetResult(message);
+                }
+
+                return Task.CompletedTask;
+            };
+
+            var result = await router.HandleButtonAsync(client, CreateButtonEvent("boom"), CancellationToken.None);
+
+            Assert.Equal(InteractionExecutionResult.Failed, result);
+            var log = await logged.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Contains("boom", log.Message);
+        }
+
+        [Fact]
+        public async Task HandleButtonAsync_uncached_channel_fetch_failure_returns_failed_without_stub()
+        {
+            var router = new InteractionRouter();
+            var invoked = false;
+            router.OnButton("confirm", _ =>
+            {
+                invoked = true;
                 return Task.CompletedTask;
             });
 
-            // Client has no channel 20 cached — must not call GetChannelDetail.
+            // Channel 20 is not cached and the client is not connected, so the channel fetch fails.
             var client = new MezonClient(new MezonClientOptions(1, "token"));
             client.Users.Set(40, new Entities.User(client, 40, username: "tester"));
 
-            var result = await router.HandleButtonAsync(client, CreateButtonEvent("confirm"), CancellationToken.None)
-                .ConfigureAwait(false);
+            var result = await router.HandleButtonAsync(client, CreateButtonEvent("confirm"), CancellationToken.None);
 
-            Assert.Equal(InteractionExecutionResult.Handled, result);
-            Assert.Equal(20, seenChannelId);
-            Assert.True(client.Channels.TryGet(20, out _));
+            Assert.Equal(InteractionExecutionResult.Failed, result);
+            Assert.False(invoked);
+            Assert.False(client.Channels.TryGet(20, out _));
+            Assert.False(client.Clans.TryGet(0, out _));
         }
 
         [Fact]

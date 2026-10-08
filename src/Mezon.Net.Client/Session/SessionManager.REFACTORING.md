@@ -1,5 +1,10 @@
 # SessionManager Singleton Refactoring
 
+> **Historical — does not describe the current code.** `SessionManager` is no longer a singleton: each
+> `BaseMezonClient` creates its own instance (see `SessionManager.cs` and `SessionManagerIsolationTests`). Since 1.7.0
+> refresh and logout go through the socket client (with an app re-authentication fallback for bots). Kept only as a
+> record of the earlier design.
+
 ## Overview
 
 The `SessionManager` class has been refactored to implement a **thread-safe singleton pattern** that ensures only one session exists throughout the application's lifecycle. This design prevents multiple session instances, improves resource management, and provides better control over session state.

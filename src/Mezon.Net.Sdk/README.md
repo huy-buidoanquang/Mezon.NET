@@ -59,11 +59,11 @@ After `LoginAsync`, Sdk only seeds **clans** (`ListClanDescs` + `JoinClanChat`) 
 
 ## Architecture notes
 
-- **Hot path**: ordered realtime dispatch, opt-in handler timeout, cached nested `ProtoListView`, LRU `EntityCache` with single-flight `GetOrFetchAsync`.
-- **No API in events**: engine/SDK event subscribers must **not** call REST/socket API on the dispatch path. Cache listeners only mutate local L1 from the event payload (or create stubs). RT presence (`JoinClanChat` / `JoinChannelChat` / `LeaveChannelChat`) is allowed only for rare membership events and always fire-and-forget via background scheduling. Prefer stubs / `GetOrCreateChannelStub` over `GetChannelAsync` from event code.
+- **Hot path**: ordered per-channel realtime dispatch on bounded lanes (`EventDispatchMode`), handler timeout (default 3 s) after which a slow handler stops holding its lane, cached nested `ProtoListView`, LRU `EntityCache` with single-flight `GetOrFetchAsync`.
+- **No API in events**: engine/SDK event subscribers must **not** call REST/socket API on the dispatch path. Cache listeners only mutate local L1 from the event payload (or create stubs). RT presence (`JoinClanChat` / `JoinChannelChat` / `LeaveChannelChat`) is allowed only for rare membership events and always fire-and-forget via background scheduling. Interaction handlers run detached from the dispatch path and resolve uncached channels with `GetChannelAsync`.
 - **Content**: `Mezon.Net.Client.MessageContent` (opt-in parse; raw wire string unchanged) — never hand-build `{"t":...}` in app code.
 - **Cache layers**: L1 is always on. L2 (Redis) and L3 (Sqlite) are **app-owned sidecars** — see [docs/caching-l2-l3.md](../../docs/caching-l2-l3.md).
-- **Commands / interactions**: first-class in .NET. Button/select events carry full wire payloads.
+- **Commands / interactions**: first-class in .NET. Button/select events carry full wire payloads. The server does not verify the user id on button clicks, so button interactions are `ClientSupplied` and `RequireServerAuthenticatedActor()` rejects them; dropdown selections are `ServerAuthenticated`.
 
 ## Event → L1 side effects
 

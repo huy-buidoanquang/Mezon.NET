@@ -145,7 +145,8 @@ namespace Mezon.Net.Sdk.Collectors
                 data.ButtonId,
                 data.UserId,
                 data.SenderId,
-                data.ExtraData);
+                data.ExtraData,
+                InteractionActorTrust.ClientSupplied);
             return TryDispatchComponentAsync(interaction);
         }
 
@@ -164,7 +165,8 @@ namespace Mezon.Net.Sdk.Collectors
                 data.SelectboxId,
                 data.UserId,
                 data.SenderId,
-                values);
+                values,
+                InteractionActorTrust.ServerAuthenticated);
             return TryDispatchComponentAsync(interaction);
         }
 

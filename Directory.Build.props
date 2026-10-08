@@ -8,12 +8,21 @@
     <!-- Prefer OS-native protoc from Grpc.Tools when the package is restored. -->
     <_GrpcToolsOs Condition="$([MSBuild]::IsOSPlatform('Windows'))">windows_x64</_GrpcToolsOs>
     <_GrpcToolsOs Condition="$([MSBuild]::IsOSPlatform('Linux'))">linux_x64</_GrpcToolsOs>
+    <_GrpcToolsOs Condition="$([MSBuild]::IsOSPlatform('Linux')) and '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64'">linux_arm64</_GrpcToolsOs>
     <_GrpcToolsOs Condition="$([MSBuild]::IsOSPlatform('OSX'))">macosx_x64</_GrpcToolsOs>
     <_GrpcToolsExeExt Condition="$([MSBuild]::IsOSPlatform('Windows'))">.exe</_GrpcToolsExeExt>
 
     <Protobuf_ProtocFullPath Condition="'$(Protobuf_ProtocFullPath)' == '' and '$(_GrpcToolsPackageRoot)' != '' and '$(_GrpcToolsOs)' != '' and Exists('$(_GrpcToolsPackageRoot)tools/$(_GrpcToolsOs)/protoc$(_GrpcToolsExeExt)')">$(_GrpcToolsPackageRoot)tools/$(_GrpcToolsOs)/protoc$(_GrpcToolsExeExt)</Protobuf_ProtocFullPath>
     <Protobuf_GrpcFullPath Condition="'$(Protobuf_GrpcFullPath)' == '' and '$(_GrpcToolsPackageRoot)' != '' and '$(_GrpcToolsOs)' != '' and Exists('$(_GrpcToolsPackageRoot)tools/$(_GrpcToolsOs)/grpc_csharp_plugin$(_GrpcToolsExeExt)')">$(_GrpcToolsPackageRoot)tools/$(_GrpcToolsOs)/grpc_csharp_plugin$(_GrpcToolsExeExt)</Protobuf_GrpcFullPath>
     <Protobuf_GrpcPlugin Condition="'$(Protobuf_GrpcFullPath)' != ''">protoc-gen-grpc=$(Protobuf_GrpcFullPath)</Protobuf_GrpcPlugin>
+  </PropertyGroup>
+
+  <!--
+    Native SQLite bundle pinned above the versions Microsoft.Data.Sqlite pulls in transitively
+    (2.1.6 / 2.1.10 / 2.1.11 are flagged by GHSA-2m69-gcr7-jv3q).
+  -->
+  <PropertyGroup>
+    <MezonSqlitePclRawVersion>2.1.13</MezonSqlitePclRawVersion>
   </PropertyGroup>
 
   <!-- BCL / Extensions versions matched per TFM to avoid "doesn't support netX" package warnings. -->

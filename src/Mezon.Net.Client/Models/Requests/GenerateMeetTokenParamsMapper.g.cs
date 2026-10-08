@@ -16,6 +16,8 @@ namespace Mezon.Net.Client.Models.Internal
                 proto.ChannelId = p.ChannelId.Value;
             if (p.RoomName is not null)
                 proto.RoomName = p.RoomName;
+            if (p.Metadata is not null)
+                proto.Metadata = p.Metadata;
             return proto;
         }
     }

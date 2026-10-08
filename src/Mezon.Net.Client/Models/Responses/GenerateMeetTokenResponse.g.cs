@@ -11,5 +11,6 @@ namespace Mezon.Net.Models
         internal global::Mezon.Net.Internal.Api.GenerateMeetTokenResponse Proto => _proto;
 
         public string Token => _proto.Token;
+        public string Url => _proto.Url;
     }
 }

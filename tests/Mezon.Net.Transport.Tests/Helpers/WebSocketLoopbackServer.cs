@@ -13,6 +13,9 @@ internal sealed class WebSocketLoopbackServer : IAsyncDisposable
 
     public Func<System.Net.WebSockets.WebSocket, CancellationToken, Task>? ClientHandler { get; set; }
 
+    /// <summary>When set, upgrade requests are answered with this HTTP status instead of being accepted.</summary>
+    public int? RejectStatusCode { get; set; }
+
     public void Start()
     {
         Port = TcpLoopbackServer.ReserveLoopbackPort();
@@ -43,6 +46,13 @@ internal sealed class WebSocketLoopbackServer : IAsyncDisposable
             if (!context.Request.IsWebSocketRequest)
             {
                 context.Response.StatusCode = 400;
+                context.Response.Close();
+                continue;
+            }
+
+            if (RejectStatusCode is int rejectStatusCode)
+            {
+                context.Response.StatusCode = rejectStatusCode;
                 context.Response.Close();
                 continue;
             }

@@ -161,6 +161,21 @@ namespace Mezon.Net.Client
             }
         }
 
+        /// <summary>Swaps in a refreshed session token without logging out or disconnecting.</summary>
+        internal void UpdateAuthToken(string token)
+        {
+            if (LoginState != LoginState.LoggedIn || string.IsNullOrEmpty(token))
+            {
+                return;
+            }
+
+            AuthToken = token.TrimEnd();
+            if (TokenType != TokenType.Webhook)
+            {
+                RestClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            }
+        }
+
         public async Task LogoutAsync()
         {
             await _stateLock.WaitAsync().ConfigureAwait(false);
@@ -1457,6 +1472,16 @@ namespace Mezon.Net.Client
         }
 
         public virtual Task<SearchCtrlKResponse> SearchCtrlKAsync(SearchCtrlKRequest body, RequestOptions? options = null)
+        {
+            throw new NotSupportedException("Socket API is not available on REST-only client.");
+        }
+
+        public virtual Task<SearchMentionUsersResponse> SearchMentionUsersAsync(SearchMentionUsersRequest body, RequestOptions? options = null)
+        {
+            throw new NotSupportedException("Socket API is not available on REST-only client.");
+        }
+
+        public virtual Task<GenerateCDNSignatureResponse> GenerateCDNSignatureAsync(GenerateCDNSignatureRequest body, RequestOptions? options = null)
         {
             throw new NotSupportedException("Socket API is not available on REST-only client.");
         }

@@ -1,6 +1,7 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -26,6 +27,11 @@ namespace Mezon.Net.Client
         private readonly SocketCorrelationHub _correlationHub = new();
         private long _lastPingSentMs;
         private long _lastPongReceivedMs;
+        private const int UndecodableFrameAlwaysLogCount = 4;
+        private const int UndecodableFrameWarningIntervalSeconds = 60;
+        private int _undecodableFrameCount;
+        private long _lastUndecodableFrameWarning;
+        internal int UndecodableFrameCount => Volatile.Read(ref _undecodableFrameCount);
         internal long LastPingSentMs => _lastPingSentMs;
         internal long LastPongReceivedMs => _lastPongReceivedMs;
         public event Func<string, Task> SocketMessageSent { add { _socketMessageSent.Add(value); } remove { _socketMessageSent.Remove(value); } }
@@ -69,20 +75,26 @@ namespace Mezon.Net.Client
             _logger = logManager.CreateLogger("MezonSocketApiClient");
         }
 
+        private bool IsTraceEnabled => _logger != null && _logger.Level == LogLevel.Trace;
+
+        /// <summary>Callers check <see cref="IsTraceEnabled"/> first so disabled tracing never formats the message.</summary>
         private void LogTrace(string message)
         {
-            if (_logger != null && _logger.Level == LogLevel.Trace)
+            if (IsTraceEnabled)
             {
-                _ = _logger.TraceAsync(message);
+                _ = _logger!.TraceAsync(message);
             }
         }
 
-        public async Task ConnectAsync()
+        public Task ConnectAsync() => ConnectAsync(CancellationToken.None);
+
+        /// <summary>Connects the transport; <paramref name="cancellationToken"/> aborts a connect that hangs.</summary>
+        internal async Task ConnectAsync(CancellationToken cancellationToken)
         {
-            await _stateLock.WaitAsync().ConfigureAwait(false);
+            await _stateLock.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                await ConnectInternalAsync().ConfigureAwait(false);
+                await ConnectInternalAsync(cancellationToken).ConfigureAwait(false);
             }
             finally
             {
@@ -90,7 +102,9 @@ namespace Mezon.Net.Client
             }
         }
 
-        internal override async Task ConnectInternalAsync()
+        internal override Task ConnectInternalAsync() => ConnectInternalAsync(CancellationToken.None);
+
+        private async Task ConnectInternalAsync(CancellationToken cancellationToken)
         {
             if (LoginState != LoginState.LoggedIn)
             {
@@ -109,7 +123,7 @@ namespace Mezon.Net.Client
             try
             {
                 _connectCancelToken?.Dispose();
-                _connectCancelToken = new CancellationTokenSource();
+                _connectCancelToken = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 NetworkTransporter.SetCancelToken(_connectCancelToken.Token);
                 var socketOptions = (MezonSocketClientOptions)MezonOptions;
                 var (host, port, token) = GetTransportEndpoint();
@@ -185,13 +199,17 @@ namespace Mezon.Net.Client
         internal async Task Heartbeat(RequestOptions? options = null)
         {
             _lastPingSentMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var sentAt = Stopwatch.GetTimestamp();
             options ??= RequestOptions.CreateOrClone(options);
             CheckState();
 
-            var cid = _correlationHub.AllocateCid();
+            var pendingRequest = _correlationHub.RegisterNext(options.CancelToken);
+            var cid = pendingRequest.Cid;
             var timeout = options.SocketSendTimeout ?? MezonOptions.SocketTimeoutInMilliseconds;
-            var pendingRequest = _correlationHub.Register(cid, options.CancelToken);
-            LogTrace($"[SOCKET-SEND] heartbeat cid={cid} timeout={timeout}ms");
+            if (IsTraceEnabled)
+            {
+                LogTrace($"[SOCKET-SEND] heartbeat cid={cid} timeout={timeout}ms");
+            }
 
             try
             {
@@ -214,6 +232,11 @@ namespace Mezon.Net.Client
                 NetworkTransporter.RemoveApiChunkBuffer(cid);
                 throw;
             }
+
+            // Measured here because each transport completes the heartbeat's cid differently: TCP with a raw pong
+            // frame, WebSocket with a Pong envelope.
+            LatencyMilliseconds = (int)((Stopwatch.GetTimestamp() - sentAt) * 1000 / Stopwatch.Frequency);
+            _lastPongReceivedMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         }
 
         private (string host, int port, string token) GetTransportEndpoint()
@@ -271,6 +294,8 @@ namespace Mezon.Net.Client
 
         private Task NetworkTransporter_Closed(Exception? exception)
         {
+            // Responses can no longer arrive on this connection; fail waiters now instead of at their timeout.
+            _correlationHub.FailAll(new OperationCanceledException("Socket closed.", exception));
             if (ConnectionState == ConnectionState.Disconnected)
             {
                 if (!_socketDisconnected.HasSubscribers)
@@ -315,15 +340,11 @@ namespace Mezon.Net.Client
                         return default;
                     }
 
-                    var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                    if (_lastPingSentMs > 0)
-                    {
-                        LatencyMilliseconds = (int)Math.Max(0, now - _lastPingSentMs);
-                    }
-
-                    _lastPongReceivedMs = now;
                     _ = _correlationHub.TryComplete(cid, code, ReadOnlyMemory<byte>.Empty);
-                    LogTrace($"[SOCKET-RECEIVE] type={type} cid={cid} code={code} bytes={data.Length} pending={_correlationHub.PendingCount}");
+                    if (IsTraceEnabled)
+                    {
+                        LogTrace($"[SOCKET-RECEIVE] type={type} cid={cid} code={code} bytes={data.Length} pending={_correlationHub.PendingCount}");
+                    }
                     return default;
                 }
 
@@ -335,7 +356,10 @@ namespace Mezon.Net.Client
                     }
 
                     _ = _correlationHub.TryComplete(cid, code, data);
-                    LogTrace($"[SOCKET-RECEIVE] type={type} cid={cid} code={code} bytes={data.Length} pending={_correlationHub.PendingCount}");
+                    if (IsTraceEnabled)
+                    {
+                        LogTrace($"[SOCKET-RECEIVE] type={type} cid={cid} code={code} bytes={data.Length} pending={_correlationHub.PendingCount}");
+                    }
                     return default;
                 }
 
@@ -348,21 +372,69 @@ namespace Mezon.Net.Client
                         _ = _correlationHub.TryComplete(envelope.Cid, code, SerializeEnvelop(envelope));
                     }
 
-                    LogTrace($"[SOCKET-RECEIVE] type={type} cid={envelope.Cid} code={code} bytes={data.Length} pending={_correlationHub.PendingCount} env={envelope.MessageCase}");
+                    if (IsTraceEnabled)
+                    {
+                        LogTrace($"[SOCKET-RECEIVE] type={type} cid={envelope.Cid} code={code} bytes={data.Length} pending={_correlationHub.PendingCount} env={envelope.MessageCase}");
+                    }
 
                     if (_messageReceived.HasSubscribers)
                     {
-                        _ = _messageReceived.InvokeAsync(type, cid, code, data, envelope);
+                        var dispatch = _messageReceived.InvokeAsync(type, cid, code, data, envelope);
+                        if (!dispatch.IsCompleted || dispatch.IsFaulted)
+                        {
+                            _ = ObserveMessageReceivedAsync(dispatch);
+                        }
+
                         return default;
                     }
                 }
             }
             catch (Exception ex)
             {
-                LogTrace($"[SOCKET-RECEIVE] parse error type={type} cid={cid}: {ex.Message}");
+                ReportUndecodableFrame(type, cid, data.Length, ex);
             }
 
             return default;
+        }
+
+        private async Task ObserveMessageReceivedAsync(Task dispatch)
+        {
+            try
+            {
+                await dispatch.ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                if (_logger != null)
+                {
+                    await _logger.WarningAsync("Realtime message subscriber failed.", ex).ConfigureAwait(false);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Warns about dropped frames without flooding the log: the first few are always reported, then at most one
+        /// warning per interval. Payload bytes are never logged because frames carry private message content.
+        /// </summary>
+        private void ReportUndecodableFrame(MezonMessageType type, int cid, int length, Exception ex)
+        {
+            var count = Interlocked.Increment(ref _undecodableFrameCount);
+            if (_logger == null)
+            {
+                return;
+            }
+
+            var now = Stopwatch.GetTimestamp();
+            var last = Volatile.Read(ref _lastUndecodableFrameWarning);
+            if (count > UndecodableFrameAlwaysLogCount
+                && (now - last < Stopwatch.Frequency * UndecodableFrameWarningIntervalSeconds
+                    || Interlocked.CompareExchange(ref _lastUndecodableFrameWarning, now, last) != last))
+            {
+                return;
+            }
+
+            Volatile.Write(ref _lastUndecodableFrameWarning, now);
+            _ = _logger.WarningAsync($"[SOCKET-RECEIVE] Dropped undecodable {type} frame (cid={cid}, bytes={length}, total={count}): {ex.Message}");
         }
 
         #endregion
@@ -381,18 +453,26 @@ namespace Mezon.Net.Client
             base.Dispose(disposing);
         }
 
-        internal override ValueTask DisposeAsync(bool disposing)
+        internal override async ValueTask DisposeAsync(bool disposing)
         {
             if (!_isDisposed)
             {
                 if (disposing)
                 {
+                    if (NetworkTransporter is IAsyncDisposable asyncTransporter)
+                    {
+                        await asyncTransporter.DisposeAsync().ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        (NetworkTransporter as IDisposable)?.Dispose();
+                    }
+
                     _connectCancelToken?.Dispose();
-                    (NetworkTransporter as IDisposable)?.Dispose();
                 }
             }
 
-            return base.DisposeAsync(disposing);
+            await base.DisposeAsync(disposing).ConfigureAwait(false);
         }
 
         #region Core
@@ -425,12 +505,15 @@ namespace Mezon.Net.Client
             options ??= RequestOptions.CreateOrClone(options);
             CheckState();
 
-            var cid = _correlationHub.AllocateCid();
+            var pendingRequest = _correlationHub.RegisterNext(options.CancelToken);
+            var cid = pendingRequest.Cid;
             envelope.Cid = cid;
             var timeout = options.SocketSendTimeout ?? MezonOptions.SocketTimeoutInMilliseconds;
-            var pendingRequest = _correlationHub.Register(cid, options.CancelToken);
             var payload = SerializeEnvelop(envelope);
-            LogTrace($"[SOCKET-SEND] api={envelope.ApiRequestEvent.ApiName} cid={cid} bytes={payload.Length} timeout={timeout}ms");
+            if (IsTraceEnabled)
+            {
+                LogTrace($"[SOCKET-SEND] api={envelope.ApiRequestEvent.ApiName} cid={cid} bytes={payload.Length} timeout={timeout}ms");
+            }
 
             try
             {
@@ -467,14 +550,17 @@ namespace Mezon.Net.Client
             options ??= RequestOptions.CreateOrClone(options);
             CheckState();
 
-            var cid = _correlationHub.AllocateCid();
+            var pendingRequest = _correlationHub.RegisterNext(options.CancelToken);
+            var cid = pendingRequest.Cid;
             envelope.Cid = cid;
             var timeout = options.SocketSendTimeout ?? MezonOptions.SocketTimeoutInMilliseconds;
-            var pendingRequest = _correlationHub.Register(cid, options.CancelToken);
             var payload = SerializeEnvelop(envelope);
             try
             {
-                LogTrace($"[SOCKET-SEND] rt-await-ack env={envelope.MessageCase} cid={cid} timeout={timeout}ms");
+                if (IsTraceEnabled)
+                {
+                    LogTrace($"[SOCKET-SEND] rt-await-ack env={envelope.MessageCase} cid={cid} timeout={timeout}ms");
+                }
                 await SendSocketInternalAsync(MezonMessageType.Realtime, cid, payload, options).ConfigureAwait(false);
                 pendingRequest.StartTimeout(timeout);
                 var socketResponse = await pendingRequest.Task.ConfigureAwait(false);
@@ -1073,12 +1159,15 @@ namespace Mezon.Net.Client
             options ??= RequestOptions.CreateOrClone(options);
             CheckState();
 
-            var cid = _correlationHub.AllocateCid();
+            var pendingRequest = _correlationHub.RegisterNext(options.CancelToken);
+            var cid = pendingRequest.Cid;
             envelope.Cid = cid;
             var timeout = options.SocketSendTimeout ?? MezonOptions.SocketTimeoutInMilliseconds;
-            var pendingRequest = _correlationHub.Register(cid, options.CancelToken);
             var payload = SerializeEnvelop(envelope);
-            LogTrace($"[SOCKET-SEND] api={envelope.ApiRequestEvent.ApiName} cid={cid} bytes={payload.Length} timeout={timeout}ms");
+            if (IsTraceEnabled)
+            {
+                LogTrace($"[SOCKET-SEND] api={envelope.ApiRequestEvent.ApiName} cid={cid} bytes={payload.Length} timeout={timeout}ms");
+            }
 
             try
             {
@@ -1091,9 +1180,7 @@ namespace Mezon.Net.Client
                     throw MezonApiException.FromSocketResponse(socketResponse.Code, envelope.ApiRequestEvent?.ApiName, socketResponse.Payload);
                 }
 
-                // Server returns a raw JWT (UTF-8 bytes), not GenerateMeetTokenResponse protobuf.
-                // Parity with mezon-js generateMeetToken which TextDecoder-decodes response.message.
-                return new GenerateMeetTokenResponse { Token = Encoding.UTF8.GetString(socketResponse.Payload.Span) };
+                return DecodeGenerateMeetTokenResponse(socketResponse.Payload.Span);
             }
             catch
             {
@@ -1101,6 +1188,27 @@ namespace Mezon.Net.Client
                 NetworkTransporter.RemoveApiChunkBuffer(cid);
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Current servers reply with a protobuf GenerateMeetTokenResponse; older ones send the raw JWT bytes. Both are
+        /// accepted during mixed-version rollouts. Port of mezon-js decodeGenerateMeetTokenResponse.
+        /// </summary>
+        internal static GenerateMeetTokenResponse DecodeGenerateMeetTokenResponse(ReadOnlySpan<byte> payload)
+        {
+            // A protobuf reply starts with field 1 (token) or field 2 (url); a JWT starts with "eyJ".
+            if (payload.Length == 0 || payload[0] == 0x0A || payload[0] == 0x12)
+            {
+                try
+                {
+                    return GenerateMeetTokenResponse.Parser.ParseFrom(payload);
+                }
+                catch (InvalidProtocolBufferException)
+                {
+                }
+            }
+
+            return new GenerateMeetTokenResponse { Token = Encoding.UTF8.GetString(payload) };
         }
 
         public override async Task TransferOwnershipAsync(TransferOwnershipRequest body, RequestOptions? options = null)
@@ -2123,6 +2231,18 @@ namespace Mezon.Net.Client
         {
             Check.NotNull(body, nameof(body));
             return SendApiAsync("SearchCtrlK", body, SearchCtrlKResponse.Parser, options);
+        }
+
+        public override Task<SearchMentionUsersResponse> SearchMentionUsersAsync(SearchMentionUsersRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            return SendApiAsync("SearchMentionUsers", body, SearchMentionUsersResponse.Parser, options);
+        }
+
+        public override Task<GenerateCDNSignatureResponse> GenerateCDNSignatureAsync(GenerateCDNSignatureRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            return SendApiAsync("GenerateCDNSignature", body, GenerateCDNSignatureResponse.Parser, options);
         }
 
         #endregion

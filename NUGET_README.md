@@ -17,19 +17,28 @@
 ## Quickstart (Sdk)
 
 ```csharp
+using Mezon.Net.Client; // MessageContent
+using Mezon.Net.Models; // ChannelMessageResponse
+
 await using var client = new Mezon.Net.Sdk.MezonClient(
     new Mezon.Net.Sdk.MezonClientOptions(botId, token));
 
-client.ChannelMessageReceived += msg =>
+client.ChannelMessageReceived += message =>
 {
-    Console.WriteLine(msg.Content);
+    var data = (ChannelMessageResponse)message;
+    Console.WriteLine(MessageContent.Parse(data.Content).Text);
     return Task.CompletedTask;
 };
 
 await client.LoginAsync();
 var channel = await client.GetChannelAsync(channelId);
-await channel.SendAsync("Hello from Mezon.Net");
+await channel.SendTextAsync("Hello from Mezon.Net");
 ```
+
+Realtime events of one channel (or clan) are delivered in order, one at a time. Keep handlers short: a handler that
+runs longer than `SocketHandlerTimeoutInMilliseconds` (default 3 s) stops holding its channel, and when a channel's
+queue is full new events are dropped. Set `EventDispatchMode = EventDispatchMode.Concurrent` for the pre-1.7.0
+unordered delivery.
 
 ## MMN (Mezon Mainnet)
 
@@ -40,7 +49,7 @@ options.MMNApiUrl = "https://dong.mezon.ai/mmn-api"; // gRPC
 options.ZkApiUrl = "https://dong.mezon.ai/zk-api";   // POST /prove
 ```
 
-After `LoginAsync`, the SDK initializes `KeyGen`, `AddressMmn`, and `ZkProofs`. Send tokens with `SendTransferAsync(recipient, amount)`.
+After `LoginAsync`, the SDK initializes `KeyGen`, `AddressMmn`, and `ZkProofs`. This is best effort: if the MMN or ZK service is unreachable, the failure is logged, login still succeeds, and initialization is retried on the next connect. Send tokens with `SendTransferAsync(recipient, amount)`.
 
 Use `client.Mmn.NodeClient` for low-level gRPC access and `CryptoHelper` for signing. On `netstandard2.1`, MMN APIs are unavailable (Sdk references `Mezon.Net.Mmn` only for net6.0+).
 

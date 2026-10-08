@@ -20,11 +20,20 @@ namespace Mezon.Net.Transport.Internal
         /// <summary>Client outbound abridged wire cap: header + protobuf + padding.</summary>
         public const int MaxAbridgedSendFrameLen = 4096;
 
-        /// <summary>Defensive inbound reassembly ceiling aligned with server scratchpad (MAX_BUF_SIZE * 2).</summary>
-        public const int MaxAbridgedReceiveFrameLen = 8192;
+        /// <summary>Inbound realtime payload cap; matches Rust MAX_REALTIME_FRAME_LEN. The server does not cap outbound frames.</summary>
+        public const int MaxRealtimeFrameLen = 1 << 20;
+
+        /// <summary>Inbound abridged realtime payload cap (excluding the length header).</summary>
+        public const int MaxAbridgedReceiveFrameLen = MaxRealtimeFrameLen;
 
         /// <summary>Inbound WebSocket-binary (0x82) payload cap; matches Rust MAX_REALTIME_FRAME_LEN.</summary>
-        public const int MaxWebSocketBinaryPayloadLen = 1 << 20;
+        public const int MaxWebSocketBinaryPayloadLen = MaxRealtimeFrameLen;
+
+        /// <summary>Cap on one reassembled API response (all chunks of a cid); matches Rust/Android MAX_API_RESPONSE_LEN.</summary>
+        public const int MaxApiResponseLen = 16 << 20;
+
+        /// <summary>Response code reported for a cid whose reassembled API response exceeds <see cref="MaxApiResponseLen"/>.</summary>
+        public const int ApiResponseTooLargeCode = 0xFFFF;
 
         public static bool TryReadFrame(
             ref ReadOnlySequence<byte> buffer,
@@ -104,18 +113,105 @@ namespace Mezon.Net.Transport.Internal
         }
 
         /// <summary>
-        /// Strip trailing 0x00 bytes to match mezon-proto-server pipeline.c (non-WebSocket path).
+        /// Remove the zero padding the server appends to reach a 4-byte multiple. The real envelope length is found by
+        /// walking top-level protobuf fields: padding starts at the first tag with field number 0, while a payload that
+        /// legitimately ends in 0x00 (e.g. an empty sub-message) is kept intact. Matches Rust realtime_payload.
         /// </summary>
         public static ReadOnlyMemory<byte> TrimRealtimePadding(ReadOnlyMemory<byte> frame)
         {
-            var span = frame.Span;
-            int len = span.Length;
-            while (len > 0 && span[len - 1] == 0x00)
+            int len = ProtobufMessageLength(frame.Span);
+            return len < 0 || len == frame.Length ? frame : frame.Slice(0, len);
+        }
+
+        /// <summary>
+        /// Length of the protobuf message at the start of <paramref name="buffer"/>, stopping at the first tag with
+        /// field number 0 or a group/invalid wire type. Returns -1 when a field is truncated.
+        /// Port of Rust protobuf_message_len.
+        /// </summary>
+        internal static int ProtobufMessageLength(ReadOnlySpan<byte> buffer)
+        {
+            int pos = 0;
+            while (pos < buffer.Length)
             {
-                len--;
+                if (!TryReadVarint(buffer.Slice(pos), out ulong tag, out int tagLen))
+                {
+                    return -1;
+                }
+
+                ulong wireType = tag & 7;
+                if ((tag >> 3) == 0 || wireType == 3 || wireType == 4 || wireType == 6 || wireType == 7)
+                {
+                    return pos;
+                }
+
+                int valueStart = pos + tagLen;
+                long valueEnd;
+                switch (wireType)
+                {
+                    case 0:
+                        if (!TryReadVarint(buffer.Slice(valueStart), out _, out int varintLen))
+                        {
+                            return -1;
+                        }
+
+                        valueEnd = valueStart + varintLen;
+                        break;
+                    case 1:
+                        valueEnd = valueStart + 8L;
+                        break;
+                    case 5:
+                        valueEnd = valueStart + 4L;
+                        break;
+                    default:
+                        if (!TryReadVarint(buffer.Slice(valueStart), out ulong fieldLen, out int lenLen))
+                        {
+                            return -1;
+                        }
+
+                        if (fieldLen > MaxRealtimeFrameLen)
+                        {
+                            return pos;
+                        }
+
+                        valueEnd = valueStart + lenLen + (long)fieldLen;
+                        break;
+                }
+
+                if (valueEnd > buffer.Length)
+                {
+                    return -1;
+                }
+
+                pos = (int)valueEnd;
             }
 
-            return len == frame.Length ? frame : frame.Slice(0, len);
+            return pos;
+        }
+
+        private static bool TryReadVarint(ReadOnlySpan<byte> buffer, out ulong value, out int length)
+        {
+            value = 0;
+            int shift = 0;
+            for (int i = 0; i < buffer.Length; i++)
+            {
+                if (shift >= 64)
+                {
+                    break;
+                }
+
+                byte b = buffer[i];
+                value |= (ulong)(b & 0x7f) << shift;
+                if ((b & 0x80) == 0)
+                {
+                    length = i + 1;
+                    return true;
+                }
+
+                shift += 7;
+            }
+
+            length = 0;
+            return false;
         }
 
         public static bool TryQueueRealtimeFrame(ChannelWriter<ReadOnlyMemory<byte>> writer, ReadOnlyMemory<byte> data)
@@ -234,12 +330,12 @@ namespace Mezon.Net.Transport.Internal
             peek.TryReadBigEndian(out short _);
             peek.TryReadBigEndian(out int _);
             peek.TryReadBigEndian(out int payloadLen);
-            if (payloadLen < 0)
+            if ((uint)payloadLen > MaxApiResponseLen)
             {
-                throw new InvalidDataException($"API frame length is negative ({payloadLen}).");
+                throw new InvalidDataException($"API frame length {payloadLen} is outside 0..{MaxApiResponseLen}.");
             }
 
-            if (reader.Remaining < headerSize + payloadLen)
+            if (reader.Remaining < headerSize + (long)payloadLen)
             {
                 return false;
             }
@@ -253,37 +349,71 @@ namespace Mezon.Net.Transport.Internal
             reader.TryReadBigEndian(out int codeFrame);
             reader.TryReadBigEndian(out payloadLen);
 
-            var writer = apiChunkBuffers.GetOrAdd(cid, _ => new ArrayBufferWriter<byte>(initialCapacity: 4096));
-            var span = writer.GetSpan(payloadLen);
+            code = (codeFrame >> 16) & 0xffff;
+            var finished = (codeFrame & 0xffff) == FinishFlag;
             var payloadSlice = reader.Sequence.Slice(reader.Position, payloadLen);
-            if (payloadSlice.Length < payloadLen)
+            reader.Advance(payloadLen);
+            return AppendApiChunk(apiChunkBuffers, cid, payloadSlice, finished, ref code, out frame);
+        }
+
+        /// <summary>
+        /// Adds one API response chunk for <paramref name="cid"/>. Returns true when the response is complete, with
+        /// <paramref name="frame"/> holding memory owned by the caller (it outlives the receive buffer). A single
+        /// finished chunk is copied at its exact size. When the reassembled size would exceed
+        /// <see cref="MaxApiResponseLen"/>, the partial response is dropped and the cid completes with
+        /// <see cref="ApiResponseTooLargeCode"/> so only that request fails.
+        /// </summary>
+        internal static bool AppendApiChunk(
+            ConcurrentDictionary<int, ArrayBufferWriter<byte>> apiChunkBuffers,
+            int cid,
+            in ReadOnlySequence<byte> chunk,
+            bool finished,
+            ref int code,
+            out ReadOnlyMemory<byte> frame)
+        {
+            frame = ReadOnlyMemory<byte>.Empty;
+            if (!apiChunkBuffers.TryGetValue(cid, out var writer))
+            {
+                if (finished)
+                {
+                    frame = chunk.ToArray();
+                    return true;
+                }
+
+                writer = new ArrayBufferWriter<byte>(Math.Max(256, (int)chunk.Length));
+                apiChunkBuffers[cid] = writer;
+            }
+
+            if (writer.WrittenCount + chunk.Length > MaxApiResponseLen)
+            {
+                apiChunkBuffers.TryRemove(cid, out _);
+                code = ApiResponseTooLargeCode;
+                return true;
+            }
+
+            var length = (int)chunk.Length;
+            if (length > 0)
+            {
+                chunk.CopyTo(writer.GetSpan(length));
+                writer.Advance(length);
+            }
+
+            if (!finished)
             {
                 return false;
             }
 
-            payloadSlice.CopyTo(span);
-            writer.Advance(payloadLen);
-            code = (codeFrame >> 16) & 0xffff;
-            var finishFlag = codeFrame & 0xffff;
-            reader.Advance(payloadLen);
-            if (finishFlag == FinishFlag)
-            {
-                frame = writer.WrittenMemory;
-                apiChunkBuffers.TryRemove(cid, out _);
-                return true;
-            }
-
-            return false;
+            apiChunkBuffers.TryRemove(cid, out _);
+            frame = writer.WrittenMemory;
+            return true;
         }
 
         private static bool TryReadRealtimeFrame(ref SequenceReader<byte> reader, byte prefix, out ReadOnlyMemory<byte> frame)
         {
             frame = ReadOnlyMemory<byte>.Empty;
             int payloadLen;
-            int headerSize;
             if (prefix < AbridgedExtendedPrefix)
             {
-                headerSize = 1;
                 payloadLen = prefix * 4;
             }
             else if (prefix == AbridgedExtendedPrefix)
@@ -293,7 +423,6 @@ namespace Mezon.Net.Transport.Internal
                     return false;
                 }
 
-                headerSize = 4;
                 reader.TryRead(out byte l1);
                 reader.TryRead(out byte l2);
                 reader.TryRead(out byte l3);
@@ -304,10 +433,10 @@ namespace Mezon.Net.Transport.Internal
                 throw new InvalidDataException($"Unexpected abridged lead byte 0x{prefix:x2}.");
             }
 
-            if (headerSize + payloadLen > MaxAbridgedReceiveFrameLen)
+            if (payloadLen > MaxAbridgedReceiveFrameLen)
             {
                 throw new InvalidDataException(
-                    $"Abridged frame size {headerSize + payloadLen} exceeds receive limit {MaxAbridgedReceiveFrameLen}.");
+                    $"Abridged frame payload {payloadLen} exceeds receive limit {MaxAbridgedReceiveFrameLen}.");
             }
 
             if (reader.Remaining < payloadLen)

@@ -3,8 +3,11 @@ using System.Text.Json;
 
 namespace Mezon.Net.Client;
 
-/// <summary>Lazy-materialized typed fields for a content payload.</summary>
-internal readonly struct MessageContentSnapshot
+/// <summary>
+/// Lazy-materialized typed fields for a content payload. A class (not a struct) so it is published to concurrent
+/// readers with one atomic reference write.
+/// </summary>
+internal sealed class MessageContentSnapshot
 {
     public MessageContentSnapshot(
         string? text,

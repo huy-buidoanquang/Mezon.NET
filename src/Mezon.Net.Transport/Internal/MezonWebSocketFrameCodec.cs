@@ -57,27 +57,15 @@ namespace Mezon.Net.Transport.Internal
 
                 cid = BinaryPrimitives.ReadUInt16BigEndian(span.Slice(1, 2));
                 var codeField = BinaryPrimitives.ReadInt32BigEndian(span.Slice(3, 4));
-                var responseCode = (codeField >> 16) & 0xffff;
-                var finishFlag = codeField & 0xffff;
-                var chunk = span.Slice(ApiHeaderLength);
-
-                var writer = apiChunkBuffers.GetOrAdd(cid, _ => new ArrayBufferWriter<byte>(initialCapacity: 4096));
-                if (chunk.Length > 0)
-                {
-                    var target = writer.GetSpan(chunk.Length);
-                    chunk.CopyTo(target);
-                    writer.Advance(chunk.Length);
-                }
-
-                if (finishFlag != MezonTransportFrameCodec.FinishFlag)
+                code = (codeField >> 16) & 0xffff;
+                var finished = (codeField & 0xffff) == MezonTransportFrameCodec.FinishFlag;
+                var chunk = new ReadOnlySequence<byte>(message.Slice(ApiHeaderLength));
+                if (!MezonTransportFrameCodec.AppendApiChunk(apiChunkBuffers, cid, chunk, finished, ref code, out payload))
                 {
                     return false;
                 }
 
                 type = MezonMessageType.Api;
-                code = responseCode;
-                payload = writer.WrittenMemory;
-                apiChunkBuffers.TryRemove(cid, out _);
                 return true;
             }
 

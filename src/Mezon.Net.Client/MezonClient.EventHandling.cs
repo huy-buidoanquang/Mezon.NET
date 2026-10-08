@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using Mezon.Net.Client.Dispatch;
 using Mezon.Net.Core;
 using Mezon.Net.Internal.Realtime;
 using Mezon.Net.Models;
@@ -24,11 +25,19 @@ namespace Mezon.Net.Client
         }
 
         /// <summary>
-        /// Detaches event invoke from the receive path. <see cref="Task.Yield"/> is required:
-        /// fire-and-forget alone still runs until the first incomplete await on the caller stack.
+        /// Detaches event invoke from the receive path. Ordered mode queues it on the lane of
+        /// <paramref name="lane"/> (channel or clan id); concurrent mode runs it on the thread pool, where
+        /// <see cref="Task.Yield"/> is required: fire-and-forget alone still runs until the first incomplete await on
+        /// the caller stack.
         /// </summary>
-        private void ScheduleEvent(Func<Task> invoker)
+        private void ScheduleEvent(long lane, Func<Task> invoker)
         {
+            if (_dispatcher != null)
+            {
+                _dispatcher.Enqueue(lane, invoker);
+                return;
+            }
+
             _ = ObserveEventDispatchAsync(invoker);
         }
 
@@ -49,343 +58,341 @@ namespace Mezon.Net.Client
         {
             try
             {
+                var lane = _dispatcher != null ? RealtimeLaneKey.Compute(envelope) : 0;
                 switch (envelope.MessageCase)
                 {
                     case Envelope.MessageOneofCase.None:
                         break;
                     case Envelope.MessageOneofCase.Channel:
-                        ScheduleEvent(() => TimedInvokeAsync(_channelReceivedEvent, nameof(ChannelReceivedEvent), new ChannelEventData(new ChannelResponse(envelope.Channel))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_channelReceivedEvent, nameof(ChannelReceivedEvent), new ChannelEventData(new ChannelResponse(envelope.Channel))));
                         break;
                     case Envelope.MessageOneofCase.ClanJoin:
-                        ScheduleEvent(() => TimedInvokeAsync(_clanJoinedEvent, nameof(ClanJoinedEvent), new ClanJoinEventData(new ClanJoinResponse(envelope.ClanJoin))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_clanJoinedEvent, nameof(ClanJoinedEvent), new ClanJoinEventData(new ClanJoinResponse(envelope.ClanJoin))));
                         break;
                     case Envelope.MessageOneofCase.ChannelJoin:
-                        ScheduleEvent(() => TimedInvokeAsync(_channelJoinedEvent, nameof(ChannelJoinedEvent), new ChannelJoinEventData(new ChannelJoinResponse(envelope.ChannelJoin))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_channelJoinedEvent, nameof(ChannelJoinedEvent), new ChannelJoinEventData(new ChannelJoinResponse(envelope.ChannelJoin))));
                         break;
                     case Envelope.MessageOneofCase.ChannelLeave:
-                        ScheduleEvent(() => TimedInvokeAsync(_channelLeftEvent, nameof(ChannelLeftEvent), new ChannelLeaveEventData(new ChannelLeaveResponse(envelope.ChannelLeave))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_channelLeftEvent, nameof(ChannelLeftEvent), new ChannelLeaveEventData(new ChannelLeaveResponse(envelope.ChannelLeave))));
                         break;
                     case Envelope.MessageOneofCase.ChannelMessage:
                         // Decode nested mentions/attachments/references/reactions once at the engine boundary.
                         var channelMessage = ChannelMessageResponse.Decode(envelope.ChannelMessage);
-                        ScheduleEvent(() => TimedInvokeAsync(_channelMessageReceivedEvent, nameof(ChannelMessageReceivedEvent), new ChannelMessageEventData(channelMessage)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_channelMessageReceivedEvent, nameof(ChannelMessageReceivedEvent), new ChannelMessageEventData(channelMessage)));
                         break;
                     case Envelope.MessageOneofCase.ChannelMessageAck:
-                        ScheduleEvent(() => TimedInvokeAsync(_channelMessageAckReceivedEvent, nameof(ChannelMessageAckReceivedEvent), new ChannelMessageAckEventData(new ChannelMessageAckResponse(envelope.ChannelMessageAck))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_channelMessageAckReceivedEvent, nameof(ChannelMessageAckReceivedEvent), new ChannelMessageAckEventData(new ChannelMessageAckResponse(envelope.ChannelMessageAck))));
                         break;
                     case Envelope.MessageOneofCase.ChannelMessageSend:
-                        ScheduleEvent(() => TimedInvokeAsync(_channelMessageSentEvent, nameof(ChannelMessageSentEvent), new ChannelMessageSendEventData(new ChannelMessageSendResponse(envelope.ChannelMessageSend))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_channelMessageSentEvent, nameof(ChannelMessageSentEvent), new ChannelMessageSendEventData(new ChannelMessageSendResponse(envelope.ChannelMessageSend))));
                         break;
                     case Envelope.MessageOneofCase.ChannelMessageUpdate:
-                        ScheduleEvent(() => TimedInvokeAsync(_channelMessageUpdatedEvent, nameof(ChannelMessageUpdatedEvent), new ChannelMessageUpdateEventData(new ChannelMessageUpdateResponse(envelope.ChannelMessageUpdate))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_channelMessageUpdatedEvent, nameof(ChannelMessageUpdatedEvent), new ChannelMessageUpdateEventData(new ChannelMessageUpdateResponse(envelope.ChannelMessageUpdate))));
                         break;
                     case Envelope.MessageOneofCase.ChannelMessageRemove:
-                        ScheduleEvent(() => TimedInvokeAsync(_channelMessageRemovedEvent, nameof(ChannelMessageRemovedEvent), new ChannelMessageRemoveEventData(new ChannelMessageRemoveResponse(envelope.ChannelMessageRemove))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_channelMessageRemovedEvent, nameof(ChannelMessageRemovedEvent), new ChannelMessageRemoveEventData(new ChannelMessageRemoveResponse(envelope.ChannelMessageRemove))));
                         break;
                     case Envelope.MessageOneofCase.ChannelPresenceEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_channelPresenceChangedEvent, nameof(ChannelPresenceChangedEvent), new ChannelPresenceEventEventData(new ChannelPresenceEventResponse(envelope.ChannelPresenceEvent))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_channelPresenceChangedEvent, nameof(ChannelPresenceChangedEvent), new ChannelPresenceEventEventData(new ChannelPresenceEventResponse(envelope.ChannelPresenceEvent))));
                         break;
                     case Envelope.MessageOneofCase.Error:
-                        ScheduleEvent(() => TimedInvokeAsync(_errorReceivedEvent, nameof(ErrorReceivedEvent), new ErrorEventData(new ErrorResponse(envelope.Error))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_errorReceivedEvent, nameof(ErrorReceivedEvent), new ErrorEventData(new ErrorResponse(envelope.Error))));
                         break;
                     case Envelope.MessageOneofCase.Notifications:
-                        ScheduleEvent(() => TimedInvokeAsync(_notificationsReceivedEvent, nameof(NotificationsReceivedEvent), new NotificationsEventData(new Mezon.Net.Models.NotificationsResponse(envelope.Notifications))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_notificationsReceivedEvent, nameof(NotificationsReceivedEvent), new NotificationsEventData(new Mezon.Net.Models.NotificationsResponse(envelope.Notifications))));
                         break;
                     case Envelope.MessageOneofCase.Rpc:
-                        ScheduleEvent(() => TimedInvokeAsync(_rpcReceivedEvent, nameof(RpcReceivedEvent), new RpcEventData(new RpcResponse(envelope.Rpc))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_rpcReceivedEvent, nameof(RpcReceivedEvent), new RpcEventData(new RpcResponse(envelope.Rpc))));
                         break;
                     case Envelope.MessageOneofCase.Status:
-                        ScheduleEvent(() => TimedInvokeAsync(_statusReceivedEvent, nameof(StatusReceivedEvent), new StatusEventData(new StatusResponse(envelope.Status))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_statusReceivedEvent, nameof(StatusReceivedEvent), new StatusEventData(new StatusResponse(envelope.Status))));
                         break;
                     case Envelope.MessageOneofCase.StatusFollow:
-                        ScheduleEvent(() => TimedInvokeAsync(_statusFollowedEvent, nameof(StatusFollowedEvent), new StatusFollowEventData(new StatusFollowResponse(envelope.StatusFollow))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_statusFollowedEvent, nameof(StatusFollowedEvent), new StatusFollowEventData(new StatusFollowResponse(envelope.StatusFollow))));
                         break;
                     case Envelope.MessageOneofCase.StatusPresenceEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_statusPresenceChangedEvent, nameof(StatusPresenceChangedEvent), new StatusPresenceEventEventData(new StatusPresenceEventResponse(envelope.StatusPresenceEvent))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_statusPresenceChangedEvent, nameof(StatusPresenceChangedEvent), new StatusPresenceEventEventData(new StatusPresenceEventResponse(envelope.StatusPresenceEvent))));
                         break;
                     case Envelope.MessageOneofCase.StatusUnfollow:
-                        ScheduleEvent(() => TimedInvokeAsync(_statusUnfollowedEvent, nameof(StatusUnfollowedEvent), new StatusUnfollowEventData(new StatusUnfollowResponse(envelope.StatusUnfollow))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_statusUnfollowedEvent, nameof(StatusUnfollowedEvent), new StatusUnfollowEventData(new StatusUnfollowResponse(envelope.StatusUnfollow))));
                         break;
                     case Envelope.MessageOneofCase.StatusUpdate:
-                        ScheduleEvent(() => TimedInvokeAsync(_statusUpdatedEvent, nameof(StatusUpdatedEvent), new StatusUpdateEventData(new StatusUpdateResponse(envelope.StatusUpdate))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_statusUpdatedEvent, nameof(StatusUpdatedEvent), new StatusUpdateEventData(new StatusUpdateResponse(envelope.StatusUpdate))));
                         break;
                     case Envelope.MessageOneofCase.StreamData:
-                        ScheduleEvent(() => TimedInvokeAsync(_streamDataReceivedEvent, nameof(StreamDataReceivedEvent), new StreamDataEventData(new StreamDataResponse(envelope.StreamData))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_streamDataReceivedEvent, nameof(StreamDataReceivedEvent), new StreamDataEventData(new StreamDataResponse(envelope.StreamData))));
                         break;
                     case Envelope.MessageOneofCase.StreamPresenceEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_streamPresenceChangedEvent, nameof(StreamPresenceChangedEvent), new StreamPresenceEventEventData(new StreamPresenceEventResponse(envelope.StreamPresenceEvent))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_streamPresenceChangedEvent, nameof(StreamPresenceChangedEvent), new StreamPresenceEventEventData(new StreamPresenceEventResponse(envelope.StreamPresenceEvent))));
                         break;
                     case Envelope.MessageOneofCase.Ping:
-                        break;
                     case Envelope.MessageOneofCase.Pong:
-                        if (_heartbeatTimes.TryDequeue(out long time))
-                        {
-                            long latency = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - time;
-                            Latency = latency;
-
-                            ScheduleEvent(() => TimedInvokeAsync(_pongReceivedEvent, nameof(PongReceivedEvent), new PongEventData(new PongResponse(envelope.Pong))));
-                        }
+                        // A heartbeat pong completes its request by cid and MezonSocketClient.Heartbeat records the
+                        // latency. As in mezon-js, it raises no event.
                         break;
                     case Envelope.MessageOneofCase.MessageTypingEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_messageTypingReceivedEvent, nameof(MessageTypingReceivedEvent), new MessageTypingEventEventData(new MessageTypingEventResponse(envelope.MessageTypingEvent))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_messageTypingReceivedEvent, nameof(MessageTypingReceivedEvent), new MessageTypingEventEventData(new MessageTypingEventResponse(envelope.MessageTypingEvent))));
                         break;
                     case Envelope.MessageOneofCase.LastSeenMessageEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_lastSeenMessageUpdatedEvent, nameof(LastSeenMessageUpdatedEvent), new LastSeenMessageEventEventData(new LastSeenMessageEventResponse(envelope.LastSeenMessageEvent))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_lastSeenMessageUpdatedEvent, nameof(LastSeenMessageUpdatedEvent), new LastSeenMessageEventEventData(new LastSeenMessageEventResponse(envelope.LastSeenMessageEvent))));
                         break;
                     case Envelope.MessageOneofCase.MessageReactionEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_messageReactionReceivedEvent, nameof(MessageReactionReceivedEvent), new MessageReactionEventData(new MessageReactionResponse(envelope.MessageReactionEvent))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_messageReactionReceivedEvent, nameof(MessageReactionReceivedEvent), new MessageReactionEventData(new MessageReactionResponse(envelope.MessageReactionEvent))));
                         break;
                     case Envelope.MessageOneofCase.VoiceJoinedEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_voiceJoinedEvent, nameof(VoiceJoinedEvent), new VoiceJoinedEventEventData(new VoiceJoinedEventResponse(envelope.VoiceJoinedEvent))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_voiceJoinedEvent, nameof(VoiceJoinedEvent), new VoiceJoinedEventEventData(new VoiceJoinedEventResponse(envelope.VoiceJoinedEvent))));
                         break;
                     case Envelope.MessageOneofCase.VoiceLeavedEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_voiceLeavedEvent, nameof(VoiceLeavedEvent), new VoiceLeavedEventEventData(new VoiceLeavedEventResponse(envelope.VoiceLeavedEvent))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_voiceLeavedEvent, nameof(VoiceLeavedEvent), new VoiceLeavedEventEventData(new VoiceLeavedEventResponse(envelope.VoiceLeavedEvent))));
                         break;
                     case Envelope.MessageOneofCase.VoiceStartedEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_voiceStartedEvent, nameof(VoiceStartedEvent), new VoiceStartedEventEventData(new VoiceStartedEventResponse(envelope.VoiceStartedEvent))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_voiceStartedEvent, nameof(VoiceStartedEvent), new VoiceStartedEventEventData(new VoiceStartedEventResponse(envelope.VoiceStartedEvent))));
                         break;
                     case Envelope.MessageOneofCase.VoiceEndedEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_voiceEndedEvent, nameof(VoiceEndedEvent), new VoiceEndedEventEventData(new VoiceEndedEventResponse(envelope.VoiceEndedEvent))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_voiceEndedEvent, nameof(VoiceEndedEvent), new VoiceEndedEventEventData(new VoiceEndedEventResponse(envelope.VoiceEndedEvent))));
                         break;
                     case Envelope.MessageOneofCase.ChannelCreatedEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_channelCreatedEvent, nameof(ChannelCreatedEvent), new ChannelCreatedEventEventData(new ChannelCreatedEventResponse(envelope.ChannelCreatedEvent))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_channelCreatedEvent, nameof(ChannelCreatedEvent), new ChannelCreatedEventEventData(new ChannelCreatedEventResponse(envelope.ChannelCreatedEvent))));
                         break;
                     case Envelope.MessageOneofCase.ChannelDeletedEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_channelDeletedEvent, nameof(ChannelDeletedEvent), new ChannelDeletedEventEventData(new ChannelDeletedEventResponse(envelope.ChannelDeletedEvent))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_channelDeletedEvent, nameof(ChannelDeletedEvent), new ChannelDeletedEventEventData(new ChannelDeletedEventResponse(envelope.ChannelDeletedEvent))));
                         break;
                     case Envelope.MessageOneofCase.ChannelUpdatedEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_channelUpdatedEvent, nameof(ChannelUpdatedEvent), new ChannelUpdatedEventEventData(new ChannelUpdatedEventResponse(envelope.ChannelUpdatedEvent))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_channelUpdatedEvent, nameof(ChannelUpdatedEvent), new ChannelUpdatedEventEventData(new ChannelUpdatedEventResponse(envelope.ChannelUpdatedEvent))));
                         break;
                     case Envelope.MessageOneofCase.LastPinMessageEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_lastPinMessageUpdatedEvent, nameof(LastPinMessageUpdatedEvent), new LastPinMessageEventEventData(new LastPinMessageEventResponse(envelope.LastPinMessageEvent))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_lastPinMessageUpdatedEvent, nameof(LastPinMessageUpdatedEvent), new LastPinMessageEventEventData(new LastPinMessageEventResponse(envelope.LastPinMessageEvent))));
                         break;
                     case Envelope.MessageOneofCase.CustomStatusEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_customStatusChangedEvent, nameof(CustomStatusChangedEvent), new CustomStatusEventEventData(new CustomStatusEventResponse(envelope.CustomStatusEvent))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_customStatusChangedEvent, nameof(CustomStatusChangedEvent), new CustomStatusEventEventData(new CustomStatusEventResponse(envelope.CustomStatusEvent))));
                         break;
                     case Envelope.MessageOneofCase.UserChannelAddedEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_userChannelAddedEvent, nameof(UserChannelAddedEvent), new UserChannelAddedEventData(new UserChannelAddedResponse(envelope.UserChannelAddedEvent))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_userChannelAddedEvent, nameof(UserChannelAddedEvent), new UserChannelAddedEventData(new UserChannelAddedResponse(envelope.UserChannelAddedEvent))));
                         break;
                     case Envelope.MessageOneofCase.UserChannelRemovedEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_userChannelRemovedEvent, nameof(UserChannelRemovedEvent), new UserChannelRemovedEventData(new UserChannelRemovedResponse(envelope.UserChannelRemovedEvent))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_userChannelRemovedEvent, nameof(UserChannelRemovedEvent), new UserChannelRemovedEventData(new UserChannelRemovedResponse(envelope.UserChannelRemovedEvent))));
                         break;
                     case Envelope.MessageOneofCase.UserClanRemovedEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_userClanRemovedEvent, nameof(UserClanRemovedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_userClanRemovedEvent, nameof(UserClanRemovedEvent)));
                         break;
                     case Envelope.MessageOneofCase.ClanUpdatedEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_clanUpdatedEvent, nameof(ClanUpdatedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_clanUpdatedEvent, nameof(ClanUpdatedEvent)));
                         break;
                     case Envelope.MessageOneofCase.ClanProfileUpdatedEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_clanProfileUpdatedEvent, nameof(ClanProfileUpdatedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_clanProfileUpdatedEvent, nameof(ClanProfileUpdatedEvent)));
                         break;
                     case Envelope.MessageOneofCase.CheckNameExistedEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_nameExistenceCheckedEvent, nameof(NameExistenceCheckedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_nameExistenceCheckedEvent, nameof(NameExistenceCheckedEvent)));
                         break;
                     case Envelope.MessageOneofCase.UserProfileUpdatedEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_userProfileUpdatedEvent, nameof(UserProfileUpdatedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_userProfileUpdatedEvent, nameof(UserProfileUpdatedEvent)));
                         break;
                     case Envelope.MessageOneofCase.AddClanUserEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_clanUserAddedEvent, nameof(ClanUserAddedEvent), new AddClanUserEventEventData(new AddClanUserEventResponse(envelope.AddClanUserEvent))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_clanUserAddedEvent, nameof(ClanUserAddedEvent), new AddClanUserEventEventData(new AddClanUserEventResponse(envelope.AddClanUserEvent))));
                         break;
                     case Envelope.MessageOneofCase.ClanEventCreated:
-                        ScheduleEvent(() => TimedInvokeAsync(_clanEventCreated, nameof(ClanEventCreated)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_clanEventCreated, nameof(ClanEventCreated)));
                         break;
                     case Envelope.MessageOneofCase.RoleAssignEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_roleAssignedEvent, nameof(RoleAssignedEvent), new RoleAssignedEventEventData(new RoleAssignedEventResponse(envelope.RoleAssignEvent))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_roleAssignedEvent, nameof(RoleAssignedEvent), new RoleAssignedEventEventData(new RoleAssignedEventResponse(envelope.RoleAssignEvent))));
                         break;
                     case Envelope.MessageOneofCase.ClanDeletedEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_clanDeletedEvent, nameof(ClanDeletedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_clanDeletedEvent, nameof(ClanDeletedEvent)));
                         break;
                     case Envelope.MessageOneofCase.GiveCoffeeEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_coffeeGivenEvent, nameof(CoffeeGivenEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_coffeeGivenEvent, nameof(CoffeeGivenEvent)));
                         break;
                     case Envelope.MessageOneofCase.StickerCreateEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_stickerCreatedEvent, nameof(StickerCreatedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_stickerCreatedEvent, nameof(StickerCreatedEvent)));
                         break;
                     case Envelope.MessageOneofCase.StickerUpdateEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_stickerUpdatedEvent, nameof(StickerUpdatedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_stickerUpdatedEvent, nameof(StickerUpdatedEvent)));
                         break;
                     case Envelope.MessageOneofCase.StickerDeleteEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_stickerDeletedEvent, nameof(StickerDeletedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_stickerDeletedEvent, nameof(StickerDeletedEvent)));
                         break;
                     case Envelope.MessageOneofCase.RoleEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_roleChangedEvent, nameof(RoleChangedEvent), new RoleEventEventData(new RoleEventResponse(envelope.RoleEvent))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_roleChangedEvent, nameof(RoleChangedEvent), new RoleEventEventData(new RoleEventResponse(envelope.RoleEvent))));
                         break;
                     case Envelope.MessageOneofCase.EventEmoji:
-                        ScheduleEvent(() => TimedInvokeAsync(_emojiReceivedEvent, nameof(EmojiReceivedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_emojiReceivedEvent, nameof(EmojiReceivedEvent)));
                         break;
                     case Envelope.MessageOneofCase.StreamingJoinedEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_streamingJoinedEvent, nameof(StreamingJoinedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_streamingJoinedEvent, nameof(StreamingJoinedEvent)));
                         break;
                     case Envelope.MessageOneofCase.StreamingLeavedEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_streamingLeavedEvent, nameof(StreamingLeavedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_streamingLeavedEvent, nameof(StreamingLeavedEvent)));
                         break;
                     case Envelope.MessageOneofCase.StreamingStartedEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_streamingStartedEvent, nameof(StreamingStartedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_streamingStartedEvent, nameof(StreamingStartedEvent)));
                         break;
                     case Envelope.MessageOneofCase.StreamingEndedEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_streamingEndedEvent, nameof(StreamingEndedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_streamingEndedEvent, nameof(StreamingEndedEvent)));
                         break;
                     case Envelope.MessageOneofCase.PermissionSetEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_permissionsSetEvent, nameof(PermissionsSetEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_permissionsSetEvent, nameof(PermissionsSetEvent)));
                         break;
                     case Envelope.MessageOneofCase.PermissionChangedEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_permissionChangedEvent, nameof(PermissionChangedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_permissionChangedEvent, nameof(PermissionChangedEvent)));
                         break;
                     case Envelope.MessageOneofCase.TokenSentEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_tokenSentEvent, nameof(TokenSentEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_tokenSentEvent, nameof(TokenSentEvent)));
                         break;
                     case Envelope.MessageOneofCase.MessageButtonClicked:
-                        ScheduleEvent(() => TimedInvokeAsync(_messageButtonClickedEvent, nameof(MessageButtonClickedEvent), new MessageButtonClickedEventData(new MessageButtonClickedResponse(envelope.MessageButtonClicked))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_messageButtonClickedEvent, nameof(MessageButtonClickedEvent), new MessageButtonClickedEventData(new MessageButtonClickedResponse(envelope.MessageButtonClicked))));
                         break;
                     case Envelope.MessageOneofCase.UnmuteEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_userUnmutedEvent, nameof(UserUnmutedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_userUnmutedEvent, nameof(UserUnmutedEvent)));
                         break;
                     case Envelope.MessageOneofCase.WebrtcSignalingFwd:
-                        ScheduleEvent(() => TimedInvokeAsync(_webrtcSignalingForwardedEvent, nameof(WebrtcSignalingForwardedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_webrtcSignalingForwardedEvent, nameof(WebrtcSignalingForwardedEvent)));
                         break;
                     case Envelope.MessageOneofCase.ListActivity:
-                        ScheduleEvent(() => TimedInvokeAsync(_activityListedEvent, nameof(ActivityListedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_activityListedEvent, nameof(ActivityListedEvent)));
                         break;
                     case Envelope.MessageOneofCase.DropdownBoxSelected:
-                        ScheduleEvent(() => TimedInvokeAsync(_dropdownBoxSelectedEvent, nameof(DropdownBoxSelectedEvent), new DropdownBoxSelectedEventData(new DropdownBoxSelectedResponse(envelope.DropdownBoxSelected))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_dropdownBoxSelectedEvent, nameof(DropdownBoxSelectedEvent), new DropdownBoxSelectedEventData(new DropdownBoxSelectedResponse(envelope.DropdownBoxSelected))));
                         break;
                     case Envelope.MessageOneofCase.IncomingCallPush:
-                        ScheduleEvent(() => TimedInvokeAsync(_incomingCallPushedEvent, nameof(IncomingCallPushedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_incomingCallPushedEvent, nameof(IncomingCallPushedEvent)));
                         break;
                     case Envelope.MessageOneofCase.SdTopicEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_sdTopicReceivedEvent, nameof(SdTopicReceivedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_sdTopicReceivedEvent, nameof(SdTopicReceivedEvent)));
                         break;
                     case Envelope.MessageOneofCase.FollowEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_followReceivedEvent, nameof(FollowReceivedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_followReceivedEvent, nameof(FollowReceivedEvent)));
                         break;
                     case Envelope.MessageOneofCase.ChannelAppEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_channelAppReceivedEvent, nameof(ChannelAppReceivedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_channelAppReceivedEvent, nameof(ChannelAppReceivedEvent)));
                         break;
                     case Envelope.MessageOneofCase.UserStatusEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_userStatusChangedEvent, nameof(UserStatusChangedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_userStatusChangedEvent, nameof(UserStatusChangedEvent)));
                         break;
                     case Envelope.MessageOneofCase.RemoveFriend:
-                        ScheduleEvent(() => TimedInvokeAsync(_friendRemovedEvent, nameof(FriendRemovedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_friendRemovedEvent, nameof(FriendRemovedEvent)));
                         break;
                     case Envelope.MessageOneofCase.WebhookEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_webhookReceivedEvent, nameof(WebhookReceivedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_webhookReceivedEvent, nameof(WebhookReceivedEvent)));
                         break;
                     case Envelope.MessageOneofCase.NotiUserChannel:
-                        ScheduleEvent(() => TimedInvokeAsync(_notiUserChannelReceivedEvent, nameof(NotiUserChannelReceivedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_notiUserChannelReceivedEvent, nameof(NotiUserChannelReceivedEvent)));
                         break;
                     case Envelope.MessageOneofCase.JoinChannelAppData:
-                        ScheduleEvent(() => TimedInvokeAsync(_channelAppDataJoinedEvent, nameof(ChannelAppDataJoinedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_channelAppDataJoinedEvent, nameof(ChannelAppDataJoinedEvent)));
                         break;
                     case Envelope.MessageOneofCase.CanvasEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_canvasReceivedEvent, nameof(CanvasReceivedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_canvasReceivedEvent, nameof(CanvasReceivedEvent)));
                         break;
                     case Envelope.MessageOneofCase.UnpinMessageEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_messageUnpinnedEvent, nameof(MessageUnpinnedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_messageUnpinnedEvent, nameof(MessageUnpinnedEvent)));
                         break;
                     case Envelope.MessageOneofCase.CategoryEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_categoryChangedEvent, nameof(CategoryChangedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_categoryChangedEvent, nameof(CategoryChangedEvent)));
                         break;
                     case Envelope.MessageOneofCase.HandleParticipantMeetStateEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_participantMeetStateChangedEvent, nameof(ParticipantMeetStateChangedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_participantMeetStateChangedEvent, nameof(ParticipantMeetStateChangedEvent)));
                         break;
                     case Envelope.MessageOneofCase.DeleteAccountEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_accountDeletedEvent, nameof(AccountDeletedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_accountDeletedEvent, nameof(AccountDeletedEvent)));
                         break;
                     case Envelope.MessageOneofCase.EphemeralMessageSend:
-                        ScheduleEvent(() => TimedInvokeAsync(_ephemeralMessageSentEvent, nameof(EphemeralMessageSentEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_ephemeralMessageSentEvent, nameof(EphemeralMessageSentEvent)));
                         break;
                     case Envelope.MessageOneofCase.BlockFriend:
-                        ScheduleEvent(() => TimedInvokeAsync(_friendBlockedEvent, nameof(FriendBlockedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_friendBlockedEvent, nameof(FriendBlockedEvent)));
                         break;
                     case Envelope.MessageOneofCase.VoiceReactionSend:
-                        ScheduleEvent(() => TimedInvokeAsync(_voiceReactionSentEvent, nameof(VoiceReactionSentEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_voiceReactionSentEvent, nameof(VoiceReactionSentEvent)));
                         break;
                     case Envelope.MessageOneofCase.MarkAsRead:
-                        ScheduleEvent(() => TimedInvokeAsync(_markedAsReadEvent, nameof(MarkedAsReadEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_markedAsReadEvent, nameof(MarkedAsReadEvent)));
                         break;
                     case Envelope.MessageOneofCase.ListDataSocket:
-                        ScheduleEvent(() => TimedInvokeAsync(_dataSocketListedEvent, nameof(DataSocketListedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_dataSocketListedEvent, nameof(DataSocketListedEvent)));
                         break;
                     case Envelope.MessageOneofCase.QuickMenuEvent:
-                        var quickMenu = envelope.QuickMenuEvent;
-                        if (quickMenu is null
-                            || string.IsNullOrWhiteSpace(quickMenu.MenuName)
-                            || quickMenu.Message is null
-                            || quickMenu.Message.Id <= 0
-                            || quickMenu.Message.ClanId <= 0
-                            || quickMenu.Message.ChannelId <= 0)
-                        {
-                            break;
-                        }
-
-                        if (_quickMenuReceivedDataEvent.HasSubscribers)
-                        {
-                            var quickMenuData = new QuickMenuReceivedEventData(quickMenu);
-                            ScheduleEvent(() => TimedInvokeAsync(_quickMenuReceivedDataEvent, nameof(QuickMenuReceivedDataEvent), quickMenuData));
-                        }
-
+                        // The parameterless event carries no payload, so it fires for every quick menu event as before.
                         if (_quickMenuReceivedEvent.HasSubscribers)
                         {
-                            ScheduleEvent(() => TimedInvokeAsync(_quickMenuReceivedEvent, nameof(QuickMenuReceivedEvent)));
+                            ScheduleEvent(lane, () => TimedInvokeAsync(_quickMenuReceivedEvent, nameof(QuickMenuReceivedEvent)));
+                        }
+
+                        // The typed event needs a menu and a source message. ClanId is 0 in DMs, so it is not required.
+                        var quickMenu = envelope.QuickMenuEvent;
+                        if (_quickMenuReceivedDataEvent.HasSubscribers
+                            && quickMenu is not null
+                            && !string.IsNullOrWhiteSpace(quickMenu.MenuName)
+                            && quickMenu.Message is not null
+                            && quickMenu.Message.Id > 0
+                            && quickMenu.Message.ChannelId > 0)
+                        {
+                            var quickMenuData = new QuickMenuReceivedEventData(quickMenu);
+                            ScheduleEvent(lane, () => TimedInvokeAsync(_quickMenuReceivedDataEvent, nameof(QuickMenuReceivedDataEvent), quickMenuData));
                         }
                         break;
                     case Envelope.MessageOneofCase.UnBlockFriend:
-                        ScheduleEvent(() => TimedInvokeAsync(_friendUnblockedEvent, nameof(FriendUnblockedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_friendUnblockedEvent, nameof(FriendUnblockedEvent)));
                         break;
                     case Envelope.MessageOneofCase.MeetParticipantEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_meetParticipantChangedEvent, nameof(MeetParticipantChangedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_meetParticipantChangedEvent, nameof(MeetParticipantChangedEvent)));
                         break;
                     case Envelope.MessageOneofCase.TransferOwnershipEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_ownershipTransferredEvent, nameof(OwnershipTransferredEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_ownershipTransferredEvent, nameof(OwnershipTransferredEvent)));
                         break;
                     case Envelope.MessageOneofCase.AddFriend:
-                        ScheduleEvent(() => TimedInvokeAsync(_friendAddedEvent, nameof(FriendAddedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_friendAddedEvent, nameof(FriendAddedEvent)));
                         break;
                     case Envelope.MessageOneofCase.BanUserEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_userBannedEvent, nameof(UserBannedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_userBannedEvent, nameof(UserBannedEvent)));
                         break;
                     case Envelope.MessageOneofCase.ActiveArchivedThread:
-                        ScheduleEvent(() => TimedInvokeAsync(_archivedThreadActivatedEvent, nameof(ArchivedThreadActivatedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_archivedThreadActivatedEvent, nameof(ArchivedThreadActivatedEvent)));
                         break;
                     case Envelope.MessageOneofCase.AllowAnonymousEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_anonymousAllowedEvent, nameof(AnonymousAllowedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_anonymousAllowedEvent, nameof(AnonymousAllowedEvent)));
                         break;
                     case Envelope.MessageOneofCase.ApiRequestEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_apiRequestReceivedEvent, nameof(ApiRequestReceivedEvent), new ApiRequestEventEventData(new ApiRequestEventResponse(envelope.ApiRequestEvent))));
-                        ScheduleEvent(() => TimedInvokeAsync(_localCacheUpdatedEvent, nameof(LocalCacheUpdatedEvent), new ApiRequestEventEventData(new ApiRequestEventResponse(envelope.ApiRequestEvent))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_apiRequestReceivedEvent, nameof(ApiRequestReceivedEvent), new ApiRequestEventEventData(new ApiRequestEventResponse(envelope.ApiRequestEvent))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_localCacheUpdatedEvent, nameof(LocalCacheUpdatedEvent), new ApiRequestEventEventData(new ApiRequestEventResponse(envelope.ApiRequestEvent))));
                         break;
                     case Envelope.MessageOneofCase.ClanCreatedEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_clanCreatedEvent, nameof(ClanCreatedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_clanCreatedEvent, nameof(ClanCreatedEvent)));
                         break;
                     case Envelope.MessageOneofCase.AiagentEnabledEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_aIAgentEnabledEvent, nameof(AIAgentEnabledEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_aIAgentEnabledEvent, nameof(AIAgentEnabledEvent)));
                         break;
                     case Envelope.MessageOneofCase.ListChannelUsersBannedEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_channelUsersBannedListedEvent, nameof(ChannelUsersBannedListedEvent), new ListChannelUsersBannedEventEventData(new ListChannelUsersBannedEventResponse(envelope.ListChannelUsersBannedEvent))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_channelUsersBannedListedEvent, nameof(ChannelUsersBannedListedEvent), new ListChannelUsersBannedEventEventData(new ListChannelUsersBannedEventResponse(envelope.ListChannelUsersBannedEvent))));
                         break;
                     case Envelope.MessageOneofCase.RefreshSessionEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_sessionRefreshedEvent, nameof(SessionRefreshedEvent), new Session(envelope.RefreshSessionEvent)));
+                        ScheduleEvent(lane, async () =>
+                        {
+                            // Apply the pushed session first so REST calls and reconnects use the new token.
+                            var refreshedSession = new Session(envelope.RefreshSessionEvent);
+                            await Sessions.ApplyPushedSessionAsync(refreshedSession).ConfigureAwait(false);
+                            await TimedInvokeAsync(_sessionRefreshedEvent, nameof(SessionRefreshedEvent), refreshedSession).ConfigureAwait(false);
+                        });
                         break;
                     case Envelope.MessageOneofCase.ChannelArchiveEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_channelArchivedEvent, nameof(ChannelArchivedEvent), new ChannelArchiveEventEventData(new ChannelArchiveEventResponse(envelope.ChannelArchiveEvent))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_channelArchivedEvent, nameof(ChannelArchivedEvent), new ChannelArchiveEventEventData(new ChannelArchiveEventResponse(envelope.ChannelArchiveEvent))));
                         break;
                     case Envelope.MessageOneofCase.TopicInMessageEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_topicInMessageReceivedEvent, nameof(TopicInMessageReceivedEvent), new TopicInMessageEventEventData(new TopicInMessageEventResponse(envelope.TopicInMessageEvent))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_topicInMessageReceivedEvent, nameof(TopicInMessageReceivedEvent), new TopicInMessageEventEventData(new TopicInMessageEventResponse(envelope.TopicInMessageEvent))));
                         break;
                     case Envelope.MessageOneofCase.ScreenShareEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_screenShareReceivedEvent, nameof(ScreenShareReceivedEvent), new ScreenShareEventEventData(new ScreenShareEventResponse(envelope.ScreenShareEvent))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_screenShareReceivedEvent, nameof(ScreenShareReceivedEvent), new ScreenShareEventEventData(new ScreenShareEventResponse(envelope.ScreenShareEvent))));
                         break;
                     case Envelope.MessageOneofCase.VoiceInteractiveEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_voiceInteractiveReceivedEvent, nameof(VoiceInteractiveReceivedEvent), new VoiceInteractiveEventEventData(new VoiceInteractiveEventResponse(envelope.VoiceInteractiveEvent))));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_voiceInteractiveReceivedEvent, nameof(VoiceInteractiveReceivedEvent), new VoiceInteractiveEventEventData(new VoiceInteractiveEventResponse(envelope.VoiceInteractiveEvent))));
                         break;
                     default:
-                        ScheduleEvent(() => _logger.WarningAsync($"Unknown message type ({envelope.MessageCase})"));
+                        ScheduleEvent(lane, () => _logger.WarningAsync($"Unknown message type ({envelope.MessageCase})"));
                         break;
                 }
             }
             catch (Exception ex)
             {
-                ScheduleEvent(() => _logger.ErrorAsync($"Error handling message ({envelope.MessageCase}): {ex.Message}"));
+                ScheduleEvent(0, () => _logger.ErrorAsync($"Error handling message ({envelope.MessageCase}): {ex.Message}"));
             }
         }
     }

@@ -2,6 +2,10 @@ using System;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
+#if NET7_0_OR_GREATER
+using System.Net;
+#endif
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Channels;
@@ -12,20 +16,30 @@ using Mezon.Net.Transport.Internal;
 
 namespace Mezon.Net.Transport
 {
+    /// <remarks>
+    /// Same lifecycle invariants as <see cref="MezonNetworkTcpTransporter"/>: <see cref="Closed"/> is raised outside
+    /// the semaphore, loops receive their connection's socket and channel as arguments (never the mutable fields), and
+    /// both loops are joined before a connection is considered closed.
+    /// </remarks>
     public class MezonNetworkWebSocketTransporter : IMezonNetworkTransporter, IDisposable, IAsyncDisposable
     {
         private const string TokenHeaderKey = "token";
         private const string DefaultLanguage = "en";
         private const int WsReceiveBufferSize = 8192;
 
+        /// <summary>One WebSocket message carries either a realtime envelope or an API response chunk.</summary>
+        private const int MaxWsMessageLen = MezonTransportFrameCodec.MaxApiResponseLen + MezonWebSocketFrameCodec.ApiHeaderLength;
+
         private ConnectionState _state = ConnectionState.Disconnected;
         private ClientWebSocket? _wsClient;
-        private CancellationToken _externalCt, _internalCt;
+        private CancellationToken _externalCt = CancellationToken.None;
         private IDictionary<string, string>? _headers;
         private readonly ConcurrentDictionary<int, ArrayBufferWriter<byte>> _apiChunkBuffers = new ConcurrentDictionary<int, ArrayBufferWriter<byte>>();
-        private CancellationTokenSource? _disconnectCts, _internalCts;
+        private CancellationTokenSource? _connectionCts;
         private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1);
         private Channel<ReadOnlyMemory<byte>>? _sendChannel;
+        private Task? _receiveLoopTask;
+        private Task? _sendLoopTask;
         private bool _disposed;
         private int _connectionGeneration;
 
@@ -34,25 +48,21 @@ namespace Mezon.Net.Transport
         public Func<Exception?, Task>? Closed { get; set; }
         public Func<Exception, Task>? ErrorOccurred { get; set; }
 
-        public MezonNetworkWebSocketTransporter()
-        {
-            _disconnectCts = new CancellationTokenSource();
-            _externalCt = CancellationToken.None;
-            _internalCt = CancellationToken.None;
-        }
-
+        /// <summary>Token linked into every subsequent connection; cancelling it aborts a connect in progress.</summary>
         public void SetCancelToken(CancellationToken cancellationToken)
         {
-            _internalCts?.Dispose();
             _externalCt = cancellationToken;
-            _internalCts = CancellationTokenSource.CreateLinkedTokenSource(_externalCt, _disconnectCts?.Token ?? CancellationToken.None);
-            _internalCt = _internalCts.Token;
         }
 
         public void SetHeader(IDictionary<string, string> headers) => _headers = headers;
 
         public async Task ConnectAsync(string host, int? port = 443, string? token = null, bool? useSsl = false, bool? createStatus = false)
         {
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(nameof(MezonNetworkWebSocketTransporter));
+            }
+
             await _semaphore.WaitAsync().ConfigureAwait(false);
             try
             {
@@ -65,7 +75,8 @@ namespace Mezon.Net.Transport
                     await ErrorOccurred.Invoke(ex).ConfigureAwait(false);
                 }
 
-                await DisconnectInternalAsync(invokeClosed: false).ConfigureAwait(false);
+                await DisconnectInternalAsync().ConfigureAwait(false);
+                await WaitForBackgroundLoopsAsync().ConfigureAwait(false);
                 throw;
             }
             finally
@@ -77,21 +88,23 @@ namespace Mezon.Net.Transport
         private async Task ConnectInternalAsync(string host, int? port = 443, string? token = null, bool? useSsl = false, bool? createStatus = false)
         {
             await DisconnectInternalAsync().ConfigureAwait(false);
-            _disconnectCts?.Dispose();
-            _internalCts?.Dispose();
-
-            _disconnectCts = new CancellationTokenSource();
-            _internalCts = CancellationTokenSource.CreateLinkedTokenSource(_externalCt, _disconnectCts.Token);
-            _internalCt = _internalCts.Token;
+            await WaitForBackgroundLoopsAsync().ConfigureAwait(false);
+            _connectionCts?.Dispose();
+            _connectionCts = CancellationTokenSource.CreateLinkedTokenSource(_externalCt);
+            var cancellationToken = _connectionCts.Token;
 
             _state = ConnectionState.Connecting;
-            _wsClient = new ClientWebSocket
+            var wsClient = new ClientWebSocket
             {
                 Options =
                 {
                     KeepAliveInterval = TimeSpan.Zero,
                 }
             };
+#if NET7_0_OR_GREATER
+            wsClient.Options.CollectHttpResponseDetails = true;
+#endif
+            _wsClient = wsClient;
 
             if (_headers?.Count > 0)
             {
@@ -99,7 +112,7 @@ namespace Mezon.Net.Transport
                 {
                     if (header.Value != null)
                     {
-                        _wsClient.Options.SetRequestHeader(header.Key, header.Value);
+                        wsClient.Options.SetRequestHeader(header.Key, header.Value);
                     }
                 }
             }
@@ -121,22 +134,36 @@ namespace Mezon.Net.Transport
             }
 
             var uri = BuildUri(host, port ?? 443, createStatus ?? false, wsToken, useSsl.HasValue && useSsl.Value);
-            await _wsClient.ConnectAsync(uri, _internalCt).ConfigureAwait(false);
+#if NET7_0_OR_GREATER
+            try
+            {
+                await wsClient.ConnectAsync(uri, cancellationToken).ConfigureAwait(false);
+            }
+            catch (WebSocketException) when (wsClient.HttpStatusCode == HttpStatusCode.Unauthorized)
+            {
+                throw new NetworkTransportUnauthorizationException("Server rejected the session token (HTTP 401).");
+            }
+#else
+            await wsClient.ConnectAsync(uri, cancellationToken).ConfigureAwait(false);
+#endif
 
             if (Opened != null)
             {
                 await Opened.Invoke().ConfigureAwait(false);
             }
 
-            _sendChannel = Channel.CreateUnbounded<ReadOnlyMemory<byte>>(new UnboundedChannelOptions
+            var sendChannel = Channel.CreateUnbounded<ReadOnlyMemory<byte>>(new UnboundedChannelOptions
             {
                 SingleReader = true,
                 SingleWriter = false
             });
+            _sendChannel = sendChannel;
 
             var generation = Interlocked.Increment(ref _connectionGeneration);
-            _ = Task.Run(() => ReceiveLoopAsync(_internalCt, generation), _internalCt);
-            _ = Task.Run(() => SendLoopAsync(_internalCt), _internalCt);
+
+            // No token on Task.Run: a loop that never starts would never run its cleanup.
+            _receiveLoopTask = Task.Run(() => ReceiveLoopAsync(wsClient, generation, cancellationToken));
+            _sendLoopTask = Task.Run(() => SendLoopAsync(wsClient, sendChannel, cancellationToken));
 
             _state = ConnectionState.Connected;
         }
@@ -155,25 +182,21 @@ namespace Mezon.Net.Transport
             }.Uri;
         }
 
-        private async Task ReceiveLoopAsync(CancellationToken cancellationToken, int generation)
+        private async Task ReceiveLoopAsync(ClientWebSocket wsClient, int generation, CancellationToken cancellationToken)
         {
             byte[]? wsBuffer = null;
+            Exception? closeError = null;
             try
             {
-                if (_wsClient == null)
-                {
-                    return;
-                }
-
                 wsBuffer = ArrayPool<byte>.Shared.Rent(WsReceiveBufferSize);
                 var messageWriter = new ArrayBufferWriter<byte>(WsReceiveBufferSize);
-                while (_wsClient.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
+                while (wsClient.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
                 {
                     messageWriter.Clear();
                     WebSocketReceiveResult result;
                     do
                     {
-                        result = await _wsClient.ReceiveAsync(new ArraySegment<byte>(wsBuffer), cancellationToken).ConfigureAwait(false);
+                        result = await wsClient.ReceiveAsync(new ArraySegment<byte>(wsBuffer), cancellationToken).ConfigureAwait(false);
                         if (result.MessageType == WebSocketMessageType.Close)
                         {
                             break;
@@ -181,6 +204,12 @@ namespace Mezon.Net.Transport
 
                         if (result.Count > 0)
                         {
+                            if ((long)messageWriter.WrittenCount + result.Count > MaxWsMessageLen)
+                            {
+                                throw new InvalidDataException(
+                                    $"WebSocket message exceeds receive limit {MaxWsMessageLen}.");
+                            }
+
                             messageWriter.Write(wsBuffer.AsSpan(0, result.Count));
                         }
                     }
@@ -188,6 +217,9 @@ namespace Mezon.Net.Transport
 
                     if (result.MessageType == WebSocketMessageType.Close)
                     {
+                        closeError = new SocketClosedException(
+                            (int)(result.CloseStatus ?? WebSocketCloseStatus.Empty),
+                            string.IsNullOrEmpty(result.CloseStatusDescription) ? null : result.CloseStatusDescription);
                         break;
                     }
 
@@ -204,6 +236,12 @@ namespace Mezon.Net.Transport
                             await MessageReceived.Invoke(type, cid, code, payload).ConfigureAwait(false);
                         }
                     }
+
+                    // Don't keep a buffer sized for one exceptionally large message for the whole connection.
+                    if (messageWriter.Capacity > MezonTransportFrameCodec.MaxRealtimeFrameLen)
+                    {
+                        messageWriter = new ArrayBufferWriter<byte>(WsReceiveBufferSize);
+                    }
                 }
             }
             catch (OperationCanceledException)
@@ -211,6 +249,7 @@ namespace Mezon.Net.Transport
             }
             catch (Exception ex)
             {
+                closeError = ex;
                 if (ErrorOccurred != null)
                 {
                     await ErrorOccurred.Invoke(ex).ConfigureAwait(false);
@@ -223,26 +262,74 @@ namespace Mezon.Net.Transport
                     ArrayPool<byte>.Shared.Return(wsBuffer);
                 }
 
-                if (generation == _connectionGeneration && _state == ConnectionState.Connected)
+                if (generation == Volatile.Read(ref _connectionGeneration))
                 {
-                    await DisconnectAsync().ConfigureAwait(false);
+                    _ = Task.Run(() => TeardownAfterReceiveLoopAsync(generation, closeError));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Closes the connection after its receive loop ended on its own. A deliberate disconnect or a newer
+        /// connection (different generation) makes it a no-op, so an old loop can never close a new connection.
+        /// </summary>
+        private async Task TeardownAfterReceiveLoopAsync(int generation, Exception? closeError)
+        {
+            try
+            {
+                bool closed;
+                await _semaphore.WaitAsync().ConfigureAwait(false);
+                try
+                {
+                    if (generation != _connectionGeneration || _state != ConnectionState.Connected)
+                    {
+                        return;
+                    }
+
+                    closed = await DisconnectInternalAsync().ConfigureAwait(false);
+                    await WaitForBackgroundLoopsAsync().ConfigureAwait(false);
+                }
+                finally
+                {
+                    _semaphore.Release();
+                }
+
+                if (closed && Closed != null)
+                {
+                    await Closed.Invoke(closeError).ConfigureAwait(false);
+                }
+            }
+            catch (Exception ex)
+            {
+                if (ErrorOccurred != null)
+                {
+                    try
+                    {
+                        await ErrorOccurred.Invoke(ex).ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                    }
                 }
             }
         }
 
         public ValueTask SendAsync(MezonMessageType type, int cid, ReadOnlyMemory<byte> data)
         {
-            if (_wsClient?.State != WebSocketState.Open || _state != ConnectionState.Connected || _sendChannel == null)
+            // Read shared fields once: a concurrent disconnect clears them.
+            var wsClient = _wsClient;
+            var sendChannel = _sendChannel;
+            if (wsClient?.State != WebSocketState.Open || _state != ConnectionState.Connected || sendChannel == null)
             {
                 return new ValueTask(Task.FromException(new InvalidOperationException(
-                    $"Cannot send on WebSocket (wsState={_wsClient?.State}, transportState={_state}, sendChannel={_sendChannel != null}).")));
+                    $"Cannot send on WebSocket (wsState={wsClient?.State}, transportState={_state}, sendChannel={sendChannel != null}).")));
             }
 
             switch (type)
             {
                 case MezonMessageType.Api:
                 case MezonMessageType.Realtime:
-                    return MezonWebSocketFrameCodec.TryQueueRawFrame(_sendChannel.Writer, data)
+                    return MezonWebSocketFrameCodec.TryQueueRawFrame(sendChannel.Writer, data)
                         ? default
                         : new ValueTask(Task.FromException(new InvalidOperationException("Cannot queue message for sending.")));
                 case MezonMessageType.Heartbeat:
@@ -252,32 +339,22 @@ namespace Mezon.Net.Transport
             }
         }
 
-        private async Task SendLoopAsync(CancellationToken cancellationToken)
+        private async Task SendLoopAsync(ClientWebSocket wsClient, Channel<ReadOnlyMemory<byte>> sendChannel, CancellationToken cancellationToken)
         {
             try
             {
-                if (_wsClient == null || _sendChannel == null)
+                while (await sendChannel.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
                 {
-                    if (ErrorOccurred != null)
-                    {
-                        await ErrorOccurred.Invoke(new InvalidOperationException("Connection is not established.")).ConfigureAwait(false);
-                    }
-
-                    return;
-                }
-
-                while (await _sendChannel.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
-                {
-                    while (_sendChannel.Reader.TryRead(out var msgSend))
+                    while (sendChannel.Reader.TryRead(out var msgSend))
                     {
                         try
                         {
-                            if (_wsClient.State != WebSocketState.Open)
+                            if (wsClient.State != WebSocketState.Open)
                             {
                                 return;
                             }
 
-                            await _wsClient.SendAsync(msgSend, WebSocketMessageType.Binary, true, cancellationToken).ConfigureAwait(false);
+                            await wsClient.SendAsync(msgSend, WebSocketMessageType.Binary, true, cancellationToken).ConfigureAwait(false);
                         }
                         finally
                         {
@@ -296,75 +373,126 @@ namespace Mezon.Net.Transport
                     await ErrorOccurred.Invoke(ex).ConfigureAwait(false);
                 }
             }
+            finally
+            {
+                // Frames still queued will never be sent; return their pooled buffers. A send racing this sees the
+                // completed writer and returns its own buffer.
+                sendChannel.Writer.TryComplete();
+                while (sendChannel.Reader.TryRead(out var unsent))
+                {
+                    MezonWebSocketFrameCodec.ReturnPooledSendBuffer(unsent);
+                }
+            }
         }
 
         public async Task DisconnectAsync(int closeCode = 1000, string? reason = null)
         {
+            bool closed;
             await _semaphore.WaitAsync().ConfigureAwait(false);
             try
             {
-                await DisconnectInternalAsync(closeCode).ConfigureAwait(false);
+                closed = await DisconnectInternalAsync(closeCode, reason).ConfigureAwait(false);
+                await WaitForBackgroundLoopsAsync().ConfigureAwait(false);
             }
             finally
             {
                 _semaphore.Release();
             }
+
+            if (closed && Closed != null)
+            {
+                await Closed.Invoke(null).ConfigureAwait(false);
+            }
         }
 
-        private async Task DisconnectInternalAsync(int closeCode = 1000, string? reason = null, bool invokeClosed = true)
+        /// <summary>
+        /// Releases the current connection. Never raises <see cref="Closed"/> (callers do, after releasing the
+        /// semaphore) and always ends in <see cref="ConnectionState.Disconnected"/>. Returns false when there was
+        /// nothing to close.
+        /// </summary>
+        private async Task<bool> DisconnectInternalAsync(int closeCode = 1000, string? reason = null)
         {
             if (_state == ConnectionState.Disconnected || _state == ConnectionState.Disconnecting)
             {
-                return;
+                return false;
             }
 
             _state = ConnectionState.Disconnecting;
-            _sendChannel?.Writer.TryComplete();
-
-            if (_disconnectCts != null)
+            try
             {
-                try
-                {
-                    _disconnectCts.Cancel(false);
-                    _disconnectCts.Dispose();
-                    _disconnectCts = null;
-                }
-                catch
-                {
-                }
-            }
+                _sendChannel?.Writer.TryComplete();
+                TryCancel(_connectionCts);
 
-            _internalCts?.Cancel();
-
-            if (_wsClient != null)
-            {
-                try
+                var wsClient = _wsClient;
+                _wsClient = null;
+                if (wsClient != null)
                 {
-                    if (_wsClient.State == WebSocketState.Open)
+                    try
                     {
-                        await _wsClient.CloseOutputAsync((WebSocketCloseStatus)closeCode, reason ?? "Normal Closure.", CancellationToken.None).ConfigureAwait(false);
+                        if (wsClient.State == WebSocketState.Open)
+                        {
+                            await wsClient.CloseOutputAsync((WebSocketCloseStatus)closeCode, reason ?? "Normal Closure.", CancellationToken.None).ConfigureAwait(false);
+                        }
+                    }
+                    catch
+                    {
+                    }
+
+                    try
+                    {
+                        wsClient.Dispose();
+                    }
+                    catch
+                    {
                     }
                 }
-                catch
-                {
-                }
-
-                try
-                {
-                    _wsClient.Dispose();
-                }
-                catch
-                {
-                }
-
-                _wsClient = null;
+            }
+            finally
+            {
+                _sendChannel = null;
+                _apiChunkBuffers.Clear();
+                _state = ConnectionState.Disconnected;
             }
 
-            _apiChunkBuffers.Clear();
-            _state = ConnectionState.Disconnected;
-            if (invokeClosed && Closed != null)
+            return true;
+        }
+
+        private async Task WaitForBackgroundLoopsAsync()
+        {
+            var receive = _receiveLoopTask;
+            var send = _sendLoopTask;
+            _receiveLoopTask = null;
+            _sendLoopTask = null;
+
+            try
             {
-                await Closed.Invoke(null).ConfigureAwait(false);
+                if (receive != null)
+                {
+                    await receive.ConfigureAwait(false);
+                }
+
+                if (send != null)
+                {
+                    await send.ConfigureAwait(false);
+                }
+            }
+            catch (Exception)
+            {
+                // Loop faults are reported via ErrorOccurred; cleanup must not throw.
+            }
+
+            // The receive loop may have added partial API chunks after the disconnect cleared them.
+            _apiChunkBuffers.Clear();
+        }
+
+        private static void TryCancel(CancellationTokenSource? cancellationTokenSource)
+        {
+            try
+            {
+                cancellationTokenSource?.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
             }
         }
 
@@ -379,8 +507,13 @@ namespace Mezon.Net.Transport
 
         public async ValueTask DisposeAsync()
         {
-            await DisconnectInternalAsync().ConfigureAwait(false);
-            Dispose(false);
+            if (_disposed)
+            {
+                return;
+            }
+
+            await DisconnectAsync().ConfigureAwait(false);
+            Dispose(true);
             GC.SuppressFinalize(this);
         }
 
@@ -391,16 +524,20 @@ namespace Mezon.Net.Transport
                 return;
             }
 
+            _disposed = true;
             if (disposing)
             {
-                _semaphore.Dispose();
-                _disconnectCts?.Dispose();
-                _internalCts?.Dispose();
+                // The semaphore is intentionally not disposed: a detached teardown may still be waiting on it, and it
+                // holds no unmanaged resources unless AvailableWaitHandle is used.
+                _sendChannel?.Writer.TryComplete();
+                TryCancel(_connectionCts);
                 _wsClient?.Dispose();
+                _wsClient = null;
+                _connectionCts?.Dispose();
+                _connectionCts = null;
                 _apiChunkBuffers.Clear();
+                _state = ConnectionState.Disconnected;
             }
-
-            _disposed = true;
         }
     }
 }

@@ -260,5 +260,7 @@ namespace Mezon.Net.Abstractions
         Task SessionLogoutAsync(SessionLogoutRequest body, RequestOptions? options = null);
         Task<UploadAttachmentBatch> UploadBatchAttachmentFileAsync(UploadBatchAttachmentRequest body, RequestOptions? options = null);
         Task<SearchCtrlKResponse> SearchCtrlKAsync(SearchCtrlKRequest body, RequestOptions? options = null);
+        Task<SearchMentionUsersResponse> SearchMentionUsersAsync(SearchMentionUsersRequest body, RequestOptions? options = null);
+        Task<GenerateCDNSignatureResponse> GenerateCDNSignatureAsync(GenerateCDNSignatureRequest body, RequestOptions? options = null);
     }
 }

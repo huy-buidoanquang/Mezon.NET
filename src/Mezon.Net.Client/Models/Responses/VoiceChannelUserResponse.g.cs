@@ -14,5 +14,6 @@ namespace Mezon.Net.Models
         public long ChannelId => _proto.ChannelId;
         public string RoomName => _proto.RoomName;
         public ProtoListView<string> ShareScreenIds => ProtoListView<string>.FromRepeated(_proto.ShareScreenIds);
+        public ProtoListView<int> PeerIds => ProtoListView<int>.FromRepeated(_proto.PeerIds);
     }
 }

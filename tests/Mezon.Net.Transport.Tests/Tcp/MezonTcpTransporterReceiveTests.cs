@@ -86,7 +86,7 @@ public class MezonTcpTransporterReceiveTests
         server.ClientHandler = async (stream, ct) =>
         {
             await MezonTransportFrameBuilder.ReadHandshakeAsync(stream, ct).ConfigureAwait(false);
-            await stream.WriteAsync(MezonTransportFrameBuilder.BuildAbridgedFrame([0x0A, 0x0B, 0x0C]), ct).ConfigureAwait(false);
+            await stream.WriteAsync(MezonTransportFrameBuilder.BuildAbridgedFrame([0x0A, 0x01, 0x41]), ct).ConfigureAwait(false);
             await stream.FlushAsync(ct).ConfigureAwait(false);
             await Task.Delay(Timeout.Infinite, ct).ConfigureAwait(false);
         };
@@ -106,7 +106,55 @@ public class MezonTcpTransporterReceiveTests
         await transporter.ConnectAsync("127.0.0.1", server.Port, "test-token", useSsl: false).ConfigureAwait(false);
         var payload = await received.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 
-        Assert.Equal([0x0A, 0x0B, 0x0C], payload);
+        Assert.Equal([0x0A, 0x01, 0x41], payload);
+        await transporter.DisconnectAsync().ConfigureAwait(false);
+    }
+
+    [Fact]
+    public async Task Receive_LargeAbridgedFrame_IsDeliveredWithoutDisconnect()
+    {
+        await using var server = new TcpLoopbackServer();
+        var received = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var closed = false;
+
+        // field 1, length 199996 → 200000-byte protobuf payload.
+        var payload = new byte[200_000];
+        payload[0] = 0x0A;
+        payload[1] = 0xBC;
+        payload[2] = 0x9A;
+        payload[3] = 0x0C;
+        payload.AsSpan(4).Fill(0x41);
+
+        server.ClientHandler = async (stream, ct) =>
+        {
+            await MezonTransportFrameBuilder.ReadHandshakeAsync(stream, ct).ConfigureAwait(false);
+            await stream.WriteAsync(MezonTransportFrameBuilder.BuildAbridgedFrame(payload), ct).ConfigureAwait(false);
+            await stream.FlushAsync(ct).ConfigureAwait(false);
+            await Task.Delay(Timeout.Infinite, ct).ConfigureAwait(false);
+        };
+        server.Start();
+
+        var transporter = new MezonNetworkTcpTransporter();
+        transporter.Closed = _ =>
+        {
+            closed = true;
+            return Task.CompletedTask;
+        };
+        transporter.MessageReceived = (type, _, _, data) =>
+        {
+            if (type == MezonMessageType.Realtime)
+            {
+                received.TrySetResult(data.ToArray());
+            }
+
+            return default;
+        };
+
+        await transporter.ConnectAsync("127.0.0.1", server.Port, "test-token", useSsl: false).ConfigureAwait(false);
+        var result = await received.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+
+        Assert.Equal(payload, result);
+        Assert.False(closed);
         await transporter.DisconnectAsync().ConfigureAwait(false);
     }
 

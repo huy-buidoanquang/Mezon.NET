@@ -25,6 +25,9 @@ internal sealed class LoopbackNetworkTransporter : IMezonNetworkTransporter
 
     public int ConnectCount => _connectCount;
 
+    /// <summary>Optional reply body for API requests; null falls back to an empty ChannelDescription.</summary>
+    public Func<ApiRequestEvent, byte[]?>? ApiResponder { get; set; }
+
     public Func<MezonMessageType, int, int, ReadOnlyMemory<byte>, ValueTask>? MessageReceived { get; set; }
     public Func<Task>? Opened { get; set; }
     public Func<Exception?, Task>? Closed { get; set; }
@@ -86,7 +89,8 @@ internal sealed class LoopbackNetworkTransporter : IMezonNetworkTransporter
                 var envelope = Envelope.Parser.ParseFrom(data.Span);
                 if (envelope.MessageCase == Envelope.MessageOneofCase.ApiRequestEvent && envelope.Cid > 0)
                 {
-                    var body = new global::Mezon.Net.Internal.Api.ChannelDescription { ChannelId = 1, ClanId = 1 }.ToByteArray();
+                    var body = ApiResponder?.Invoke(envelope.ApiRequestEvent)
+                        ?? new global::Mezon.Net.Internal.Api.ChannelDescription { ChannelId = 1, ClanId = 1 }.ToByteArray();
                     _inbound.Writer.TryWrite((MezonMessageType.Api, envelope.Cid, 0, body));
                 }
             }
@@ -101,6 +105,11 @@ internal sealed class LoopbackNetworkTransporter : IMezonNetworkTransporter
     public void InjectRealtime(Envelope envelope)
     {
         _inbound.Writer.TryWrite((MezonMessageType.Realtime, 0, 0, envelope.ToByteArray()));
+    }
+
+    public void InjectRawRealtime(byte[] payload)
+    {
+        _inbound.Writer.TryWrite((MezonMessageType.Realtime, 0, 0, payload));
     }
 
     public void Dispose()

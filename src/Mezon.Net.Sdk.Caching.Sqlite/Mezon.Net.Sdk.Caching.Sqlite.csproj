@@ -7,7 +7,6 @@
     <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
     <Nullable>enable</Nullable>
     <WarningsAsErrors>$(WarningsAsErrors);CS8600;CS8602;CS8603</WarningsAsErrors>
-    <NoWarn>$(NoWarn);NU1903</NoWarn>
     <PackageId>Mezon.Net.Sdk.Caching.Sqlite</PackageId>
     <Description>Optional SQLite-backed persistent message cache for Mezon.Net SDK applications.</Description>
     <IsPackable>true</IsPackable>
@@ -15,6 +14,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="$(MezonSqliteVersion)" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="$(MezonSqlitePclRawVersion)" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">

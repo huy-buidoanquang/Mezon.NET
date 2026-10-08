@@ -28,9 +28,11 @@ namespace Mezon.Net.Sdk
         internal readonly Logger _logger;
 
         private readonly SemaphoreSlim _initializeGate = new SemaphoreSlim(1, 1);
+        private readonly CancellationTokenSource _lifetimeCts = new CancellationTokenSource();
         private TaskCompletionSource<bool>? _firstConnectTcs;
         private CancellationToken _connectCancellationToken;
         private bool _readyInvoked;
+        private int _disposed;
 
         public MezonClient(MezonClientOptions options)
         {
@@ -44,6 +46,9 @@ namespace Mezon.Net.Sdk
             Roles = new EntityCache<Role>(options.CacheCapacity);
             Users = new EntityCache<Entities.User>(options.CacheCapacity);
             ApiClient.RequestQueue.SetRateLimitBypassMessage(SendRateLimitBypassMessageAsync);
+
+            // Subscribe the cache before any user handler so handlers of an event see the cache already updated by it.
+            BindCacheListeners();
         }
 
         public MezonClientOptions Options { get; }
@@ -148,10 +153,17 @@ namespace Mezon.Net.Sdk
 
         private async Task EngineConnectedHandlerAsync()
         {
-            await _initializeGate.WaitAsync(_connectCancellationToken).ConfigureAwait(false);
+            // The LoginAsync token only bounds the first connect. Reconnects must not inherit it: once it is cancelled
+            // (e.g. a login timeout) every later initialization would fail and clans would never be re-joined.
+            var firstConnect = _firstConnectTcs;
+            var cancellationToken = firstConnect is { Task.IsCompleted: false } && !_connectCancellationToken.IsCancellationRequested
+                ? _connectCancellationToken
+                : _lifetimeCts.Token;
+
+            await _initializeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                await InitializeAfterConnectedAsync(_connectCancellationToken).ConfigureAwait(false);
+                await InitializeAfterConnectedAsync(cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -196,8 +208,15 @@ namespace Mezon.Net.Sdk
                 await _logger.WarningAsync("Clan cache seed failed; continuing. Invite the bot to a clan and restart if commands never arrive.", ex).ConfigureAwait(false);
             }
 
-            BindCacheListeners();
-            await InitializeMmnAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await InitializeMmnAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                // MMN is optional: an unreachable MMN or ZK service must not block login or Ready.
+                await _logger.WarningAsync("MMN initialization failed; transfers are unavailable until the next connect.", ex).ConfigureAwait(false);
+            }
         }
 
         private async Task SeedClanCacheAsync(CancellationToken cancellationToken)
@@ -333,6 +352,7 @@ namespace Mezon.Net.Sdk
         public Task<VoiceChannelUserListResponse> ListChannelVoiceUsersAsync(long clanId, long channelId, int channelType, RequestOptions? options = null)
             => _engine.ListChannelVoiceUsersAsync(clanId, channelId, channelType, options);
 
+        [Obsolete("mezon-api no longer handles StreamingServerCallback (api index 136 is a placeholder); the request is ignored. This method will be removed in a future major version.")]
         public Task<StreamHttpCallbackResponse> StreamingServerCallbackAsync(StreamHttpCallbackParams body, RequestOptions? options = null)
             => _engine.StreamingServerCallbackAsync(body, options);
 
@@ -404,35 +424,6 @@ namespace Mezon.Net.Sdk
         public ValueTask<Channel> GetChannelAsync(long channelId, CancellationToken cancellationToken = default)
             => Channels.GetOrFetchAsync(channelId, FetchChannelAsync, cancellationToken);
 
-        /// <summary>
-        ///     Returns a cached channel or inserts a lightweight stub without calling the socket API.
-        ///     Used by interaction/command hot paths when the channel is not yet warmed in cache.
-        /// </summary>
-        internal Channel GetOrCreateChannelStub(long channelId, long clanId = 0)
-        {
-            if (Channels.TryGet(channelId, out var existing))
-            {
-                return existing;
-            }
-
-            if (!Clans.TryGet(clanId, out var clan))
-            {
-                clan = new Clan(this, new global::Mezon.Net.Internal.Api.ClanDesc { ClanId = clanId });
-                Clans.Set(clanId, clan);
-            }
-
-            var channel = new Channel(
-                this,
-                new global::Mezon.Net.Internal.Api.ChannelDescription
-                {
-                    ChannelId = channelId,
-                    ClanId = clanId,
-                },
-                clan);
-            Channels.Set(channelId, channel);
-            return channel;
-        }
-
         public ValueTask<Entities.User> GetUserAsync(long userId, CancellationToken cancellationToken = default)
             => Users.GetOrFetchAsync(userId, FetchUserAsync, cancellationToken);
 
@@ -454,7 +445,11 @@ namespace Mezon.Net.Sdk
         private async ValueTask<Channel> FetchChannelAsync(long channelId, CancellationToken cancellationToken)
         {
             var detail = await _engine.GetChannelDetailAsync(channelId).ConfigureAwait(false);
-            var clan = await GetClanAsync(detail.ClanId, cancellationToken).ConfigureAwait(false);
+
+            // DM and group channels have no clan; clan 0 is never in ListClanDescs, so fetching it would throw.
+            var clan = detail.ClanId == 0
+                ? (Clans.TryGet(0, out var dmClan) ? dmClan : new Clan(this, new global::Mezon.Net.Internal.Api.ClanDesc()))
+                : await GetClanAsync(detail.ClanId, cancellationToken).ConfigureAwait(false);
             return new Channel(this, detail.Proto, clan);
         }
 
@@ -539,6 +534,12 @@ namespace Mezon.Net.Sdk
 
         public async ValueTask DisposeAsync()
         {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0)
+            {
+                return;
+            }
+
+            _lifetimeCts.Cancel();
             if (_agentManager is not null)
             {
                 await _agentManager.DisposeAsync().ConfigureAwait(false);
@@ -546,10 +547,8 @@ namespace Mezon.Net.Sdk
             DisposeMmn();
             try
             {
-                if (_engine.ConnectionState != ConnectionState.Disconnected)
-                {
-                    await _engine.DisconnectAsync().ConfigureAwait(false);
-                }
+                // Always stop the engine: during a reconnect backoff its state is already Disconnected.
+                await _engine.DisconnectAsync().ConfigureAwait(false);
             }
             catch
             {
@@ -558,6 +557,7 @@ namespace Mezon.Net.Sdk
 
             await _engine.DisposeAsync().ConfigureAwait(false);
             _initializeGate.Dispose();
+            _lifetimeCts.Dispose();
             Clans.Clear();
             Channels.Clear();
             Users.Clear();

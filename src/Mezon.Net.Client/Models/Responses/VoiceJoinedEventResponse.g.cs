@@ -18,5 +18,6 @@ namespace Mezon.Net.Models
         public string VoiceChannelLabel => _proto.VoiceChannelLabel;
         public long VoiceChannelId => _proto.VoiceChannelId;
         public string LastScreenshot => _proto.LastScreenshot;
+        public int PeerId => _proto.PeerId;
     }
 }

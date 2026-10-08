@@ -108,7 +108,12 @@ namespace Mezon.Net.Sdk.Caching
         /// <summary>
         ///     Returns a cached entity or runs <paramref name="factory"/> once per id (single-flight).
         /// </summary>
-        public async ValueTask<T> GetOrFetchAsync(
+        /// <remarks>
+        ///     The shared fetch is not tied to any caller: <paramref name="cancellationToken"/> only stops this
+        ///     caller's wait, and the factory receives <see cref="CancellationToken.None"/> so one cancelled caller
+        ///     cannot fail the others waiting for the same id.
+        /// </remarks>
+        public ValueTask<T> GetOrFetchAsync(
             long id,
             Func<long, CancellationToken, ValueTask<T>> factory,
             CancellationToken cancellationToken = default)
@@ -116,41 +121,79 @@ namespace Mezon.Net.Sdk.Caching
             var cached = Get(id);
             if (cached != null)
             {
-                return cached;
+                return new ValueTask<T>(cached);
             }
 
-            var lazy = _inflight.GetOrAdd(
-                id,
-                key => new Lazy<Task<T>>(
-                    () => FetchAndCacheAsync(key, factory, cancellationToken),
-                    LazyThreadSafetyMode.ExecutionAndPublication));
+            return new ValueTask<T>(GetOrFetchSlowAsync(id, factory, cancellationToken));
+        }
 
-            try
-            {
-                return await lazy.Value.ConfigureAwait(false);
-            }
-            finally
-            {
-                _inflight.TryRemove(id, out _);
-            }
+        private Task<T> GetOrFetchSlowAsync(
+            long id,
+            Func<long, CancellationToken, ValueTask<T>> factory,
+            CancellationToken cancellationToken)
+        {
+            Lazy<Task<T>>? created = null;
+            created = new Lazy<Task<T>>(
+                () => FetchAndCacheAsync(id, factory, created!),
+                LazyThreadSafetyMode.ExecutionAndPublication);
+            var fetch = _inflight.GetOrAdd(id, created).Value;
+            return WaitAsync(fetch, cancellationToken);
         }
 
         private async Task<T> FetchAndCacheAsync(
             long id,
             Func<long, CancellationToken, ValueTask<T>> factory,
-            CancellationToken cancellationToken)
+            Lazy<Task<T>> self)
         {
-            var existing = Get(id);
-            if (existing != null)
+            try
             {
-                return existing;
+                var existing = Get(id);
+                if (existing != null)
+                {
+                    return existing;
+                }
+
+                var entity = await factory(id, CancellationToken.None).ConfigureAwait(false)
+                    ?? throw new InvalidOperationException($"Entity factory for id {id} returned null.");
+                Set(id, entity);
+                return entity;
+            }
+            finally
+            {
+                // Remove only this fetch: a newer fetch for the same id may already be registered.
+                ((ICollection<KeyValuePair<long, Lazy<Task<T>>>>)_inflight).Remove(new KeyValuePair<long, Lazy<Task<T>>>(id, self));
+            }
+        }
+
+        private static Task<T> WaitAsync(Task<T> task, CancellationToken cancellationToken)
+        {
+            if (!cancellationToken.CanBeCanceled || task.IsCompleted)
+            {
+                return task;
             }
 
-            var entity = await factory(id, cancellationToken).ConfigureAwait(false)
-                ?? throw new InvalidOperationException($"Entity factory for id {id} returned null.");
-            Set(id, entity);
-            return entity;
+#if NET6_0_OR_GREATER
+            return task.WaitAsync(cancellationToken);
+#else
+            return WaitWithCancellationAsync(task, cancellationToken);
+#endif
         }
+
+#if !NET6_0_OR_GREATER
+        private static async Task<T> WaitWithCancellationAsync(Task<T> task, CancellationToken cancellationToken)
+        {
+            var cancelled = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            using (cancellationToken.Register(static state => ((TaskCompletionSource<bool>)state!).TrySetResult(true), cancelled))
+            {
+                if (await Task.WhenAny(task, cancelled.Task).ConfigureAwait(false) != task)
+                {
+                    throw new OperationCanceledException(cancellationToken);
+                }
+            }
+
+            return await task.ConfigureAwait(false);
+        }
+#endif
 
         private void Touch(LinkedListNode<CacheEntry> node)
         {

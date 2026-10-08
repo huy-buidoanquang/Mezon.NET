@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
@@ -14,8 +15,12 @@ namespace Mezon.Net.Sdk.Caching.Sqlite.Internal
         private readonly CancellationTokenSource _cts = new CancellationTokenSource();
         private readonly Task _loop;
         private readonly TaskCompletionSource<bool> _started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        private const int MaxBatchSize = 256;
         private int _disposed;
         private int _pendingCount;
+
+        /// <summary>Failure of a batch not yet reported to a flush; used only by the pump loop.</summary>
+        private Exception? _unreportedFailure;
 
         internal BatchWritePump(SqliteConnection connection)
         {
@@ -70,71 +75,99 @@ namespace Mezon.Net.Sdk.Caching.Sqlite.Internal
                 while (!token.IsCancellationRequested)
                 {
                     await _signal.WaitAsync(token).ConfigureAwait(false);
-                    await DrainQueueAsync().ConfigureAwait(false);
+                    DrainBatch();
                 }
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
             }
+            finally
+            {
+                // Anything still queued will not be written; release flush waiters instead of leaving them hanging.
+                while (_queue.TryDequeue(out var operation))
+                {
+                    if (operation is FlushOperation flush)
+                    {
+                        flush.Completion.TrySetCanceled();
+                    }
+                    else
+                    {
+                        Interlocked.Decrement(ref _pendingCount);
+                    }
+                }
+            }
         }
 
-        private async Task DrainQueueAsync()
+        /// <summary>
+        /// Writes up to <see cref="MaxBatchSize"/> queued operations in one transaction. A failed batch is rolled back
+        /// and reported to the next flush; the pump keeps running.
+        /// </summary>
+        private void DrainBatch()
         {
-            if (!_queue.TryDequeue(out var first))
-            {
-                return;
-            }
-
-            var batch = new System.Collections.Generic.List<IWriteOperation>(capacity: 32) { first };
-            while (_queue.TryDequeue(out var next))
+            var batch = new List<IWriteOperation>(capacity: 32);
+            while (batch.Count < MaxBatchSize && _queue.TryDequeue(out var next))
             {
                 batch.Add(next);
             }
 
-            var flushTargets = new System.Collections.Generic.List<TaskCompletionSource<bool>>(capacity: 1);
-            using var transaction = _connection.BeginTransaction();
+            if (batch.Count == 0)
+            {
+                return;
+            }
+
+            var writes = 0;
+            foreach (var operation in batch)
+            {
+                if (operation is not FlushOperation)
+                {
+                    writes++;
+                }
+            }
+
             try
             {
+                // Disposing an uncommitted transaction rolls it back.
+                using var transaction = _connection.BeginTransaction();
                 foreach (var operation in batch)
                 {
-                    if (operation is FlushOperation flush)
+                    if (operation is not FlushOperation)
                     {
-                        flushTargets.Add(flush.Completion);
-                        continue;
+                        operation.Execute(_connection, transaction);
                     }
-
-                    operation.Execute(_connection, transaction);
-                    Interlocked.Decrement(ref _pendingCount);
                 }
 
                 transaction.Commit();
             }
-            catch
+            catch (Exception ex)
             {
-                try
-                {
-                    transaction.Rollback();
-                }
-                catch
-                {
-                }
-
-                foreach (var operation in batch)
-                {
-                    if (operation is FlushOperation)
-                    {
-                        continue;
-                    }
-
-                    Interlocked.Decrement(ref _pendingCount);
-                }
-
-                throw;
+                _unreportedFailure = ex;
+            }
+            finally
+            {
+                // Each write leaves the pending count exactly once, whether it was committed or rolled back.
+                Interlocked.Add(ref _pendingCount, -writes);
             }
 
-            foreach (var flush in flushTargets)
+            foreach (var operation in batch)
             {
-                flush.TrySetResult(true);
+                if (operation is not FlushOperation flush)
+                {
+                    continue;
+                }
+
+                if (_unreportedFailure is { } failure)
+                {
+                    flush.Completion.TrySetException(failure);
+                }
+                else
+                {
+                    flush.Completion.TrySetResult(true);
+                }
+            }
+
+            if (batch.Exists(static operation => operation is FlushOperation))
+            {
+                _unreportedFailure = null;
             }
         }
 

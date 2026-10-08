@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
+using System.Threading;
 
 namespace Mezon.Net.Client
 {
@@ -60,15 +61,16 @@ namespace Mezon.Net.Client
         {
             get
             {
-                if (_snapshot is not null)
+                var snapshot = Volatile.Read(ref _snapshot);
+                if (snapshot is not null)
                 {
-                    return _snapshot.Value.Text;
+                    return snapshot.Text;
                 }
 
-                if (!_fastTextResolved)
+                if (!Volatile.Read(ref _fastTextResolved))
                 {
                     _fastText = MessageContentCodec.TryReadTextProperty(_rawJson);
-                    _fastTextResolved = true;
+                    Volatile.Write(ref _fastTextResolved, true);
                 }
 
                 return _fastText;
@@ -153,7 +155,21 @@ namespace Mezon.Net.Client
         /// </summary>
         public IReadOnlyDictionary<string, JsonElement>? UnknownExtensions => Snapshot.Unknown;
 
-        private MessageContentSnapshot Snapshot => _snapshot ??= MessageContentCodec.ParseSnapshot(_rawJson);
+        /// <summary>Parsed once; concurrent first readers may both parse, but all observe the same published instance.</summary>
+        private MessageContentSnapshot Snapshot
+        {
+            get
+            {
+                var snapshot = Volatile.Read(ref _snapshot);
+                if (snapshot is not null)
+                {
+                    return snapshot;
+                }
+
+                snapshot = MessageContentCodec.ParseSnapshot(_rawJson);
+                return Interlocked.CompareExchange(ref _snapshot, snapshot, null) ?? snapshot;
+            }
+        }
 
         /// <summary>Creates content whose JSON is exactly <c>{"t":text}</c>.</summary>
         public static MessageContent CreateText(string text)
@@ -215,7 +231,7 @@ namespace Mezon.Net.Client
         {
             if (_serializeFromSnapshot && _snapshot is not null)
             {
-                return MessageContentCodec.Serialize(_snapshot.Value);
+                return MessageContentCodec.Serialize(_snapshot);
             }
 
             return _rawJson;

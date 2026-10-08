@@ -28,12 +28,12 @@
   </ItemGroup>
 
   <PropertyGroup>
-    <Protobuf_ProtocFullPath Condition="'$(Protobuf_ProtocFullPath)' == '' and '$(PkgGrpc_Tools)' != ''">$(PkgGrpc_Tools)\tools\windows_x64\protoc.exe</Protobuf_ProtocFullPath>
-    <Protobuf_GrpcFullPath Condition="'$(Protobuf_GrpcFullPath)' == '' and '$(PkgGrpc_Tools)' != ''">$(PkgGrpc_Tools)\tools\windows_x64\grpc_csharp_plugin.exe</Protobuf_GrpcFullPath>
-    <Protobuf_ProtocFullPath Condition="'$(Protobuf_ProtocFullPath)' == '' and Exists('$(NuGetPackageRoot)grpc.tools\2.76.0\tools\windows_x64\protoc.exe')">$(NuGetPackageRoot)grpc.tools\2.76.0\tools\windows_x64\protoc.exe</Protobuf_ProtocFullPath>
-    <Protobuf_GrpcFullPath Condition="'$(Protobuf_GrpcFullPath)' == '' and Exists('$(NuGetPackageRoot)grpc.tools\2.76.0\tools\windows_x64\grpc_csharp_plugin.exe')">$(NuGetPackageRoot)grpc.tools\2.76.0\tools\windows_x64\grpc_csharp_plugin.exe</Protobuf_GrpcFullPath>
-    <Protobuf_ProtocFullPath Condition="'$(Protobuf_ProtocFullPath)' == '' and '$(USERPROFILE)' != '' and Exists('$(USERPROFILE)\.nuget\packages\grpc.tools\2.76.0\tools\windows_x64\protoc.exe')">$(USERPROFILE)\.nuget\packages\grpc.tools\2.76.0\tools\windows_x64\protoc.exe</Protobuf_ProtocFullPath>
-    <Protobuf_GrpcFullPath Condition="'$(Protobuf_GrpcFullPath)' == '' and '$(USERPROFILE)' != '' and Exists('$(USERPROFILE)\.nuget\packages\grpc.tools\2.76.0\tools\windows_x64\grpc_csharp_plugin.exe')">$(USERPROFILE)\.nuget\packages\grpc.tools\2.76.0\tools\windows_x64\grpc_csharp_plugin.exe</Protobuf_GrpcFullPath>
+    <!--
+      Grpc.Tools ships one protoc per OS/CPU; Directory.Build.props picks the folder name. Paths are used only when
+      they exist, otherwise Grpc.Tools resolves protoc itself (e.g. a custom NUGET_PACKAGES on Linux).
+    -->
+    <Protobuf_ProtocFullPath Condition="'$(Protobuf_ProtocFullPath)' == '' and '$(PkgGrpc_Tools)' != '' and '$(_GrpcToolsOs)' != '' and Exists('$(PkgGrpc_Tools)/tools/$(_GrpcToolsOs)/protoc$(_GrpcToolsExeExt)')">$(PkgGrpc_Tools)/tools/$(_GrpcToolsOs)/protoc$(_GrpcToolsExeExt)</Protobuf_ProtocFullPath>
+    <Protobuf_GrpcFullPath Condition="'$(Protobuf_GrpcFullPath)' == '' and '$(PkgGrpc_Tools)' != '' and '$(_GrpcToolsOs)' != '' and Exists('$(PkgGrpc_Tools)/tools/$(_GrpcToolsOs)/grpc_csharp_plugin$(_GrpcToolsExeExt)')">$(PkgGrpc_Tools)/tools/$(_GrpcToolsOs)/grpc_csharp_plugin$(_GrpcToolsExeExt)</Protobuf_GrpcFullPath>
     <_UserNuGetPackages Condition="'$(USERPROFILE)' != ''">$(USERPROFILE)\.nuget\packages\</_UserNuGetPackages>
     <Protobuf_ImportPaths>Protobuf\;$(_UserNuGetPackages)google.api.commonprotos\2.17.0\content\protos;$(_UserNuGetPackages)grpc.tools\2.76.0\build\native\include</Protobuf_ImportPaths>
   </PropertyGroup>

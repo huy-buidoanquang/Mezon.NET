@@ -21,13 +21,11 @@ package mezon.api;
 
 import "google/protobuf/wrappers.proto";
 
+option csharp_namespace = "Mezon.Net.Internal.Api";
 option go_package = "github.com/mezonai/mezon-protocol/v2/api";
-
 option java_multiple_files = true;
 option java_outer_classname = "MezonApi";
 option java_package = "com.mezon.mezon.api";
-
-option csharp_namespace = "Mezon.Net.Internal.Api";
 
 // A user with additional account details. Always the current user.
 message Account {
@@ -464,6 +462,8 @@ message VoiceChannelUser {
   string room_name = 3;
   // share screen user
   repeated string share_screen_ids = 4;
+  // peer id
+  repeated int32 peer_ids = 5;
 }
 
 // A list of users belonging to a channel, along with their role.
@@ -1956,6 +1956,10 @@ message UploadAttachmentRequest {
   int32 height = 5;
   // part count
   int32 part_count = 6;
+  // channel id
+  int64 channel_id = 7;
+  // need to transcode
+  bool transcode_hls = 8;
 }
 
 message ListMessageMentionRequest {
@@ -1972,6 +1976,8 @@ message UploadAttachment {
   string filename = 1;
   // The url
   string url = 2;
+  // CDN type
+  int32 type_cdn = 3;
 }
 
 message MultipartUploadAttachment {
@@ -1981,6 +1987,8 @@ message MultipartUploadAttachment {
   repeated string urls = 2;
   // the upload id
   string upload_id = 3;
+  // CDN type
+  int32 type_cdn = 4;
 }
 
 message MultipartUploadAttachmentPart {
@@ -3247,16 +3255,18 @@ message DeleteSdTopicRequest {
 message GenerateMeetTokenRequest {
   int64 channel_id = 1;
   string room_name = 2;
+  string metadata = 3;
 }
 
 message MeetParticipantRequest {
-  int64 user_id = 1;
-  int64 channel_id = 2;
-  int64 clan_id = 3;
+    int64 user_id = 1;
+    int64 channel_id = 2;
+    int64 clan_id = 3;
 }
 
 message GenerateMeetTokenResponse {
   string token = 1;
+  string url = 2;
 }
 
 message GenerateMezonMeetResponse {
@@ -3821,6 +3831,33 @@ message SearchCtrlKRequest {
 message SearchCtrlKResponse {
   repeated User users = 1;
   repeated ChannelDescription channels = 2;
+}
+
+message SearchMentionUsersRequest {
+  int64 clan_id = 1;
+  int64 channel_id = 2;
+  string text = 3;
+}
+
+message MentionUser {
+  int64 id = 1;
+  string username = 2;
+  string display_name = 3;
+  string avatar_url = 4;
+  string clan_nick = 5;
+  string clan_avatar = 6;
+}
+
+message SearchMentionUsersResponse {
+  repeated MentionUser users = 1;
+}
+
+message GenerateCDNSignatureRequest {
+    int64 channel_id = 1;
+}
+
+message GenerateCDNSignatureResponse {
+    string signature = 1;
 }
 
 message NoParams {}

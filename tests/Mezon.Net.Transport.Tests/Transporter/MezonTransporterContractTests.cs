@@ -5,6 +5,7 @@ using Google.Protobuf;
 using Mezon.Net.Core;
 using Mezon.Net.Core.Abstractions;
 using Mezon.Net.Internal.Realtime;
+using Mezon.Net.Transport.Internal;
 using Mezon.Net.Transport.Tests.Helpers;
 
 namespace Mezon.Net.Transport.Tests.Transporter;
@@ -191,11 +192,11 @@ public class MezonTransporterContractTests
 
             if (kind == TransporterKind.Tcp)
             {
-                await WriteToClientAsync(kind, client, MezonTransportFrameBuilder.BuildAbridgedFrame([0x0A, 0x0B, 0x0C]), ct).ConfigureAwait(false);
+                await WriteToClientAsync(kind, client, MezonTransportFrameBuilder.BuildAbridgedFrame([0x0A, 0x01, 0x41]), ct).ConfigureAwait(false);
             }
             else
             {
-                await WriteToClientAsync(kind, client, [0x0A, 0x0B, 0x0C], ct).ConfigureAwait(false);
+                await WriteToClientAsync(kind, client, [0x0A, 0x01, 0x41], ct).ConfigureAwait(false);
             }
             await Task.Delay(Timeout.Infinite, ct).ConfigureAwait(false);
         }).ConfigureAwait(false);
@@ -206,7 +207,7 @@ public class MezonTransporterContractTests
         await ConnectAsync(transporter, session.Port, "token-abridged").ConfigureAwait(false);
 
         var message = await events.WaitForMessageAsync(m => m.type == MezonMessageType.Realtime).ConfigureAwait(false);
-        Assert.Equal([0x0A, 0x0B, 0x0C], message.payload);
+        Assert.Equal([0x0A, 0x01, 0x41], message.payload);
         await transporter.DisconnectAsync().ConfigureAwait(false);
         await TransporterFactory.DisposeAsync(transporter).ConfigureAwait(false);
     }
@@ -352,6 +353,33 @@ public class MezonTransporterContractTests
         Assert.Equal(2, connectionCount);
         Assert.Equal(2, events.OpenedCount);
         await transporter.DisconnectAsync().ConfigureAwait(false);
+        await TransporterFactory.DisposeAsync(transporter).ConfigureAwait(false);
+    }
+
+    [Fact]
+    public async Task WebSocket_MessageOverReceiveCap_ClosesConnection()
+    {
+        await using var session = await LoopbackSession.StartAsync(TransporterKind.WebSocket, async (client, ct) =>
+        {
+            var oversized = new byte[MezonTransportFrameCodec.MaxApiResponseLen + MezonWebSocketFrameCodec.ApiHeaderLength + 1];
+            await WriteToClientAsync(TransporterKind.WebSocket, client, oversized, ct).ConfigureAwait(false);
+            await HoldConnectionOpenAsync(TransporterKind.WebSocket, client, ct).ConfigureAwait(false);
+        }).ConfigureAwait(false);
+
+        var transporter = TransporterFactory.Create(TransporterKind.WebSocket);
+        var events = new TransporterEventCapture();
+        events.Attach(transporter);
+        await ConnectAsync(transporter, session.Port, "token-oversized").ConfigureAwait(false);
+
+        var deadline = Environment.TickCount64 + 5000;
+        while (events.ClosedCount == 0 && Environment.TickCount64 < deadline)
+        {
+            await Task.Delay(25).ConfigureAwait(false);
+        }
+
+        Assert.Equal(1, events.ClosedCount);
+        Assert.IsType<InvalidDataException>(events.LastError);
+        Assert.Empty(events.SnapshotMessages());
         await TransporterFactory.DisposeAsync(transporter).ConfigureAwait(false);
     }
 

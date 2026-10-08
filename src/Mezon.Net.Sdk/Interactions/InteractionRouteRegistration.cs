@@ -13,6 +13,10 @@ namespace Mezon.Net.Sdk.Interactions
             _route = route;
         }
 
+        /// <summary>
+        /// Only lets <paramref name="userId"/> trigger this route. For button routes the user id is client-supplied, so
+        /// this filters accidental clicks but is not a security boundary.
+        /// </summary>
         public InteractionRouteRegistration WithOwner(long userId)
         {
             _route.OwnerUserId = userId;
@@ -25,6 +29,11 @@ namespace Mezon.Net.Sdk.Interactions
             return this;
         }
 
+        /// <summary>
+        /// Rejects interactions whose actor is not <see cref="InteractionActorTrust.ServerAuthenticated"/>. Button
+        /// clicks are <see cref="InteractionActorTrust.ClientSupplied"/>, so a button route with this requirement
+        /// always returns <see cref="InteractionExecutionResult.Unauthorized"/>.
+        /// </summary>
         public InteractionRouteRegistration RequireServerAuthenticatedActor()
         {
             _route.RequiresServerAuthenticatedActor = true;

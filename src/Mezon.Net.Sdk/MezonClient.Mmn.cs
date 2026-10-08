@@ -15,6 +15,9 @@ namespace Mezon.Net.Sdk
         private Task? _mmnInitTask;
         private MmnClient? _mmnClient;
 
+        /// <summary>Serializes nonce lookup, signing and submission so concurrent transfers never reuse a nonce.</summary>
+        private readonly SemaphoreSlim _mmnTransferGate = new SemaphoreSlim(1, 1);
+
         public KeyPairAccount? KeyGen { get; private set; }
 
         public string? AddressMmn { get; private set; }
@@ -58,26 +61,35 @@ namespace Mezon.Net.Sdk
             EnsureMmnClient();
             if (KeyGen == null || AddressMmn == null || ZkProofs == null)
             {
-                throw new InvalidOperationException("MMN account is not initialized. Ensure MMNApiUrl and ZkApiUrl are configured and login completed.");
+                throw new InvalidOperationException("MMN account is not initialized. Ensure MMNApiUrl and ZkApiUrl are configured and login completed; initialization failures are logged.");
             }
 
-            var account = await _mmnClient!.NodeClient.GetAccountAsync(AddressMmn, cancellationToken).ConfigureAwait(false);
-            var nonce = account.Nonce + 1;
-            var unsigned = CryptoHelper.BuildTransferTx(
-                (int)TxType.Transfer,
-                AddressMmn,
-                recipient,
-                amount,
-                nonce,
-                (ulong)DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
-                textData ?? string.Empty,
-                extraInfo,
-                ZkProofs.Proof,
-                ZkProofs.PublicInput);
+            await _mmnTransferGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                // The pending nonce counts transactions not yet confirmed, so back-to-back transfers do not collide
+                // (same as mezon-sdk).
+                var nonce = await _mmnClient!.NodeClient.GetCurrentNonceAsync(AddressMmn, "pending", cancellationToken).ConfigureAwait(false) + 1;
+                var unsigned = CryptoHelper.BuildTransferTx(
+                    (int)TxType.Transfer,
+                    AddressMmn,
+                    recipient,
+                    amount,
+                    nonce,
+                    (ulong)DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                    textData ?? string.Empty,
+                    extraInfo,
+                    ZkProofs.Proof,
+                    ZkProofs.PublicInput);
 
-            var publicKeyBytes = CryptoHelper.Base58Decode(KeyGen.PublicKey);
-            var signed = CryptoHelper.SignTx(unsigned, publicKeyBytes, KeyGen.PrivateKey);
-            return await _mmnClient.NodeClient.AddTxAsync(signed, cancellationToken).ConfigureAwait(false);
+                var publicKeyBytes = CryptoHelper.Base58Decode(KeyGen.PublicKey);
+                var signed = CryptoHelper.SignTx(unsigned, publicKeyBytes, KeyGen.PrivateKey);
+                return await _mmnClient.NodeClient.AddTxAsync(signed, cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                _mmnTransferGate.Release();
+            }
         }
 
         private async Task InitializeMmnAsync(CancellationToken cancellationToken)

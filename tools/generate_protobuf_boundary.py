@@ -852,7 +852,7 @@ def gen_data_struct(msg: ProtoMessage, api_msgs: Dict[str, ProtoMessage], rt_msg
         "    {",
         f"        private readonly {proto_cs}{'?' if nullable_proto else ''} _proto;",
         f"        internal {type_name}({proto_cs} proto) => _proto = proto;",
-        f"        internal {proto_cs} Proto => _proto!;",
+        f"        internal {proto_cs} Proto => _proto{'!' if nullable_proto else ''};",
         "",
     ]
     seen_props: Set[str] = set()

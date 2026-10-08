@@ -14,5 +14,6 @@ namespace Mezon.Net.Models
         public long ClanId => _proto.ClanId;
         public long VoiceChannelId => _proto.VoiceChannelId;
         public long VoiceUserId => _proto.VoiceUserId;
+        public int PeerId => _proto.PeerId;
     }
 }
