@@ -2,6 +2,7 @@ using System;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Channels;
@@ -17,6 +18,9 @@ namespace Mezon.Net.Transport
         private const string TokenHeaderKey = "token";
         private const string DefaultLanguage = "en";
         private const int WsReceiveBufferSize = 8192;
+
+        /// <summary>One WebSocket message carries either a realtime envelope or an API response chunk.</summary>
+        private const int MaxWsMessageLen = MezonTransportFrameCodec.MaxApiResponseLen + MezonWebSocketFrameCodec.ApiHeaderLength;
 
         private ConnectionState _state = ConnectionState.Disconnected;
         private ClientWebSocket? _wsClient;
@@ -181,6 +185,12 @@ namespace Mezon.Net.Transport
 
                         if (result.Count > 0)
                         {
+                            if ((long)messageWriter.WrittenCount + result.Count > MaxWsMessageLen)
+                            {
+                                throw new InvalidDataException(
+                                    $"WebSocket message exceeds receive limit {MaxWsMessageLen}.");
+                            }
+
                             messageWriter.Write(wsBuffer.AsSpan(0, result.Count));
                         }
                     }
@@ -203,6 +213,12 @@ namespace Mezon.Net.Transport
                         {
                             await MessageReceived.Invoke(type, cid, code, payload).ConfigureAwait(false);
                         }
+                    }
+
+                    // Don't keep a buffer sized for one exceptionally large message for the whole connection.
+                    if (messageWriter.Capacity > MezonTransportFrameCodec.MaxRealtimeFrameLen)
+                    {
+                        messageWriter = new ArrayBufferWriter<byte>(WsReceiveBufferSize);
                     }
                 }
             }

@@ -94,6 +94,53 @@ public class MezonTransportFrameCodecTests
         Assert.Equal(payload, frame.ToArray());
     }
 
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(int.MaxValue)]
+    [InlineData(MezonTransportFrameCodec.MaxApiResponseLen + 1)]
+    public void TryReadFrame_ApiLengthOutsideCap_Throws(int payloadLen)
+    {
+        var header = new byte[11];
+        header[0] = 0xff;
+        BinaryPrimitives.WriteUInt16BigEndian(header.AsSpan(1), 9);
+        BinaryPrimitives.WriteInt32BigEndian(header.AsSpan(3), 0xff);
+        BinaryPrimitives.WriteInt32BigEndian(header.AsSpan(7), payloadLen);
+        var buffer = new ReadOnlySequence<byte>(header);
+        var apiChunkBuffers = new System.Collections.Concurrent.ConcurrentDictionary<int, ArrayBufferWriter<byte>>();
+        Assert.Throws<InvalidDataException>(() =>
+            MezonTransportFrameCodec.TryReadFrame(ref buffer, apiChunkBuffers, out _, out _, out _, out _));
+    }
+
+    [Fact]
+    public void TryReadFrame_SingleFinishedApiChunk_IsExactSizeCopy()
+    {
+        var bytes = MezonTransportFrameBuilder.BuildApiFrame(4, 0, finish: true, [1, 2, 3, 4, 5]);
+        var buffer = new ReadOnlySequence<byte>(bytes);
+        var apiChunkBuffers = new System.Collections.Concurrent.ConcurrentDictionary<int, ArrayBufferWriter<byte>>();
+        Assert.True(MezonTransportFrameCodec.TryReadFrame(ref buffer, apiChunkBuffers, out _, out _, out _, out var frame));
+
+        Assert.True(System.Runtime.InteropServices.MemoryMarshal.TryGetArray(frame, out var segment));
+        Assert.Equal(5, segment.Array!.Length);
+        Assert.NotSame(bytes, segment.Array);
+        Assert.Empty(apiChunkBuffers);
+    }
+
+    [Fact]
+    public void AppendApiChunk_OverCumulativeCap_CompletesWithTooLargeCode()
+    {
+        var apiChunkBuffers = new System.Collections.Concurrent.ConcurrentDictionary<int, ArrayBufferWriter<byte>>();
+        var code = 0;
+        var first = new ReadOnlySequence<byte>(new byte[MezonTransportFrameCodec.MaxApiResponseLen - 10]);
+        Assert.False(MezonTransportFrameCodec.AppendApiChunk(apiChunkBuffers, 3, first, finished: false, ref code, out _));
+
+        var second = new ReadOnlySequence<byte>(new byte[100]);
+        Assert.True(MezonTransportFrameCodec.AppendApiChunk(apiChunkBuffers, 3, second, finished: false, ref code, out var frame));
+
+        Assert.Equal(MezonTransportFrameCodec.ApiResponseTooLargeCode, code);
+        Assert.True(frame.IsEmpty);
+        Assert.Empty(apiChunkBuffers);
+    }
+
     // Vectors from mezon-desktop abridged_tcp_adapter.rs protobuf_message_len tests.
     [Theory]
     [InlineData(new byte[] { 0x10, 0x80, 0xa0, 0x80, 0xf0, 0xfe, 0xd1, 0xd3, 0xc5, 0x19, 0x0c, 0xc2, 0x01, 0x2a }, 10)]

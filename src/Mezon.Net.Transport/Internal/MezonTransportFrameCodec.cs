@@ -29,6 +29,12 @@ namespace Mezon.Net.Transport.Internal
         /// <summary>Inbound WebSocket-binary (0x82) payload cap; matches Rust MAX_REALTIME_FRAME_LEN.</summary>
         public const int MaxWebSocketBinaryPayloadLen = MaxRealtimeFrameLen;
 
+        /// <summary>Cap on one reassembled API response (all chunks of a cid); matches Rust/Android MAX_API_RESPONSE_LEN.</summary>
+        public const int MaxApiResponseLen = 16 << 20;
+
+        /// <summary>Response code reported for a cid whose reassembled API response exceeds <see cref="MaxApiResponseLen"/>.</summary>
+        public const int ApiResponseTooLargeCode = 0xFFFF;
+
         public static bool TryReadFrame(
             ref ReadOnlySequence<byte> buffer,
             ConcurrentDictionary<int, ArrayBufferWriter<byte>> apiChunkBuffers,
@@ -324,12 +330,12 @@ namespace Mezon.Net.Transport.Internal
             peek.TryReadBigEndian(out short _);
             peek.TryReadBigEndian(out int _);
             peek.TryReadBigEndian(out int payloadLen);
-            if (payloadLen < 0)
+            if ((uint)payloadLen > MaxApiResponseLen)
             {
-                throw new InvalidDataException($"API frame length is negative ({payloadLen}).");
+                throw new InvalidDataException($"API frame length {payloadLen} is outside 0..{MaxApiResponseLen}.");
             }
 
-            if (reader.Remaining < headerSize + payloadLen)
+            if (reader.Remaining < headerSize + (long)payloadLen)
             {
                 return false;
             }
@@ -343,27 +349,63 @@ namespace Mezon.Net.Transport.Internal
             reader.TryReadBigEndian(out int codeFrame);
             reader.TryReadBigEndian(out payloadLen);
 
-            var writer = apiChunkBuffers.GetOrAdd(cid, _ => new ArrayBufferWriter<byte>(initialCapacity: 4096));
-            var span = writer.GetSpan(payloadLen);
+            code = (codeFrame >> 16) & 0xffff;
+            var finished = (codeFrame & 0xffff) == FinishFlag;
             var payloadSlice = reader.Sequence.Slice(reader.Position, payloadLen);
-            if (payloadSlice.Length < payloadLen)
+            reader.Advance(payloadLen);
+            return AppendApiChunk(apiChunkBuffers, cid, payloadSlice, finished, ref code, out frame);
+        }
+
+        /// <summary>
+        /// Adds one API response chunk for <paramref name="cid"/>. Returns true when the response is complete, with
+        /// <paramref name="frame"/> holding memory owned by the caller (it outlives the receive buffer). A single
+        /// finished chunk is copied at its exact size. When the reassembled size would exceed
+        /// <see cref="MaxApiResponseLen"/>, the partial response is dropped and the cid completes with
+        /// <see cref="ApiResponseTooLargeCode"/> so only that request fails.
+        /// </summary>
+        internal static bool AppendApiChunk(
+            ConcurrentDictionary<int, ArrayBufferWriter<byte>> apiChunkBuffers,
+            int cid,
+            in ReadOnlySequence<byte> chunk,
+            bool finished,
+            ref int code,
+            out ReadOnlyMemory<byte> frame)
+        {
+            frame = ReadOnlyMemory<byte>.Empty;
+            if (!apiChunkBuffers.TryGetValue(cid, out var writer))
+            {
+                if (finished)
+                {
+                    frame = chunk.ToArray();
+                    return true;
+                }
+
+                writer = new ArrayBufferWriter<byte>(Math.Max(256, (int)chunk.Length));
+                apiChunkBuffers[cid] = writer;
+            }
+
+            if (writer.WrittenCount + chunk.Length > MaxApiResponseLen)
+            {
+                apiChunkBuffers.TryRemove(cid, out _);
+                code = ApiResponseTooLargeCode;
+                return true;
+            }
+
+            var length = (int)chunk.Length;
+            if (length > 0)
+            {
+                chunk.CopyTo(writer.GetSpan(length));
+                writer.Advance(length);
+            }
+
+            if (!finished)
             {
                 return false;
             }
 
-            payloadSlice.CopyTo(span);
-            writer.Advance(payloadLen);
-            code = (codeFrame >> 16) & 0xffff;
-            var finishFlag = codeFrame & 0xffff;
-            reader.Advance(payloadLen);
-            if (finishFlag == FinishFlag)
-            {
-                frame = writer.WrittenMemory;
-                apiChunkBuffers.TryRemove(cid, out _);
-                return true;
-            }
-
-            return false;
+            apiChunkBuffers.TryRemove(cid, out _);
+            frame = writer.WrittenMemory;
+            return true;
         }
 
         private static bool TryReadRealtimeFrame(ref SequenceReader<byte> reader, byte prefix, out ReadOnlyMemory<byte> frame)

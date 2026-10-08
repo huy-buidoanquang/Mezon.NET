@@ -42,6 +42,37 @@ public class MezonWebSocketFrameCodecTests
     }
 
     [Fact]
+    public void TryHandleMessage_SingleFinishedApiChunk_IsOwnedExactSizeCopy()
+    {
+        var apiChunkBuffers = new ConcurrentDictionary<int, ArrayBufferWriter<byte>>();
+        var message = MezonTransportFrameBuilder.BuildWebSocketApiFrame(6, 0, finish: true, [7, 8, 9]);
+        Assert.True(MezonWebSocketFrameCodec.TryHandleMessage(message, apiChunkBuffers, out var type, out var cid, out _, out var frame));
+
+        // The receive loop reuses its message buffer, so the payload must not alias it.
+        message.AsSpan().Clear();
+        Assert.Equal(MezonMessageType.Api, type);
+        Assert.Equal(6, cid);
+        Assert.Equal([7, 8, 9], frame.ToArray());
+        Assert.Empty(apiChunkBuffers);
+    }
+
+    [Fact]
+    public void TryHandleMessage_ApiChunksOverCap_CompleteWithTooLargeCode()
+    {
+        var apiChunkBuffers = new ConcurrentDictionary<int, ArrayBufferWriter<byte>>();
+        var first = MezonTransportFrameBuilder.BuildWebSocketApiFrame(5, 0, finish: false, new byte[MezonTransportFrameCodec.MaxApiResponseLen - 10]);
+        Assert.False(MezonWebSocketFrameCodec.TryHandleMessage(first, apiChunkBuffers, out _, out _, out _, out _));
+
+        var second = MezonTransportFrameBuilder.BuildWebSocketApiFrame(5, 0, finish: true, new byte[100]);
+        Assert.True(MezonWebSocketFrameCodec.TryHandleMessage(second, apiChunkBuffers, out var type, out var cid, out var code, out _));
+
+        Assert.Equal(MezonMessageType.Api, type);
+        Assert.Equal(5, cid);
+        Assert.Equal(MezonTransportFrameCodec.ApiResponseTooLargeCode, code);
+        Assert.Empty(apiChunkBuffers);
+    }
+
+    [Fact]
     public void TryQueueRawFrame_WritesExactPayload()
     {
         var payload = new byte[] { 0xDE, 0xAD, 0xBE, 0xEF };
