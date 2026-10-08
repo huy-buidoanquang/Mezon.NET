@@ -21,11 +21,16 @@ namespace Mezon.Net.Client
 
     internal sealed class PendingSocketRequest : IValueTaskSource<SocketResponse>
     {
+        private static readonly TimerCallback OnTimeout = static state =>
+            ((PendingSocketRequest)state!).Abort(new TimeoutException("The socket timed out while waiting for a response."));
+
         private readonly SocketCorrelationHub _owner;
         private readonly int _cid;
         private ManualResetValueTaskSourceCore<SocketResponse> _core;
         private short _version;
         private CancellationTokenRegistration _cancellationRegistration;
+        private Timer? _timeoutTimer;
+        private int _completed;
 
         public PendingSocketRequest(SocketCorrelationHub owner, int cid)
         {
@@ -37,7 +42,11 @@ namespace Mezon.Net.Client
             };
         }
 
+        public int Cid => _cid;
+
         public ValueTask<SocketResponse> Task => new(this, _version);
+
+        internal bool HasTimeoutTimer => Volatile.Read(ref _timeoutTimer) != null;
 
         public void Initialize(CancellationToken cancellationToken)
         {
@@ -54,38 +63,62 @@ namespace Mezon.Net.Client
             }
         }
 
+        /// <summary>
+        /// Starts the response timeout. The timer is disposed as soon as the request completes, so a completed request
+        /// (and its response payload) is not kept alive until the timeout would have fired.
+        /// </summary>
         public void StartTimeout(int timeoutMilliseconds)
         {
-            if (timeoutMilliseconds <= 0 || timeoutMilliseconds == Timeout.Infinite)
+            if (timeoutMilliseconds <= 0 || timeoutMilliseconds == Timeout.Infinite || Volatile.Read(ref _completed) != 0)
             {
                 return;
             }
 
-            _ = System.Threading.Tasks.Task.Delay(timeoutMilliseconds).ContinueWith(static (t, state) =>
+            var timer = new Timer(OnTimeout, this, Timeout.Infinite, Timeout.Infinite);
+            if (Interlocked.CompareExchange(ref _timeoutTimer, timer, null) != null)
             {
-                if (t.IsCanceled)
-                {
-                    return;
-                }
+                timer.Dispose();
+                return;
+            }
 
-                var pending = (PendingSocketRequest)state!;
-                pending.Abort(new TimeoutException("The socket timed out while waiting for a response."));
-            }, this, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+            // Completion may have raced the publication above; whoever observes the timer last releases it.
+            if (Volatile.Read(ref _completed) != 0)
+            {
+                ReleaseTimeoutTimer();
+                return;
+            }
+
+            try
+            {
+                timer.Change(timeoutMilliseconds, Timeout.Infinite);
+            }
+            catch (ObjectDisposedException)
+            {
+            }
         }
 
         public void Abort(Exception error) => _owner.TryFail(_cid, this, error);
 
         public void TrySetResult(SocketResponse result)
         {
-            _cancellationRegistration.Dispose();
+            MarkCompleted();
             _core.SetResult(result);
         }
 
         public void TrySetException(Exception error)
         {
-            _cancellationRegistration.Dispose();
+            MarkCompleted();
             _core.SetException(error);
         }
+
+        private void MarkCompleted()
+        {
+            Volatile.Write(ref _completed, 1);
+            ReleaseTimeoutTimer();
+            _cancellationRegistration.Dispose();
+        }
+
+        private void ReleaseTimeoutTimer() => Interlocked.Exchange(ref _timeoutTimer, null)?.Dispose();
 
         SocketResponse IValueTaskSource<SocketResponse>.GetResult(short token) => _core.GetResult(token);
         ValueTaskSourceStatus IValueTaskSource<SocketResponse>.GetStatus(short token) => _core.GetStatus(token);
@@ -102,7 +135,11 @@ namespace Mezon.Net.Client
             _pending = pending;
         }
 
+        public int Cid => _pending.Cid;
+
         public ValueTask<SocketResponse> Task => _pending.Task;
+
+        internal bool HasTimeoutTimer => _pending.HasTimeoutTimer;
 
         public void StartTimeout(int timeoutMilliseconds) => _pending.StartTimeout(timeoutMilliseconds);
 
@@ -114,26 +151,60 @@ namespace Mezon.Net.Client
     /// </summary>
     internal sealed class SocketCorrelationHub
     {
+        private const int MaxCid = ushort.MaxValue;
         private readonly ConcurrentDictionary<int, PendingSocketRequest> _pending = new();
-        private int _nextCid = 1;
+        private int _cidCounter;
         public const int DefaultTimeoutMilliseconds = 10_000;
 
+        public SocketCorrelationHub()
+        {
+        }
+
+        /// <summary>Test hook: starts the cid sequence just before <paramref name="counter"/> + 1.</summary>
+        internal SocketCorrelationHub(int counter)
+        {
+            _cidCounter = counter;
+        }
+
+        /// <summary>
+        /// Next cid in 1..65535. Derived from one atomic increment, so concurrent callers never share a value while
+        /// crossing the wrap point.
+        /// </summary>
+        private int NextCid()
+        {
+            var n = unchecked((uint)Interlocked.Increment(ref _cidCounter));
+            return (int)((n - 1) % MaxCid) + 1;
+        }
+
+        /// <summary>Cid for a fire-and-forget send; skips cids that are waiting for a response.</summary>
         public int AllocateCid()
         {
-            while (true)
+            for (var attempt = 0; attempt < MaxCid; attempt++)
             {
-                var cid = Interlocked.Increment(ref _nextCid);
-                if (cid > ushort.MaxValue)
-                {
-                    Interlocked.Exchange(ref _nextCid, 1);
-                    cid = 1;
-                }
-
+                var cid = NextCid();
                 if (!_pending.ContainsKey(cid))
                 {
                     return cid;
                 }
             }
+
+            throw new InvalidOperationException($"No free socket correlation id ({MaxCid} requests pending).");
+        }
+
+        /// <summary>Reserves a free cid and registers its pending request in one step.</summary>
+        public PendingSocketRequestHandle RegisterNext(CancellationToken cancellationToken = default)
+        {
+            for (var attempt = 0; attempt < MaxCid; attempt++)
+            {
+                var pending = new PendingSocketRequest(this, NextCid());
+                if (_pending.TryAdd(pending.Cid, pending))
+                {
+                    pending.Initialize(cancellationToken);
+                    return new PendingSocketRequestHandle(pending);
+                }
+            }
+
+            throw new InvalidOperationException($"No free socket correlation id ({MaxCid} requests pending).");
         }
 
         public bool Contains(int cid) => _pending.ContainsKey(cid);

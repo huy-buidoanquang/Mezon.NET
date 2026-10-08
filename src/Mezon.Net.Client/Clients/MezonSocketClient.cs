@@ -75,11 +75,14 @@ namespace Mezon.Net.Client
             _logger = logManager.CreateLogger("MezonSocketApiClient");
         }
 
+        private bool IsTraceEnabled => _logger != null && _logger.Level == LogLevel.Trace;
+
+        /// <summary>Callers check <see cref="IsTraceEnabled"/> first so disabled tracing never formats the message.</summary>
         private void LogTrace(string message)
         {
-            if (_logger != null && _logger.Level == LogLevel.Trace)
+            if (IsTraceEnabled)
             {
-                _ = _logger.TraceAsync(message);
+                _ = _logger!.TraceAsync(message);
             }
         }
 
@@ -194,10 +197,13 @@ namespace Mezon.Net.Client
             options ??= RequestOptions.CreateOrClone(options);
             CheckState();
 
-            var cid = _correlationHub.AllocateCid();
+            var pendingRequest = _correlationHub.RegisterNext(options.CancelToken);
+            var cid = pendingRequest.Cid;
             var timeout = options.SocketSendTimeout ?? MezonOptions.SocketTimeoutInMilliseconds;
-            var pendingRequest = _correlationHub.Register(cid, options.CancelToken);
-            LogTrace($"[SOCKET-SEND] heartbeat cid={cid} timeout={timeout}ms");
+            if (IsTraceEnabled)
+            {
+                LogTrace($"[SOCKET-SEND] heartbeat cid={cid} timeout={timeout}ms");
+            }
 
             try
             {
@@ -277,6 +283,8 @@ namespace Mezon.Net.Client
 
         private Task NetworkTransporter_Closed(Exception? exception)
         {
+            // Responses can no longer arrive on this connection; fail waiters now instead of at their timeout.
+            _correlationHub.FailAll(new OperationCanceledException("Socket closed.", exception));
             if (ConnectionState == ConnectionState.Disconnected)
             {
                 if (!_socketDisconnected.HasSubscribers)
@@ -329,7 +337,10 @@ namespace Mezon.Net.Client
 
                     _lastPongReceivedMs = now;
                     _ = _correlationHub.TryComplete(cid, code, ReadOnlyMemory<byte>.Empty);
-                    LogTrace($"[SOCKET-RECEIVE] type={type} cid={cid} code={code} bytes={data.Length} pending={_correlationHub.PendingCount}");
+                    if (IsTraceEnabled)
+                    {
+                        LogTrace($"[SOCKET-RECEIVE] type={type} cid={cid} code={code} bytes={data.Length} pending={_correlationHub.PendingCount}");
+                    }
                     return default;
                 }
 
@@ -341,7 +352,10 @@ namespace Mezon.Net.Client
                     }
 
                     _ = _correlationHub.TryComplete(cid, code, data);
-                    LogTrace($"[SOCKET-RECEIVE] type={type} cid={cid} code={code} bytes={data.Length} pending={_correlationHub.PendingCount}");
+                    if (IsTraceEnabled)
+                    {
+                        LogTrace($"[SOCKET-RECEIVE] type={type} cid={cid} code={code} bytes={data.Length} pending={_correlationHub.PendingCount}");
+                    }
                     return default;
                 }
 
@@ -354,11 +368,19 @@ namespace Mezon.Net.Client
                         _ = _correlationHub.TryComplete(envelope.Cid, code, SerializeEnvelop(envelope));
                     }
 
-                    LogTrace($"[SOCKET-RECEIVE] type={type} cid={envelope.Cid} code={code} bytes={data.Length} pending={_correlationHub.PendingCount} env={envelope.MessageCase}");
+                    if (IsTraceEnabled)
+                    {
+                        LogTrace($"[SOCKET-RECEIVE] type={type} cid={envelope.Cid} code={code} bytes={data.Length} pending={_correlationHub.PendingCount} env={envelope.MessageCase}");
+                    }
 
                     if (_messageReceived.HasSubscribers)
                     {
-                        _ = _messageReceived.InvokeAsync(type, cid, code, data, envelope);
+                        var dispatch = _messageReceived.InvokeAsync(type, cid, code, data, envelope);
+                        if (!dispatch.IsCompleted || dispatch.IsFaulted)
+                        {
+                            _ = ObserveMessageReceivedAsync(dispatch);
+                        }
+
                         return default;
                     }
                 }
@@ -369,6 +391,21 @@ namespace Mezon.Net.Client
             }
 
             return default;
+        }
+
+        private async Task ObserveMessageReceivedAsync(Task dispatch)
+        {
+            try
+            {
+                await dispatch.ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                if (_logger != null)
+                {
+                    await _logger.WarningAsync("Realtime message subscriber failed.", ex).ConfigureAwait(false);
+                }
+            }
         }
 
         /// <summary>
@@ -456,12 +493,15 @@ namespace Mezon.Net.Client
             options ??= RequestOptions.CreateOrClone(options);
             CheckState();
 
-            var cid = _correlationHub.AllocateCid();
+            var pendingRequest = _correlationHub.RegisterNext(options.CancelToken);
+            var cid = pendingRequest.Cid;
             envelope.Cid = cid;
             var timeout = options.SocketSendTimeout ?? MezonOptions.SocketTimeoutInMilliseconds;
-            var pendingRequest = _correlationHub.Register(cid, options.CancelToken);
             var payload = SerializeEnvelop(envelope);
-            LogTrace($"[SOCKET-SEND] api={envelope.ApiRequestEvent.ApiName} cid={cid} bytes={payload.Length} timeout={timeout}ms");
+            if (IsTraceEnabled)
+            {
+                LogTrace($"[SOCKET-SEND] api={envelope.ApiRequestEvent.ApiName} cid={cid} bytes={payload.Length} timeout={timeout}ms");
+            }
 
             try
             {
@@ -498,14 +538,17 @@ namespace Mezon.Net.Client
             options ??= RequestOptions.CreateOrClone(options);
             CheckState();
 
-            var cid = _correlationHub.AllocateCid();
+            var pendingRequest = _correlationHub.RegisterNext(options.CancelToken);
+            var cid = pendingRequest.Cid;
             envelope.Cid = cid;
             var timeout = options.SocketSendTimeout ?? MezonOptions.SocketTimeoutInMilliseconds;
-            var pendingRequest = _correlationHub.Register(cid, options.CancelToken);
             var payload = SerializeEnvelop(envelope);
             try
             {
-                LogTrace($"[SOCKET-SEND] rt-await-ack env={envelope.MessageCase} cid={cid} timeout={timeout}ms");
+                if (IsTraceEnabled)
+                {
+                    LogTrace($"[SOCKET-SEND] rt-await-ack env={envelope.MessageCase} cid={cid} timeout={timeout}ms");
+                }
                 await SendSocketInternalAsync(MezonMessageType.Realtime, cid, payload, options).ConfigureAwait(false);
                 pendingRequest.StartTimeout(timeout);
                 var socketResponse = await pendingRequest.Task.ConfigureAwait(false);
@@ -1104,12 +1147,15 @@ namespace Mezon.Net.Client
             options ??= RequestOptions.CreateOrClone(options);
             CheckState();
 
-            var cid = _correlationHub.AllocateCid();
+            var pendingRequest = _correlationHub.RegisterNext(options.CancelToken);
+            var cid = pendingRequest.Cid;
             envelope.Cid = cid;
             var timeout = options.SocketSendTimeout ?? MezonOptions.SocketTimeoutInMilliseconds;
-            var pendingRequest = _correlationHub.Register(cid, options.CancelToken);
             var payload = SerializeEnvelop(envelope);
-            LogTrace($"[SOCKET-SEND] api={envelope.ApiRequestEvent.ApiName} cid={cid} bytes={payload.Length} timeout={timeout}ms");
+            if (IsTraceEnabled)
+            {
+                LogTrace($"[SOCKET-SEND] api={envelope.ApiRequestEvent.ApiName} cid={cid} bytes={payload.Length} timeout={timeout}ms");
+            }
 
             try
             {
