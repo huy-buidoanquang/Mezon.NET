@@ -17,7 +17,7 @@ namespace Mezon.Net.Sdk.Tests
     public class InteractionActorTrustTests
     {
         [Fact]
-        public async Task Button_event_marks_actor_as_server_authenticated()
+        public async Task Button_event_marks_actor_as_client_supplied()
         {
             var router = new InteractionRouter();
             InteractionActorTrust? trust = null;
@@ -33,8 +33,9 @@ namespace Mezon.Net.Sdk.Tests
                 CreateButtonEvent("confirm"),
                 CancellationToken.None).ConfigureAwait(false);
 
+            // mezon-api MessageButtonClick forwards the client's user_id unverified.
             Assert.Equal(InteractionExecutionResult.Handled, result);
-            Assert.Equal(InteractionActorTrust.ServerAuthenticated, trust);
+            Assert.Equal(InteractionActorTrust.ClientSupplied, trust);
         }
 
         [Fact]
@@ -59,7 +60,7 @@ namespace Mezon.Net.Sdk.Tests
         }
 
         [Fact]
-        public async Task Protected_route_allows_server_authenticated_button()
+        public async Task Protected_route_rejects_client_supplied_button()
         {
             var router = new InteractionRouter();
             var invoked = false;
@@ -74,8 +75,35 @@ namespace Mezon.Net.Sdk.Tests
                 CreateButtonEvent("welcome:save"),
                 CancellationToken.None);
 
-            Assert.Equal(InteractionExecutionResult.Handled, result);
-            Assert.True(invoked);
+            Assert.Equal(InteractionExecutionResult.Unauthorized, result);
+            Assert.False(invoked);
+        }
+
+        [Fact]
+        public async Task Collector_receives_actor_trust_per_component_kind()
+        {
+            var client = CreateClient();
+            var collectors = new Collectors.CollectorService();
+            collectors.Attach(client);
+
+            var buttonTask = collectors.CollectComponentAsync(new Collectors.ComponentCollectorOptions
+            {
+                ChannelId = 20,
+                ComponentId = "confirm",
+            });
+            await collectors.TryDispatchButtonAsync(client, CreateButtonEvent("confirm"));
+            var button = await buttonTask;
+
+            var selectTask = collectors.CollectComponentAsync(new Collectors.ComponentCollectorOptions
+            {
+                ChannelId = 20,
+                ComponentId = "welcome",
+            });
+            await collectors.TryDispatchSelectAsync(client, CreateSelectEvent("welcome"));
+            var select = await selectTask;
+
+            Assert.Equal(InteractionActorTrust.ClientSupplied, ((IInteractionActor)button.Interaction!).ActorTrust);
+            Assert.Equal(InteractionActorTrust.ServerAuthenticated, ((IInteractionActor)select.Interaction!).ActorTrust);
         }
 
         [Fact]

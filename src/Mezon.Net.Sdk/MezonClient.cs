@@ -404,35 +404,6 @@ namespace Mezon.Net.Sdk
         public ValueTask<Channel> GetChannelAsync(long channelId, CancellationToken cancellationToken = default)
             => Channels.GetOrFetchAsync(channelId, FetchChannelAsync, cancellationToken);
 
-        /// <summary>
-        ///     Returns a cached channel or inserts a lightweight stub without calling the socket API.
-        ///     Used by interaction/command hot paths when the channel is not yet warmed in cache.
-        /// </summary>
-        internal Channel GetOrCreateChannelStub(long channelId, long clanId = 0)
-        {
-            if (Channels.TryGet(channelId, out var existing))
-            {
-                return existing;
-            }
-
-            if (!Clans.TryGet(clanId, out var clan))
-            {
-                clan = new Clan(this, new global::Mezon.Net.Internal.Api.ClanDesc { ClanId = clanId });
-                Clans.Set(clanId, clan);
-            }
-
-            var channel = new Channel(
-                this,
-                new global::Mezon.Net.Internal.Api.ChannelDescription
-                {
-                    ChannelId = channelId,
-                    ClanId = clanId,
-                },
-                clan);
-            Channels.Set(channelId, channel);
-            return channel;
-        }
-
         public ValueTask<Entities.User> GetUserAsync(long userId, CancellationToken cancellationToken = default)
             => Users.GetOrFetchAsync(userId, FetchUserAsync, cancellationToken);
 
@@ -454,7 +425,11 @@ namespace Mezon.Net.Sdk
         private async ValueTask<Channel> FetchChannelAsync(long channelId, CancellationToken cancellationToken)
         {
             var detail = await _engine.GetChannelDetailAsync(channelId).ConfigureAwait(false);
-            var clan = await GetClanAsync(detail.ClanId, cancellationToken).ConfigureAwait(false);
+
+            // DM and group channels have no clan; clan 0 is never in ListClanDescs, so fetching it would throw.
+            var clan = detail.ClanId == 0
+                ? (Clans.TryGet(0, out var dmClan) ? dmClan : new Clan(this, new global::Mezon.Net.Internal.Api.ClanDesc()))
+                : await GetClanAsync(detail.ClanId, cancellationToken).ConfigureAwait(false);
             return new Channel(this, detail.Proto, clan);
         }
 
