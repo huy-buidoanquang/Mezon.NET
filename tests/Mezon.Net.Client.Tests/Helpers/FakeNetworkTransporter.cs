@@ -42,8 +42,12 @@ internal sealed class FakeNetworkTransporter : IMezonNetworkTransporter
 
     public void SetCancelToken(CancellationToken cancellationToken) => _cancelToken = cancellationToken;
 
+    /// <summary>Token passed to every ConnectAsync call, in order.</summary>
+    public ConcurrentQueue<string?> ConnectTokens { get; } = new();
+
     public async Task ConnectAsync(string host, int? port = 443, string? token = null, bool? useSsl = false, bool? createStatus = false)
     {
+        ConnectTokens.Enqueue(token);
         if (ConnectHandler != null)
         {
             await ConnectHandler().ConfigureAwait(false);

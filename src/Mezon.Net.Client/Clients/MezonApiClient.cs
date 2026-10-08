@@ -161,6 +161,21 @@ namespace Mezon.Net.Client
             }
         }
 
+        /// <summary>Swaps in a refreshed session token without logging out or disconnecting.</summary>
+        internal void UpdateAuthToken(string token)
+        {
+            if (LoginState != LoginState.LoggedIn || string.IsNullOrEmpty(token))
+            {
+                return;
+            }
+
+            AuthToken = token.TrimEnd();
+            if (TokenType != TokenType.Webhook)
+            {
+                RestClient.SetHeader("Authorization", GetPrefixedToken(TokenType, AuthToken));
+            }
+        }
+
         public async Task LogoutAsync()
         {
             await _stateLock.WaitAsync().ConfigureAwait(false);

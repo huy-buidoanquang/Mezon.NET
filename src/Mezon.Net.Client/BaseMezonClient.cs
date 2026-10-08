@@ -30,9 +30,11 @@ namespace Mezon.Net.Client
         protected readonly SemaphoreSlim StateLock;
         private bool _isFirstLogin, _isDisposed;
 
-        private readonly ISessionManager<MezonApiClientOptions> _sessionManager;
+        private readonly SessionManager<MezonApiClientOptions> _sessionManager;
 
         protected ISessionManager<MezonApiClientOptions> SessionManager => _sessionManager;
+
+        internal SessionManager<MezonApiClientOptions> Sessions => _sessionManager;
 
         protected readonly MezonApiClientOptions Options;
 
@@ -64,6 +66,16 @@ namespace Mezon.Net.Client
             if (apiClient is MezonSocketClient socketClient)
             {
                 socketClient.ConfigureSessionAccessor(() => _sessionManager.CurrentSession());
+                _sessionManager.AttachSocket(socketClient, () => socketClient.ConnectionState == ConnectionState.Connected);
+            }
+
+            if (apiClient is MezonApiClient restApiClient)
+            {
+                _sessionManager.SessionRefreshed += session =>
+                {
+                    restApiClient.UpdateAuthToken(session.AuthToken);
+                    return Task.CompletedTask;
+                };
             }
 
             ApiClient.ApiSentRequestEvent += async (method, endpoint, millis) => await _logger.DebugAsync($"{method} {endpoint}: {millis} ms").ConfigureAwait(false);
@@ -116,7 +128,8 @@ namespace Mezon.Net.Client
 
             if (LoginState != LoginState.LoggedOut)
             {
-                await LogoutInternalAsync().ConfigureAwait(false);
+                // The session manager already holds the new session; only reset the API client state.
+                await LogoutInternalAsync(clearSession: false).ConfigureAwait(false);
             }
 
             LoginState = LoginState.LoggingIn;
@@ -149,7 +162,9 @@ namespace Mezon.Net.Client
             }
         }
 
-        internal virtual async Task LogoutInternalAsync()
+        internal virtual Task LogoutInternalAsync() => LogoutInternalAsync(clearSession: true);
+
+        private async Task LogoutInternalAsync(bool clearSession)
         {
             if (LoginState == LoginState.LoggedOut)
             {
@@ -158,7 +173,11 @@ namespace Mezon.Net.Client
 
             LoginState = LoginState.LoggingOut;
 
-            await _sessionManager.LogoutAsync().ConfigureAwait(false);
+            if (clearSession)
+            {
+                await _sessionManager.LogoutAsync().ConfigureAwait(false);
+            }
+
             await ApiClient.LogoutAsync().ConfigureAwait(false);
             LoginState = LoginState.LoggedOut;
 

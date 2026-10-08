@@ -364,7 +364,13 @@ namespace Mezon.Net.Client
                         ScheduleEvent(() => TimedInvokeAsync(_channelUsersBannedListedEvent, nameof(ChannelUsersBannedListedEvent), new ListChannelUsersBannedEventEventData(new ListChannelUsersBannedEventResponse(envelope.ListChannelUsersBannedEvent))));
                         break;
                     case Envelope.MessageOneofCase.RefreshSessionEvent:
-                        ScheduleEvent(() => TimedInvokeAsync(_sessionRefreshedEvent, nameof(SessionRefreshedEvent), new Session(envelope.RefreshSessionEvent)));
+                        ScheduleEvent(async () =>
+                        {
+                            // Apply the pushed session first so REST calls and reconnects use the new token.
+                            var refreshedSession = new Session(envelope.RefreshSessionEvent);
+                            await Sessions.ApplyPushedSessionAsync(refreshedSession).ConfigureAwait(false);
+                            await TimedInvokeAsync(_sessionRefreshedEvent, nameof(SessionRefreshedEvent), refreshedSession).ConfigureAwait(false);
+                        });
                         break;
                     case Envelope.MessageOneofCase.ChannelArchiveEvent:
                         ScheduleEvent(() => TimedInvokeAsync(_channelArchivedEvent, nameof(ChannelArchivedEvent), new ChannelArchiveEventEventData(new ChannelArchiveEventResponse(envelope.ChannelArchiveEvent))));

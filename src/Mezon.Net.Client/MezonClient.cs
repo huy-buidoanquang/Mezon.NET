@@ -54,7 +54,8 @@ namespace Mezon.Net.Client
                 options.ConnectionTimeoutInMilliseconds,
                OnConnectingAsync,
                OnDisconnectingAsync,
-               x => ApiClient.SocketDisconnected += x);
+               x => ApiClient.SocketDisconnected += x,
+               BeforeReconnectAsync);
             _connection.Connected += SocketConnectedHandlerAsync;
             _connection.Disconnected += SocketDisconnectedHandlerAsync;
             _connection.Reconnecting += SocketReconnectingHandlerAsync;
@@ -95,6 +96,22 @@ namespace Mezon.Net.Client
                 }
 
                 await _logger.DebugAsync("Connected MezonSocket").ConfigureAwait(false);
+            }
+        }
+
+        /// <summary>
+        /// Renews the session before a reconnect attempt: always after the server rejected the token, otherwise only
+        /// when it is about to expire. Never throws, so a failed refresh still counts the connect attempt.
+        /// </summary>
+        private async Task BeforeReconnectAsync(Exception? lastError, CancellationToken cancellationToken)
+        {
+            try
+            {
+                await Sessions.EnsureFreshAsync(force: SocketConnectionManager.IsUnauthorized(lastError)).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                await _logger.WarningAsync("Session refresh before reconnect failed.", ex).ConfigureAwait(false);
             }
         }
 
