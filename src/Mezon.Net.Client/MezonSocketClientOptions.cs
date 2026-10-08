@@ -60,10 +60,26 @@ namespace Mezon.Net.Client
         public int ConnectionTimeoutInMilliseconds { get; set; } = DefaultConnectionTimeoutInMilliseconds;
 
         /// <summary>
-        ///     Gets or sets the timeout for event handlers, in milliseconds, after which a warning will be logged.
-        ///     Setting this property to <see langword="null"/> disables this check (default; preferred for hot paths).
+        ///     Gets or sets the timeout for event handlers, in milliseconds, after which a warning is logged
+        ///     (default 3000). With <see cref="EventDispatchMode.Ordered"/> a handler that exceeds it also stops holding
+        ///     its lane. <see langword="null"/> disables the warning; ordered lanes then move on after 30 seconds.
         /// </summary>
         public int? SocketHandlerTimeoutInMilliseconds { get; set; } = DefaultSocketHandlerTimeoutInMilliseconds;
+
+        /// <summary>
+        ///     Gets or sets how realtime events reach subscribers. Defaults to <see cref="EventDispatchMode.Ordered"/>.
+        /// </summary>
+        public EventDispatchMode EventDispatchMode { get; set; } = EventDispatchMode.Ordered;
+
+        /// <summary>
+        ///     Gets or sets the number of ordered dispatch lanes (events of one channel or clan always share a lane).
+        /// </summary>
+        public int EventDispatchLaneCount { get; set; } = 16;
+
+        /// <summary>
+        ///     Gets or sets how many events one ordered lane may queue before new events for it are dropped.
+        /// </summary>
+        public int EventDispatchLaneCapacity { get; set; } = 1024;
 
         /// <summary>
         ///     Gets or sets the interval, in milliseconds, for the heartbeat.

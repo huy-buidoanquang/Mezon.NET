@@ -8,8 +8,10 @@ namespace Mezon.Net.Client.Tests;
 
 public sealed class ReceiveDispatchDeadlockTests
 {
-    [Fact]
-    public async Task ChannelMessage_handler_can_await_socket_api_without_timeout()
+    [Theory]
+    [InlineData(EventDispatchMode.Ordered)]
+    [InlineData(EventDispatchMode.Concurrent)]
+    public async Task ChannelMessage_handler_can_await_socket_api_without_timeout(EventDispatchMode mode)
     {
         var transport = new LoopbackNetworkTransporter();
         var options = new MezonSocketClientOptions
@@ -18,6 +20,7 @@ public sealed class ReceiveDispatchDeadlockTests
             ConnectionTimeoutInMilliseconds = 5_000,
             SocketTimeoutInMilliseconds = 2_000,
             SocketHandlerTimeoutInMilliseconds = 500,
+            EventDispatchMode = mode,
             TransportType = TransportType.Tcp,
             NetworkTransportProvider = _ => transport,
         };
@@ -61,8 +64,10 @@ public sealed class ReceiveDispatchDeadlockTests
         await client.DisconnectAsync();
     }
 
-    [Fact]
-    public async Task VoiceJoined_handler_does_not_block_receive_loop_from_reading_heartbeat_pong()
+    [Theory]
+    [InlineData(EventDispatchMode.Ordered)]
+    [InlineData(EventDispatchMode.Concurrent)]
+    public async Task VoiceJoined_handler_does_not_block_receive_loop_from_reading_heartbeat_pong(EventDispatchMode mode)
     {
         var transport = new LoopbackNetworkTransporter();
         var options = new MezonSocketClientOptions
@@ -71,6 +76,7 @@ public sealed class ReceiveDispatchDeadlockTests
             ConnectionTimeoutInMilliseconds = 5_000,
             SocketTimeoutInMilliseconds = 2_000,
             SocketHandlerTimeoutInMilliseconds = 500,
+            EventDispatchMode = mode,
             TransportType = TransportType.Tcp,
             NetworkTransportProvider = _ => transport,
         };

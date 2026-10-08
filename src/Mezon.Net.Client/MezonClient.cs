@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 using Mezon.Net.Abstractions;
+using Mezon.Net.Client.Dispatch;
 using Mezon.Net.Core;
 using Mezon.Net.Logging;
 
@@ -14,6 +15,7 @@ namespace Mezon.Net.Client
         private readonly SemaphoreSlim _stateLock;
         private readonly Logger _logger;
         private readonly ConcurrentQueue<long> _heartbeatTimes;
+        private readonly RealtimeEventDispatcher? _dispatcher;
         private Task? _heartbeatTask;
         private long _lastMessageTime;
         internal int? HandlerTimeout { get; private set; }
@@ -28,6 +30,9 @@ namespace Mezon.Net.Client
         public override ConnectionState ConnectionState => _connection.State;
 
         public int PendingSocketRequestCount => ApiClient is MezonSocketClient socket ? socket.PendingSocketRequestCount : 0;
+
+        /// <summary>Realtime events dropped because their ordered dispatch lane was full.</summary>
+        public long DroppedRealtimeEventCount => _dispatcher?.DroppedCount ?? 0;
 
         public MezonClient() : this(new MezonSocketClientOptions())
         {
@@ -48,6 +53,15 @@ namespace Mezon.Net.Client
 
             _heartbeatTimes = new ConcurrentQueue<long>();
             HandlerTimeout = options.SocketHandlerTimeoutInMilliseconds;
+            if (options.EventDispatchMode == EventDispatchMode.Ordered)
+            {
+                _dispatcher = new RealtimeEventDispatcher(
+                    options.EventDispatchLaneCount,
+                    options.EventDispatchLaneCapacity,
+                    options.SocketHandlerTimeoutInMilliseconds,
+                    _logger);
+            }
+
             _connection = new SocketConnectionManager(
                 _stateLock,
                 _logger,
@@ -246,9 +260,16 @@ namespace Mezon.Net.Client
                     return;
                 }
 
+                var handlersTask = action();
+                if (handlersTask.IsCompleted)
+                {
+                    // Fast path: no timer for handlers that finish synchronously.
+                    await handlersTask.ConfigureAwait(false);
+                    return;
+                }
+
                 using var timeoutCts = new CancellationTokenSource();
                 var timeoutTask = Task.Delay(HandlerTimeout.Value, timeoutCts.Token);
-                var handlersTask = action();
                 if (await Task.WhenAny(timeoutTask, handlersTask).ConfigureAwait(false) == timeoutTask)
                 {
                     await _logger.WarningAsync($"A {name} handler is taking longer than {HandlerTimeout.Value}ms.").ConfigureAwait(false);
@@ -354,6 +375,11 @@ namespace Mezon.Net.Client
                 }
 
                 _connection.Dispose();
+                if (_dispatcher != null)
+                {
+                    await _dispatcher.DisposeAsync().ConfigureAwait(false);
+                }
+
                 _heartbeatTask = null;
                 _stateLock.Dispose();
             }
@@ -366,6 +392,7 @@ namespace Mezon.Net.Client
             if (disposing)
             {
                 _connection.Dispose();
+                _dispatcher?.Cancel();
                 _heartbeatTask = null;
             }
 

@@ -45,6 +45,9 @@ namespace Mezon.Net.Sdk
             Roles = new EntityCache<Role>(options.CacheCapacity);
             Users = new EntityCache<Entities.User>(options.CacheCapacity);
             ApiClient.RequestQueue.SetRateLimitBypassMessage(SendRateLimitBypassMessageAsync);
+
+            // Subscribe the cache before any user handler so handlers of an event see the cache already updated by it.
+            BindCacheListeners();
         }
 
         public MezonClientOptions Options { get; }
@@ -204,7 +207,6 @@ namespace Mezon.Net.Sdk
                 await _logger.WarningAsync("Clan cache seed failed; continuing. Invite the bot to a clan and restart if commands never arrive.", ex).ConfigureAwait(false);
             }
 
-            BindCacheListeners();
             await InitializeMmnAsync(cancellationToken).ConfigureAwait(false);
         }
 
