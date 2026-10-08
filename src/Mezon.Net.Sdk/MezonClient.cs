@@ -32,6 +32,7 @@ namespace Mezon.Net.Sdk
         private TaskCompletionSource<bool>? _firstConnectTcs;
         private CancellationToken _connectCancellationToken;
         private bool _readyInvoked;
+        private int _disposed;
 
         public MezonClient(MezonClientOptions options)
         {
@@ -533,6 +534,11 @@ namespace Mezon.Net.Sdk
 
         public async ValueTask DisposeAsync()
         {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0)
+            {
+                return;
+            }
+
             _lifetimeCts.Cancel();
             if (_agentManager is not null)
             {
