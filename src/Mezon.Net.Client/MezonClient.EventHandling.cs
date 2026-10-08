@@ -307,26 +307,23 @@ namespace Mezon.Net.Client
                         ScheduleEvent(() => TimedInvokeAsync(_dataSocketListedEvent, nameof(DataSocketListedEvent)));
                         break;
                     case Envelope.MessageOneofCase.QuickMenuEvent:
-                        var quickMenu = envelope.QuickMenuEvent;
-                        if (quickMenu is null
-                            || string.IsNullOrWhiteSpace(quickMenu.MenuName)
-                            || quickMenu.Message is null
-                            || quickMenu.Message.Id <= 0
-                            || quickMenu.Message.ClanId <= 0
-                            || quickMenu.Message.ChannelId <= 0)
-                        {
-                            break;
-                        }
-
-                        if (_quickMenuReceivedDataEvent.HasSubscribers)
-                        {
-                            var quickMenuData = new QuickMenuReceivedEventData(quickMenu);
-                            ScheduleEvent(() => TimedInvokeAsync(_quickMenuReceivedDataEvent, nameof(QuickMenuReceivedDataEvent), quickMenuData));
-                        }
-
+                        // The parameterless event carries no payload, so it fires for every quick menu event as before.
                         if (_quickMenuReceivedEvent.HasSubscribers)
                         {
                             ScheduleEvent(() => TimedInvokeAsync(_quickMenuReceivedEvent, nameof(QuickMenuReceivedEvent)));
+                        }
+
+                        // The typed event needs a menu and a source message. ClanId is 0 in DMs, so it is not required.
+                        var quickMenu = envelope.QuickMenuEvent;
+                        if (_quickMenuReceivedDataEvent.HasSubscribers
+                            && quickMenu is not null
+                            && !string.IsNullOrWhiteSpace(quickMenu.MenuName)
+                            && quickMenu.Message is not null
+                            && quickMenu.Message.Id > 0
+                            && quickMenu.Message.ChannelId > 0)
+                        {
+                            var quickMenuData = new QuickMenuReceivedEventData(quickMenu);
+                            ScheduleEvent(() => TimedInvokeAsync(_quickMenuReceivedDataEvent, nameof(QuickMenuReceivedDataEvent), quickMenuData));
                         }
                         break;
                     case Envelope.MessageOneofCase.UnBlockFriend:

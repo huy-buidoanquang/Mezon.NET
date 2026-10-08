@@ -121,6 +121,56 @@ public sealed class QuickMenuEventDispatchTests
     }
 
     [Fact]
+    public async Task QuickMenu_event_in_dm_without_clan_is_delivered()
+    {
+        var client = new MezonClient();
+        QuickMenuReceivedEventData? received = null;
+        var legacyReceived = false;
+        client.QuickMenuReceivedDataEvent += payload =>
+        {
+            received = payload;
+            return Task.CompletedTask;
+        };
+        client.QuickMenuReceivedEvent += () =>
+        {
+            legacyReceived = true;
+            return Task.CompletedTask;
+        };
+
+        await DispatchAsync(client, new Envelope
+        {
+            QuickMenuEvent = new QuickMenuDataEvent
+            {
+                MenuName = "ai-summary",
+                Message = new ChannelMessageSend { ClanId = 0, ChannelId = 40, Id = 50 },
+            },
+        });
+
+        await WaitUntilAsync(() => received.HasValue && legacyReceived);
+        Assert.Equal(0L, received!.Value.ClanId);
+        Assert.Equal(40L, received.Value.ChannelId);
+    }
+
+    [Fact]
+    public async Task Legacy_quick_menu_event_fires_even_when_payload_is_incomplete()
+    {
+        var client = new MezonClient();
+        var legacyReceived = false;
+        client.QuickMenuReceivedEvent += () =>
+        {
+            legacyReceived = true;
+            return Task.CompletedTask;
+        };
+
+        await DispatchAsync(client, new Envelope
+        {
+            QuickMenuEvent = new QuickMenuDataEvent { MenuName = "ai-summary" },
+        });
+
+        await WaitUntilAsync(() => legacyReceived);
+    }
+
+    [Fact]
     public async Task QuickMenu_event_continues_after_a_subscriber_failure()
     {
         var client = new MezonClient();
