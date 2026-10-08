@@ -19,7 +19,7 @@ See [`caching-l2-l3.md`](caching-l2-l3.md) and [`events-and-cache.md`](events-an
 
 | Phase | Status | Gate |
 |-------|--------|------|
-| P0 Hot-path | Done | Timeout opt-in; ordered dispatch; ProtoListView cache; EntityCache LRU + single-flight; send-queue prune; Ready AsyncEvent; dispose disconnects |
+| P0 Hot-path | Done | Handler timeout (default 3 s) that also releases an ordered lane; ordered per-channel dispatch on bounded lanes (1.7.0); ProtoListView cache; EntityCache LRU + single-flight; send-queue prune; Ready AsyncEvent; dispose disconnects |
 | P1 MessageContent | Done | `SendTextAsync("hi")` → `{"t":"hi"}`; Unicode offsets; metadata JSON fallback; Add/RemoveReaction; builders |
 | P2a L1 | Done | Identity stability; update/remove/reaction coherence; clan-scoped channels; per-client SessionManager |
 | P3.0 Wire interactions | Done | Button/select payloads on Client + Sdk |
@@ -41,7 +41,7 @@ See [`caching-l2-l3.md`](caching-l2-l3.md) and [`events-and-cache.md`](events-an
 
 ```bash
 dotnet test tests/Mezon.Net.Sdk.Tests -f net8.0
-dotnet test tests/Mezon.Net.Client.Tests -f net8.0 --filter "FullyQualifiedName~EventDispatch|FullyQualifiedName~SessionManager|FullyQualifiedName~ChannelMessage"
+dotnet test tests/Mezon.Net.Client.Tests -f net10.0 --filter "FullyQualifiedName~EventDispatch|FullyQualifiedName~SessionManager|FullyQualifiedName~ChannelMessage"
 dotnet test tests/Mezon.Net.Sdk.Caching.Sqlite.Tests -f net8.0
 dotnet test tests/Mezon.Net.Sdk.Caching.Redis.Tests -f net8.0
 dotnet run -c Release --project tests/Mezon.Net.Sdk.Benchmarks -- --filter *EntityCache*

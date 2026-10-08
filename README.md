@@ -17,7 +17,7 @@ The library is designed around two distinct developer experiences:
 | Audience | Package to reference | Entry point | Surface |
 |----------|----------------------|-------------|---------|
 | Bot / Channel-app dev | `Mezon.Net.Sdk` only | `Mezon.Net.Sdk.MezonClient` | Curated, high-level: `LoginAsync`, entities (`Clan`/`Channel`/`Role`/`Message`/`User`), past-tense events (`ChannelMessageReceived`), builders, MMN, quick menu |
-| UI / Client dev | `Mezon.Net.Client` (+ `Transport`/`Core` if needed) | `Mezon.Net.Client.MezonClient` | Full engine: socket lifecycle, typed facades (`IMezonClientApi`, `IMezonClientRealtime`), `Mezon.Net.Models` params/data views, all events |
+| UI / Client dev | `Mezon.Net.Client` (+ `Transport`/`Core` if needed) | `Mezon.Net.Client.MezonClient` | Full engine: socket lifecycle, generated socket API and realtime facades on `BaseMezonSocketClient`, `Mezon.Net.Models` params/data views, all events |
 
 - `Mezon.Net.Sdk` references `Mezon.Net.Client` transitively (`ProjectReference`), so bot devs add **only** `Mezon.Net.Sdk`.
 - On net6.0+, `Mezon.Net.Sdk` also depends on the published `Mezon.Net.Mmn` package (MMN gRPC + ZK). On `netstandard2.1`, MMN APIs are stubbed out.
@@ -36,15 +36,15 @@ Public API types live in `Mezon.Net.Models` (generated under `Mezon.Net.Client/M
 Facades are generated on base classes (not on `MezonClient` directly):
 
 - `BaseMezonClient` — REST/auth bootstrap (~7 methods)
-- `BaseSocketClient` — socket API (~211 methods) + **realtime envelope** (22 `*RtAsync` methods) + payload events
+- `BaseMezonSocketClient` — socket API (~213 methods) + **realtime envelope** (22 `*RtAsync` methods) + payload events
 - `MezonClient` — connect, heartbeat, event dispatch only
 
 Two socket send paths (parity with mezon-js):
 
-| Path | Interface | Example |
-|------|-----------|---------|
-| Socket API (`/mezon.api.Mezon/...`) | `IMezonClientApi` | `SendChannelMessageAsync`, `UpdateChannelMessageAsync` |
-| Realtime envelope (direct `Envelope` oneof) | `IMezonClientRealtime` | `SendChatMessageRtAsync`, `JoinChannelChatRtAsync`, `LeaveChannelChatRtAsync` |
+| Path | Generated facade | Example |
+|------|------------------|---------|
+| Socket API (`/mezon.api.Mezon/...`) | `BaseMezonSocketClient.Api.g.cs` | `SendChannelMessageAsync`, `UpdateChannelMessageAsync` |
+| Realtime envelope (direct `Envelope` oneof) | `BaseMezonSocketClient.Realtime.g.cs` | `SendChatMessageRtAsync`, `JoinChannelChatRtAsync`, `LeaveChannelChatRtAsync` |
 
 Realtime methods use the `RtAsync` suffix; mezon-js `write*` maps to `Send*RtAsync`.
 
@@ -58,11 +58,11 @@ The Client family all lives under `Mezon.Net.*`:
 |-----------|----------|
 | `Mezon.Net.Client` | `MezonClient` (engine), socket clients, events |
 | `Mezon.Net.Models` | Public `*Params` / `*Response` / `*EventData` (generated) |
-| `Mezon.Net.Abstractions` | `IMezonClientApi`, `IMezonClientRealtime`, `ISession`, provider interfaces |
-| `Mezon.Net.DependencyInjection` | DI extensions for the engine |
-| `Mezon.Net.Client.Messaging` / `.Managers` | `MessageSendHelper`, `DmChannelManager` |
+| `Mezon.Net.Abstractions` | `ISession`, `IRestClient`, provider interfaces |
+| `Mezon.Net.Client` (`Messaging/`) | `MessageContent`, builders' wire types, internal `MessageSendHelper` |
+| `Mezon.Net.Sdk` / `Mezon.Net.Sdk.Managers` | `AddMezonClient()` DI extensions, `DmChannelManager` |
 
-Legacy JSON DTOs under `Mezon.Net.Client/Api/` remain for a few auth helpers (`EmailAuthenticationRequest`, …) but are not the primary API surface.
+Legacy JSON DTOs under `Mezon.Net.Client/Models/Gateways/` remain for a few auth helpers (`EmailAuthenticationRequest`, …) but are not the primary API surface.
 
 The bot-facing surface lives under `Mezon.Net.Sdk` (and `Mezon.Net.Sdk.Entities`, `Mezon.Net.Sdk.Builders`, ...).
 
@@ -83,16 +83,19 @@ await using var client = new Mezon.Net.Sdk.MezonClient(new MezonClientOptions(bo
 client.ChannelMessageReceived += msg => { ... };
 await client.LoginAsync();
 var channel = await client.GetChannelAsync(channelId);
-await channel.SendAsync("Hello");
+await channel.SendTextAsync("Hello");
 ```
+
+Realtime events are dispatched in order per channel (else per clan) on bounded lanes; see `EventDispatchMode` on
+`MezonSocketClientOptions` to switch back to unordered concurrent dispatch.
 
 See [`src/Mezon.Net.Sdk.Example`](src/Mezon.Net.Sdk.Example) for a sample bot host (env/CLI config, commands, graceful shutdown).
 
 ## Socket protocol
 
 - **Outbound:** protobuf `realtime.proto::Envelope` with `cid` 1–65535 (wrap); `cid=0` = server push.
-- **Inbound:** leading `0xFF` = raw API response (`cid` u16 BE + `code` u32 BE with FIN `0xff`, chunked); otherwise abridged `Envelope`.
-- **API-over-socket:** `Envelope.api_request_event { api_index, api_name, body }` with protobuf body (see `ApiNameIndexMap`).
+- **Inbound:** leading `0xFF` = raw API response (`cid` u16 BE + `code` u32 BE with FIN `0xff`, chunked; TCP adds a u32 BE length); `0x00` = TCP pong (`cid` u16); `0x82` = unmasked WebSocket binary frame tunnelled over TCP; otherwise an abridged `Envelope` (length in 4-byte words, zero-padded; the real length is found by walking the protobuf fields).
+- **API-over-socket:** `Envelope.api_request_event { api_index, api_name, body }` with protobuf body (see `MezonApiMap`, append-only).
 - **Auth bootstrap:** minimal HTTP REST for initial session; refresh via socket `SessionRefresh`.
 
 ## Projects
@@ -110,5 +113,5 @@ Caching guide: [`docs/caching-l2-l3.md`](docs/caching-l2-l3.md). Event → L1 ma
 
 ## Build notes
 
-- Protobuf codegen uses `Grpc.Tools`; `Directory.Build.props` resolves `protoc` from the user NuGet cache on Windows.
+- Protobuf codegen uses `Grpc.Tools`; `Directory.Build.props` and `Mezon.Net.Core.csproj` pick the OS/CPU-specific `protoc` from the restored package when it exists, otherwise Grpc.Tools resolves it.
 - Set `NUGET_PACKAGES` if building in isolated environments.
