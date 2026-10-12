@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Mezon.Net.Sdk.Sfu\Mezon.Net.Sdk.Sfu.csproj" />
+    <!-- Cross-checks the hand-written meet-token protobuf against the generated Mezon.Net.Core types. -->
+    <ProjectReference Include="..\..\src\Mezon.Net.Core\Mezon.Net.Core.csproj" />
+    <!-- Keeps the documented Mezon.Net.Sdk token provider snippet compiling. -->
+    <ProjectReference Include="..\..\src\Mezon.Net.Sdk\Mezon.Net.Sdk.csproj" />
+    <!-- The examples are run as separate processes by ExampleTests; referencing them builds them first. -->
+    <ProjectReference Include="..\..\src\Mezon.Net.Sdk.Sfu.Example.Bot\Mezon.Net.Sdk.Sfu.Example.Bot.csproj" />
+    <ProjectReference Include="..\..\src\Mezon.Net.Sdk.Sfu.Example.Recorder\Mezon.Net.Sdk.Sfu.Example.Recorder.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

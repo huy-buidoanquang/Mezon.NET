@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="../../Mezon.Net.targets" />
+
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.1;net6.0;net8.0;net9.0;net10.0</TargetFrameworks>
+    <WarningLevel>5</WarningLevel>
+    <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
+    <IsTrimmable>false</IsTrimmable>
+    <IsAotCompatible>false</IsAotCompatible>
+    <Nullable>enable</Nullable>
+    <WarningsAsErrors>$(WarningsAsErrors);CS8600;CS8602;CS8603</WarningsAsErrors>
+    <PackageId>Mezon.Net.Sdk.Sfu</PackageId>
+    <Description>Client for the Mezon meeting SFU (mezon-sfu): join rooms, publish Opus audio and VP8 video, receive RTP, moderation, reconnect and token refresh. WebRTC by SIPSorcery.</Description>
+    <PackageTags>$(PackageTags);sfu;webrtc;voice;meeting</PackageTags>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <!--
+    SIPSorcery 10.0.16 depends on Microsoft.Extensions.Logging.Abstractions 10.0.11, which declares
+    no net6.0 support and warns from its buildTransitive targets (it runs on the netstandard2.0 asset).
+  -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net6.0'">
+    <SuppressTfmSupportBuildWarnings>true</SuppressTfmSupportBuildWarnings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SIPSorcery" Version="10.0.16" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">
+    <PackageReference Include="System.Text.Json" Version="$(MezonTextJsonVersion)" />
+    <PackageReference Include="System.Threading.Channels" Version="$(MezonChannelsVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Mezon.Net.Sdk.Sfu.Tests" />
+  </ItemGroup>
+</Project>

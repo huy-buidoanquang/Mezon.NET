@@ -1,0 +1,4 @@
+stack/.env.e2e
+stack/.secrets/
+stack/.runtime/
+artifacts/

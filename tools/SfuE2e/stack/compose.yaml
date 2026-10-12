@@ -1,0 +1,69 @@
+# Real-SFU stack for the SDK e2e tests. Started by tools/SfuE2e (dotnet run --project tools/SfuE2e -- up); do not run by hand
+# unless stack/.env.e2e exists (the script generates it, including a per-run JWT secret file).
+#
+# Topology: a private bridge network. The SFU advertises exactly one ICE candidate,
+# SFU_PUBLIC_HOST:SFU_MEDIA_PORT, so every peer in a run must reach that address:
+#   - bridge mode (default): peers run inside this network and use the SFU's static IP;
+#   - host mode (compose.host.yaml): ports are published and the SFU advertises 127.0.0.1,
+#     so peers on the Windows/macOS host can join (functional debugging only).
+name: ${E2E_PROJECT:-sfu-e2e}
+
+services:
+  nats:
+    image: nats:2.11.8-alpine
+    command: ["--name", "sfu-e2e-nats", "--http_port", "8222"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8222/healthz"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    networks:
+      sfu:
+        ipv4_address: ${E2E_SUBNET_PREFIX:-172.28.0}.5
+
+  sfu:
+    image: ${SFU_IMAGE:-mezon-sfu:e2e}
+    build:
+      context: ${SFU_SRC:-../../mezon-sfu}
+      # Absolute path to stack/sfu/Dockerfile, set by tools/SfuE2e (dotnet run --project tools/SfuE2e -- up).
+      dockerfile: ${E2E_SFU_DOCKERFILE:?run dotnet run --project tools/SfuE2e -- up}
+    depends_on:
+      nats:
+        condition: service_healthy
+    env_file:
+      - .env.e2e
+    environment:
+      SFU_CONFIG_TEMPLATE: /e2e/templates/${E2E_MODE:-dynamic}.ini.template
+      SFU_JWT_SECRET_FILE: /e2e/secrets/jwt
+      SFU_PUBLIC_HOST: ${SFU_PUBLIC_HOST:-172.28.0.10}
+      SFU_MEDIA_PORT: ${E2E_MEDIA_PORT:-7000}
+      SFU_SIGNALING_PORT: ${E2E_SIGNALING_PORT:-8000}
+      SFU_NATS_URL: nats://nats:4222
+      SFU_LOG_LEVEL: ${SFU_LOG_LEVEL:-1}
+      # Smaller pools than production defaults so the stack fits a laptop/CI runner.
+      SFU_PACKET_POOL_CAPACITY: "32768"
+      SFU_PROVIDED_BUF_COUNT: "2048"
+    volumes:
+      - ./sfu/templates:/e2e/templates:ro
+      - ./.secrets:/e2e/secrets:ro
+    # The io_uring backend needs io_uring_setup/enter/register, which Docker's default
+    # seccomp profile blocks (Docker >= 25). Test-only; see the plan's server proposal
+    # for a scoped profile upstream.
+    security_opt:
+      - seccomp=unconfined
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+      memlock:
+        soft: -1
+        hard: -1
+    networks:
+      sfu:
+        ipv4_address: ${E2E_SUBNET_PREFIX:-172.28.0}.10
+
+networks:
+  sfu:
+    ipam:
+      config:
+        - subnet: ${E2E_SUBNET_PREFIX:-172.28.0}.0/24
