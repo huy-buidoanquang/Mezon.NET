@@ -1,0 +1,15 @@
+# Host mode overlay: publish the SFU ports on 127.0.0.1 and advertise 127.0.0.1 as the
+# ICE candidate, so peers running directly on the host (Windows, headed browsers,
+# @roamhq/wrtc scripts) can join. Relies on Docker Desktop UDP forwarding; use it for
+# functional debugging, not for load or soak runs.
+services:
+  sfu:
+    environment:
+      SFU_PUBLIC_HOST: 127.0.0.1
+    ports:
+      # Host and container ports must match: the SFU advertises its own media port.
+      - "127.0.0.1:${E2E_MEDIA_PORT:-7000}:${E2E_MEDIA_PORT:-7000}/udp"
+      - "127.0.0.1:${E2E_SIGNALING_PORT:-8000}:${E2E_SIGNALING_PORT:-8000}/tcp"
+  nats:
+    ports:
+      - "127.0.0.1:${E2E_NATS_PORT:-4222}:4222/tcp"
