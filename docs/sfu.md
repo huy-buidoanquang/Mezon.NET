@@ -166,17 +166,17 @@ behaviours:
 
 ## Features
 
-|                                                | TypeScript | Go  | Rust | Kotlin | .NET |
-| ---------------------------------------------- | ---------- | --- | ---- | ------ | ---- |
-| Dynamic and fixed-slot downlink                | ✓          | ✓   | ✓    | ✓      | ✓    |
-| Microphone with RFC 6464 audio level           | ✓          | ✓   | ✓    | ✓      | ✓    |
-| Camera                                         | ✓          | VP8 | VP8  | ✓      | VP8  |
-| Screen share                                   | browser    | –   | –    | –      | –    |
-| Push-to-talk (audience)                        | ✓          | ✓   | ✓    | ✓      | ✓    |
-| Room messages, metadata, moderation            | ✓          | ✓   | ✓    | ✓      | ✓    |
-| Video receiving on/off, keyframe requests      | ✓          | ✓   | ✓    | ✓      | ✓    |
-| Active speakers                                | ✓          | ✓   | ✓    | ✓      | ✓    |
-| Reconnect with token refresh                   | ✓          | ✓   | ✓    | ✓      | ✓    |
+|                                                | TypeScript | Go  | Rust | Kotlin | .NET | Python |
+| ---------------------------------------------- | ---------- | --- | ---- | ------ | ---- | ------ |
+| Dynamic and fixed-slot downlink                | ✓          | ✓   | ✓    | ✓      | ✓    | ✓      |
+| Microphone with RFC 6464 audio level           | ✓          | ✓   | ✓    | ✓      | ✓    | ✓      |
+| Camera                                         | ✓          | VP8 | VP8  | ✓      | VP8  | VP8    |
+| Screen share                                   | browser    | –   | –    | –      | –    | –      |
+| Push-to-talk (audience)                        | ✓          | ✓   | ✓    | ✓      | ✓    | ✓      |
+| Room messages, metadata, moderation            | ✓          | ✓   | ✓    | ✓      | ✓    | ✓      |
+| Video receiving on/off, keyframe requests      | ✓          | ✓   | ✓    | ✓      | ✓    | ✓      |
+| Active speakers                                | ✓          | ✓   | ✓    | ✓      | ✓    | ✓      |
+| Reconnect with token refresh                   | ✓          | ✓   | ✓    | ✓      | ✓    | ✓      |
 
 ## Examples
 
@@ -217,6 +217,7 @@ this SDK's recorder example and plays it back with its bot example).
 | Rust | `mezonai/mezon-sfu-sdk-rust` (`mezon-sfu-core`, `mezon-sfu`) | webrtc-rs 0.21 | Opus and VP8 RTP | servers, bots |
 | Kotlin | `mezonai/mezon-sfu-sdk-kotlin` | libwebrtc: webrtc-java (JVM), webrtc-sdk/android (Android) | PCM, I420 video | JVM 17+, Android 7+ (API 24) |
 | **.NET** | **`huy-buidoanquang/Mezon.NET`, NuGet `Mezon.Net.Sdk.Sfu`** | **SIPSorcery 10** | **Opus and VP8 RTP** | **.NET Standard 2.1, .NET 6–10** |
+| Python | `mezonai/mezon-sfu-sdk-python`, PyPI `mezon-sfu-sdk` | aiortc 1.15 | PCM, I420 video | Python 3.11+ |
 
 ## Development
 
@@ -242,7 +243,7 @@ The test project (`net10.0`) has five levels:
 ### Real-SFU stacks (Docker)
 
 `tools/SfuE2e` starts nats and mezon-sfu with the same image, templates and Dockerfile as the other SDKs
-(`tools/SfuE2e/stack/` holds copies: keep them identical in all five; `stack/sfu.lock` pins mezon-sfu `develop`
+(`tools/SfuE2e/stack/` holds copies: keep them identical in all six; `stack/sfu.lock` pins mezon-sfu `develop`
 6a05e2b). `SFU_IMAGE` runs an existing image and is never rebuilt; without it, `up` builds `../mezon-sfu` into the
 shared tag `mezon-sfu:e2e` unless `--no-build`:
 
@@ -263,6 +264,7 @@ dotnet run --project tools/SfuE2e -- down [--mode <mode>] [--keep]
   | Rust | 7020-7022 / 8020-8022 / 4242-4244 | 172.28.20-22 | `sfu-e2e-rust-<mode>` | `cargo xtask e2e` |
   | Kotlin | 7030-7032 / 8030-8032 / 4252-4254 | 172.28.30-32 | `sfu-e2e-kotlin-<mode>` | `./gradlew :harness:run` |
   | .NET | 7040-7042 / 8040-8042 / 4262-4264 | 172.28.40-42 | `sfu-e2e-dotnet-<mode>` | `dotnet run --project tools/SfuE2e` |
+  | Python | 7050-7052 / 8050-8052 / 4272-4274 | 172.28.50-52 | `sfu-e2e-python-<mode>` | `python -m tools.e2e` |
 
 - `host` (default on Windows/macOS) publishes on 127.0.0.1 for tests on this machine; `bridge` (default on Linux) is
   for containers. `test` attaches the container to every running bridge stack and runs with
