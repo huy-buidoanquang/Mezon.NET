@@ -14,9 +14,19 @@ public class LifetimeTests
         var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var provider = TokenProvider.Create(async (_, cancellationToken) =>
         {
-            using var registration = cancellationToken.Register(() => cancelled.TrySetResult());
             called.TrySetResult();
-            await Task.Delay(Timeout.Infinite, cancellationToken);
+            try
+            {
+                await Task.Delay(Timeout.Infinite, cancellationToken);
+            }
+            finally
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    cancelled.TrySetResult();
+                }
+            }
+
             return "";
         });
         var connect = h.Room.ConnectAsync(h.Sfu.Url, provider);
