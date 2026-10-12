@@ -24,9 +24,10 @@ public class LifetimeTests
         await h.Room.DisposeAsync();
         var finished = await Task.WhenAny(connect, Task.Delay(2000)) == connect;
         await Assert.ThrowsAnyAsync<Exception>(() => connect);
+        var providerCancelled = await Task.WhenAny(cancelled.Task, Task.Delay(2000)) == cancelled.Task;
         await h.DisposeAsync();
         Assert.True(finished, "ConnectAsync kept waiting for the token provider after the room was disposed");
-        Assert.True(cancelled.Task.IsCompleted, "the provider's cancellation token was not cancelled");
+        Assert.True(providerCancelled, "the provider's cancellation token was not cancelled");
         Assert.Equal(0, h.Sfu.ConnCount);
     }
 
