@@ -77,6 +77,7 @@ jobs:
             src/Mezon.Net.Sdk/Mezon.Net.Sdk.csproj
             src/Mezon.Net.Sdk.Caching.Sqlite/Mezon.Net.Sdk.Caching.Sqlite.csproj
             src/Mezon.Net.Sdk.Caching.Redis/Mezon.Net.Sdk.Caching.Redis.csproj
+            src/Mezon.Net.Sdk.Sfu/Mezon.Net.Sdk.Sfu.csproj
           )
 
           for project in "${projects[@]}"; do
@@ -122,7 +123,8 @@ jobs:
             Mezon.Net.Mmn \
             Mezon.Net.Sdk \
             Mezon.Net.Sdk.Caching.Sqlite \
-            Mezon.Net.Sdk.Caching.Redis
+            Mezon.Net.Sdk.Caching.Redis \
+            Mezon.Net.Sdk.Sfu
           do
             nupkg=$(ls "$OUT"/${package}.${{ steps.version.outputs.version }}.nupkg)
             echo "Pushing $nupkg"

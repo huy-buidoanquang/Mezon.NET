@@ -13,6 +13,7 @@
 | **Mezon.Net.Mmn** | MMN gRPC + ZK prove HTTP | `dotnet add package Mezon.Net.Mmn` (also transitive from Sdk on net6.0+) |
 | Mezon.Net.Sdk.Caching.Sqlite | Optional SQLite message cache | `dotnet add package Mezon.Net.Sdk.Caching.Sqlite` |
 | Mezon.Net.Sdk.Caching.Redis | Optional Redis/Valkey snapshot cache | `dotnet add package Mezon.Net.Sdk.Caching.Redis` |
+| **Mezon.Net.Sdk.Sfu** | Meeting SFU client for bots and recorders (Opus/VP8 RTP, SIPSorcery) | `dotnet add package Mezon.Net.Sdk.Sfu` |
 
 ## Quickstart (Sdk)
 
