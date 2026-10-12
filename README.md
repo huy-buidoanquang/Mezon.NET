@@ -108,6 +108,7 @@ See [`src/Mezon.Net.Sdk.Example`](src/Mezon.Net.Sdk.Example) for a sample bot ho
 | `Mezon.Net.Sdk` | `MezonClient`, entities (`Clan`, `Channel`, `Role`, `Message`, `User`), `AddMezonClient()` DI |
 | `Mezon.Net.Sdk.Caching.Redis` | Optional L2 DTO snapshots (Redis/Valkey) |
 | `Mezon.Net.Sdk.Caching.Sqlite` | Optional L3 message history (Sqlite WAL) |
+| `Mezon.Net.Sdk.Sfu` | Meeting SFU client: rooms, Opus/VP8 RTP in and out, moderation, reconnect (SIPSorcery); see [`docs/sfu.md`](docs/sfu.md) |
 
 Caching guide: [`docs/caching-l2-l3.md`](docs/caching-l2-l3.md). Event → L1 map: [`docs/events-and-cache.md`](docs/events-and-cache.md).
 
