@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Net;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Mezon.Net.Sdk.Sfu.Core;
@@ -22,9 +23,16 @@ public enum TokenReason
     Rejected,
 }
 
-/// <summary>Passed to a <see cref="TokenProvider"/>.</summary>
+/// <summary>Passed to a <see cref="TokenProvider"/>. <see cref="ToString"/> does not print the token.</summary>
 /// <param name="Previous">The token used last (the rejected one for <see cref="TokenReason.Rejected"/>), if any.</param>
-public sealed record TokenRequest(TokenReason Reason, string? Previous);
+public sealed record TokenRequest(TokenReason Reason, string? Previous)
+{
+    private bool PrintMembers(StringBuilder builder)
+    {
+        builder.Append("Reason = ").Append(Reason).Append(", Previous = ").Append(Previous is null ? null : "<redacted>");
+        return true;
+    }
+}
 
 /// <summary>Supplies meet tokens: before the first join and whenever a fresh one is needed.</summary>
 public sealed class TokenProvider
@@ -131,8 +139,15 @@ public enum IceServersPolicy
     Override,
 }
 
-/// <summary>A STUN/TURN server.</summary>
-public sealed record IceServer(IReadOnlyList<string> Urls, string? Username = null, string? Credential = null);
+/// <summary>A STUN/TURN server. <see cref="ToString"/> does not print the credential.</summary>
+public sealed record IceServer(IReadOnlyList<string> Urls, string? Username = null, string? Credential = null)
+{
+    private bool PrintMembers(StringBuilder builder)
+    {
+        builder.Append("Urls = ").Append(Urls).Append(", Username = ").Append(Username).Append(", Credential = ").Append(Credential is null ? null : "<redacted>");
+        return true;
+    }
+}
 
 /// <summary>Room configuration.</summary>
 public sealed record RoomOptions

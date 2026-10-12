@@ -67,15 +67,18 @@ response (protobuf or bare JWT) for the socket API.
 
 - `ConnectAsync` returns once the session is admitted (room snapshot received) and media is connected. Cancelling
   its token abandons the attempt and leaves the room `Disconnected` (socket and PeerConnection closed).
-- `DisposeAsync` (or `DisconnectAsync`) leaves the room: it returns once the socket and the PeerConnection are
-  closed and every background task stopped; a `ConnectAsync` still running ends at once. A room that is only
-  dropped keeps its session until the process ends: always dispose it (`await using`). After `DisposeAsync`,
-  `Events` completes and `ConnectAsync` throws `ObjectDisposedException`. `DisconnectAsync` allows connecting again.
-  When the room ends (`Disconnected`), the microphone, camera and push-to-talk go back to off.
+- `DisposeAsync` (or `DisconnectAsync`) leaves the room: it returns once the socket and the PeerConnection (also one
+  still being created) are closed and every background task stopped; a `ConnectAsync` still running ends at once,
+  including while it waits for the token provider or the WebSocket handshake. Concurrent `DisposeAsync` calls all
+  return once the first one finished. A room that is only dropped keeps its session until the process ends: always
+  dispose it (`await using`). After `DisposeAsync`, `Events` completes and `ConnectAsync` throws
+  `ObjectDisposedException`. `DisconnectAsync` allows connecting again. When the room ends (`Disconnected`), the
+  microphone, camera and push-to-talk go back to off.
 - `Events` is an unbounded `ChannelReader<RoomEvent>`: events arrive in order (`ConnectionStateChanged`,
   `Reconnecting`, `Reconnected`, `Disconnected`, `ParticipantConnected`/`Disconnected`/`Updated`,
   `TrackSubscribed`/`Unsubscribed`/`Muted`/`Unmuted`, `ActiveSpeakersChanged`, `MessageReceived`,
-  `LocalMuteForced`, `LocalParticipantUpdated`, `DownlinkModeDetected`, `SignalError`). Read it, or it grows.
+  `LocalMuteForced`, `LocalParticipantUpdated`, `DownlinkModeDetected`, `SignalError`). Applications must read it:
+  no event is dropped, so a room whose events are never read keeps every event in memory until it is disposed.
   `ConnectAsync` can return before `ConnectionStateChanged(Connected)` is read.
 - Every member is thread-safe. One lock guards the room state and is never held across an `await`; remote RTP goes
   from the WebRTC receive thread to the track's buffer without it.
@@ -95,7 +98,7 @@ response (protobuf or bare JWT) for the socket API.
 | `ActiveSpeakers` | 0.1, 2 samples, 1.5 s | Speaker detection in dynamic rooms (estimated from the Opus bitrate). |
 | `ModerationTokens` | none | Provider of "mute"/"kick" moderation tokens for `MuteParticipantAsync`/`KickParticipantAsync`. |
 | `BindAddress` | any | Local address of the WebRTC socket. Set `IPAddress.Loopback` when the SFU runs on 127.0.0.1. |
-| `LoggerFactory` | none | Logs of the SDK (category `Mezon.Net.Sdk.Sfu`). Tokens are never logged. SIPSorcery logs through `SIPSorcery.LogFactory.Set(...)`. |
+| `LoggerFactory` | none | Logs of the SDK (category `Mezon.Net.Sdk.Sfu`). Tokens are never logged, and `ToString()` of `TokenRequest`, `IceServer` and the meet-token responses prints `<redacted>` for tokens and credentials. SIPSorcery logs through `SIPSorcery.LogFactory.Set(...)`. |
 
 ## Media
 
@@ -137,6 +140,9 @@ behaviours:
   level" is sent as level 0 with the voice flag, which mezon-sfu's voice activity detection treats like a packet
   without the extension.
 - There is no rollback; a failed offer is replaced by the next one (three failures in a row start a new session).
+- Renegotiation can drop a few RTP packets: when an offer adds m-lines, the adapter adds tracks while SIPSorcery's
+  receive thread looks up the streams of incoming packets without a lock, and a packet that arrives at that moment
+  is dropped with an error log (`Exception RTCPeerConnection.OnRTPDataReceived`). The session continues.
 - On Windows, a stack published on 127.0.0.1 needs `BindAddress = IPAddress.Loopback`.
 - Its local ICE ufrag has only four letters; mezon-sfu routes by client ufrag across all rooms, so a collision with
   another session is possible on a busy server. The server rejects such an answer (`duplicate_ice_ufrag`) and the
@@ -148,7 +154,9 @@ behaviours:
   1011, 4001, 4002, 4007–4010, 4013, 4014), with jittered backoff (`RoomOptions.Reconnect`). Every reconnect is a new
   session (new peer id) that replays the microphone, camera, push-to-talk, video receiving and metadata.
 - It stops for good on a kick (4006), the alone timeout (4011), a duplicate session (4012), a server close (1000), a
-  full room or when the server is misconfigured (4003); `Disconnected` carries the reason.
+  full room, a room id the server rejects (error `invalid_room`, `JoinFailed`) or when the server is misconfigured
+  (4003); `Disconnected` carries the reason. The error `room_creation_failed` ends the session at once and is
+  retried like a dropped socket.
 - `TokenProvider.Create((request, cancellationToken) => ...)` receives the reason (`Initial`, `Reconnect`,
   `Expiring`, `Rejected`) and the previous token (the rejected one after a 4004/4005). A failing or slow provider
   (`Timeouts.Token`, 10 s) counts as a failed attempt and is retried while reconnecting. `TokenProvider.Fixed`
@@ -191,7 +199,9 @@ this SDK's recorder example and plays it back with its bot example).
 - `mezonai/mezon-sfu#480` (open): the server relays participant metadata and room messages without escaping control
   characters other than CR, LF and TAB, and without validating UTF-8. The SDK drops raw control characters from
   server frames and parses them again, but a frame with invalid UTF-8 fails the socket read (.NET's
-  WebSocket validates text frames) and the session reconnects.
+  WebSocket validates text frames) and the session reconnects. Invalid UTF-8 in a participant's metadata is in
+  every snapshot, so while that participant stays in the room every rejoin fails the same way: the room ends with
+  `ReconnectExhausted`, or the first connect with `JoinFailed`.
 - Servers built before mezon-sfu `6a05e2b` also drop `peer_left` in fixed-slot rooms and for a peer that leaves within
   about three seconds (`mezonai/mezon-sfu#476`), and accept kick and mute moderation tokens as join tokens
   (`mezonai/mezon-sfu#477`).

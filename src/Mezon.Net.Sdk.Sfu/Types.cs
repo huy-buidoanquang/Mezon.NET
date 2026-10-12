@@ -74,7 +74,7 @@ public enum DisconnectReason
     /// <summary>The room reached its capacity (error <c>room_capacity</c>).</summary>
     RoomFull,
 
-    /// <summary>The first connect failed.</summary>
+    /// <summary>The first connect failed, or the server rejected the token's room (error <c>invalid_room</c>).</summary>
     JoinFailed,
 
     /// <summary>The server rejected the protocol twice (close 1002/1008).</summary>

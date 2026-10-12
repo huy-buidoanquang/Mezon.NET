@@ -72,7 +72,7 @@ public sealed class SfuException : Exception
 
     internal static SfuException Timeout(string operation) => new(SfuErrorKind.Timeout, operation, $"timed out: {operation}");
 
-    internal static SfuException Disconnected(string reason) => new(SfuErrorKind.Disconnected, reason, $"disconnected: {reason}");
+    internal static SfuException Disconnected(string reason, Exception? inner = null) => new(SfuErrorKind.Disconnected, reason, $"disconnected: {reason}", inner: inner);
 
     internal static SfuException Authentication(string code, string message, Exception? inner = null) =>
         new(SfuErrorKind.Authentication, code, $"authentication failed ({code}): {message}", inner: inner);

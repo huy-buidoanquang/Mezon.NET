@@ -29,6 +29,17 @@ internal abstract record ClientMessage
     public sealed record Join(Role Role, ScreenCodec ScreenCodec, string Token) : ClientMessage
     {
         public override string TypeName => "join";
+
+        protected override bool PrintMembers(StringBuilder builder)
+        {
+            if (base.PrintMembers(builder))
+            {
+                builder.Append(", ");
+            }
+
+            builder.Append("Role = ").Append(Role).Append(", ScreenCodec = ").Append(ScreenCodec).Append(", Token = <redacted>");
+            return true;
+        }
     }
 
     /// <summary>Answers the server offer with generation <see cref="OfferGeneration"/>.</summary>
@@ -85,6 +96,17 @@ internal abstract record ClientMessage
     public sealed record ParticipantAction(string Token) : ClientMessage
     {
         public override string TypeName => "participant_action";
+
+        protected override bool PrintMembers(StringBuilder builder)
+        {
+            if (base.PrintMembers(builder))
+            {
+                builder.Append(", ");
+            }
+
+            builder.Append("Token = <redacted>");
+            return true;
+        }
     }
 
     public sealed record Ping : ClientMessage
@@ -99,7 +121,14 @@ internal abstract record ClientMessage
 }
 
 /// <summary>A STUN/TURN server announced in <c>joined</c>.</summary>
-internal sealed record WireIceServer(IReadOnlyList<string> Urls, string? Username, string? Credential);
+internal sealed record WireIceServer(IReadOnlyList<string> Urls, string? Username, string? Credential)
+{
+    private bool PrintMembers(StringBuilder builder)
+    {
+        builder.Append("Urls = ").Append(Urls).Append(", Username = ").Append(Username).Append(", Credential = ").Append(Credential is null ? null : "<redacted>");
+        return true;
+    }
+}
 
 /// <summary>
 /// Where a peer's media lands in the recipient's PeerConnection. Mids are 0 and <see cref="Slot"/> is null when

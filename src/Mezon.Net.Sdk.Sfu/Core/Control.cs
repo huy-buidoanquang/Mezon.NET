@@ -19,12 +19,16 @@ internal sealed class MuteSync
 
     public int PendingCount => _pending.Count;
 
+    /// <summary>The state of the latest mute sent on this connection, null before the first.</summary>
+    public bool? LastSent { get; private set; }
+
     /// <summary>Registers an outgoing mute and returns the revision to send.</summary>
     public long Next(bool muted)
     {
         _forcedAt = null;
         _revision++;
         _pending.Add((muted, _revision));
+        LastSent = muted;
         return _revision;
     }
 

@@ -14,10 +14,28 @@ public sealed record GenerateMeetTokenRequest(string ChannelId, string RoomName 
 /// <summary>Request body of the mute/kick participant APIs.</summary>
 public sealed record MeetParticipantRequest(string UserId, string ChannelId, string ClanId);
 
+/// <summary><see cref="ToString"/> does not print the token.</summary>
 /// <param name="Url">The SFU WebSocket URL configured on the server, when it returns one.</param>
-public sealed record GenerateMeetTokenResponse(string Token, string? Url);
+public sealed record GenerateMeetTokenResponse(string Token, string? Url)
+{
+    private bool PrintMembers(StringBuilder builder)
+    {
+        builder.Append("Token = <redacted>, Url = ").Append(Url);
+        return true;
+    }
+}
 
-public sealed record GenerateMeetTokenExternalResponse(string Token, string? GuestUserId, string? GuestAccessToken, string? Url);
+/// <summary><see cref="ToString"/> does not print the tokens.</summary>
+public sealed record GenerateMeetTokenExternalResponse(string Token, string? GuestUserId, string? GuestAccessToken, string? Url)
+{
+    private bool PrintMembers(StringBuilder builder)
+    {
+        builder.Append("Token = <redacted>, GuestUserId = ").Append(GuestUserId)
+            .Append(", GuestAccessToken = ").Append(GuestAccessToken is null ? null : "<redacted>")
+            .Append(", Url = ").Append(Url);
+        return true;
+    }
+}
 
 /// <summary>A protobuf message that cannot be encoded or decoded.</summary>
 public sealed class MeetTokenProtobufException : Exception

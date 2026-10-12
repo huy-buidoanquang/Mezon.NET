@@ -64,7 +64,10 @@ public class OracleTests
             }
 
             var sections = Sdp.Parse(answer).Sections;
-            Assert.Contains(sections[0].Lines, l => l.Contains("ssrc-audio-level"));
+            Assert.Equal(
+                "a=extmap:8 urn:ietf:params:rtp-hdrext:ssrc-audio-level",
+                Assert.Single(sections[0].Lines, l => l.StartsWith("a=extmap:", StringComparison.Ordinal)));
+            Assert.Equal(8, ((SipsorceryPeer)pc).MicrophoneAudioLevelId);
             Assert.All(sections, s => Assert.Contains("UDP/TLS/RTP/SAVPF", s.Lines[0]));
             Assert.Equal("m=audio 9 UDP/TLS/RTP/SAVPF 111", sections[0].Lines[0]);
             Assert.Contains(" 96", sections[1].Lines[0]);
