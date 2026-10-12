@@ -67,15 +67,18 @@ response (protobuf or bare JWT) for the socket API.
 
 - `ConnectAsync` returns once the session is admitted (room snapshot received) and media is connected. Cancelling
   its token abandons the attempt and leaves the room `Disconnected` (socket and PeerConnection closed).
-- `DisposeAsync` (or `DisconnectAsync`) leaves the room: it returns once the socket and the PeerConnection are
-  closed and every background task stopped; a `ConnectAsync` still running ends at once. A room that is only
-  dropped keeps its session until the process ends: always dispose it (`await using`). After `DisposeAsync`,
-  `Events` completes and `ConnectAsync` throws `ObjectDisposedException`. `DisconnectAsync` allows connecting again.
-  When the room ends (`Disconnected`), the microphone, camera and push-to-talk go back to off.
+- `DisposeAsync` (or `DisconnectAsync`) leaves the room: it returns once the socket and the PeerConnection (also one
+  still being created) are closed and every background task stopped; a `ConnectAsync` still running ends at once,
+  including while it waits for the token provider or the WebSocket handshake. Concurrent `DisposeAsync` calls all
+  return once the first one finished. A room that is only dropped keeps its session until the process ends: always
+  dispose it (`await using`). After `DisposeAsync`, `Events` completes and `ConnectAsync` throws
+  `ObjectDisposedException`. `DisconnectAsync` allows connecting again. When the room ends (`Disconnected`), the
+  microphone, camera and push-to-talk go back to off.
 - `Events` is an unbounded `ChannelReader<RoomEvent>`: events arrive in order (`ConnectionStateChanged`,
   `Reconnecting`, `Reconnected`, `Disconnected`, `ParticipantConnected`/`Disconnected`/`Updated`,
   `TrackSubscribed`/`Unsubscribed`/`Muted`/`Unmuted`, `ActiveSpeakersChanged`, `MessageReceived`,
-  `LocalMuteForced`, `LocalParticipantUpdated`, `DownlinkModeDetected`, `SignalError`). Read it, or it grows.
+  `LocalMuteForced`, `LocalParticipantUpdated`, `DownlinkModeDetected`, `SignalError`). Applications must read it:
+  no event is dropped, so a room whose events are never read keeps every event in memory until it is disposed.
   `ConnectAsync` can return before `ConnectionStateChanged(Connected)` is read.
 - Every member is thread-safe. One lock guards the room state and is never held across an `await`; remote RTP goes
   from the WebRTC receive thread to the track's buffer without it.
@@ -95,7 +98,7 @@ response (protobuf or bare JWT) for the socket API.
 | `ActiveSpeakers` | 0.1, 2 samples, 1.5 s | Speaker detection in dynamic rooms (estimated from the Opus bitrate). |
 | `ModerationTokens` | none | Provider of "mute"/"kick" moderation tokens for `MuteParticipantAsync`/`KickParticipantAsync`. |
 | `BindAddress` | any | Local address of the WebRTC socket. Set `IPAddress.Loopback` when the SFU runs on 127.0.0.1. |
-| `LoggerFactory` | none | Logs of the SDK (category `Mezon.Net.Sdk.Sfu`). Tokens are never logged. SIPSorcery logs through `SIPSorcery.LogFactory.Set(...)`. |
+| `LoggerFactory` | none | Logs of the SDK (category `Mezon.Net.Sdk.Sfu`). Tokens are never logged, and `ToString()` of `TokenRequest`, `IceServer` and the meet-token responses prints `<redacted>` for tokens and credentials. SIPSorcery logs through `SIPSorcery.LogFactory.Set(...)`. |
 
 ## Media
 
@@ -137,6 +140,9 @@ behaviours:
   level" is sent as level 0 with the voice flag, which mezon-sfu's voice activity detection treats like a packet
   without the extension.
 - There is no rollback; a failed offer is replaced by the next one (three failures in a row start a new session).
+- Renegotiation can drop a few RTP packets: when an offer adds m-lines, the adapter adds tracks while SIPSorcery's
+  receive thread looks up the streams of incoming packets without a lock, and a packet that arrives at that moment
+  is dropped with an error log (`Exception RTCPeerConnection.OnRTPDataReceived`). The session continues.
 - On Windows, a stack published on 127.0.0.1 needs `BindAddress = IPAddress.Loopback`.
 - Its local ICE ufrag has only four letters; mezon-sfu routes by client ufrag across all rooms, so a collision with
   another session is possible on a busy server. The server rejects such an answer (`duplicate_ice_ufrag`) and the
@@ -148,7 +154,9 @@ behaviours:
   1011, 4001, 4002, 4007–4010, 4013, 4014), with jittered backoff (`RoomOptions.Reconnect`). Every reconnect is a new
   session (new peer id) that replays the microphone, camera, push-to-talk, video receiving and metadata.
 - It stops for good on a kick (4006), the alone timeout (4011), a duplicate session (4012), a server close (1000), a
-  full room or when the server is misconfigured (4003); `Disconnected` carries the reason.
+  full room, a room id the server rejects (error `invalid_room`, `JoinFailed`) or when the server is misconfigured
+  (4003); `Disconnected` carries the reason. The error `room_creation_failed` ends the session at once and is
+  retried like a dropped socket.
 - `TokenProvider.Create((request, cancellationToken) => ...)` receives the reason (`Initial`, `Reconnect`,
   `Expiring`, `Rejected`) and the previous token (the rejected one after a 4004/4005). A failing or slow provider
   (`Timeouts.Token`, 10 s) counts as a failed attempt and is retried while reconnecting. `TokenProvider.Fixed`
@@ -158,17 +166,17 @@ behaviours:
 
 ## Features
 
-|                                                | TypeScript | Go  | Rust | Kotlin | .NET |
-| ---------------------------------------------- | ---------- | --- | ---- | ------ | ---- |
-| Dynamic and fixed-slot downlink                | ✓          | ✓   | ✓    | ✓      | ✓    |
-| Microphone with RFC 6464 audio level           | ✓          | ✓   | ✓    | ✓      | ✓    |
-| Camera                                         | ✓          | VP8 | VP8  | ✓      | VP8  |
-| Screen share                                   | browser    | –   | –    | –      | –    |
-| Push-to-talk (audience)                        | ✓          | ✓   | ✓    | ✓      | ✓    |
-| Room messages, metadata, moderation            | ✓          | ✓   | ✓    | ✓      | ✓    |
-| Video receiving on/off, keyframe requests      | ✓          | ✓   | ✓    | ✓      | ✓    |
-| Active speakers                                | ✓          | ✓   | ✓    | ✓      | ✓    |
-| Reconnect with token refresh                   | ✓          | ✓   | ✓    | ✓      | ✓    |
+|                                                | TypeScript | Go  | Rust | Kotlin | .NET | Python |
+| ---------------------------------------------- | ---------- | --- | ---- | ------ | ---- | ------ |
+| Dynamic and fixed-slot downlink                | ✓          | ✓   | ✓    | ✓      | ✓    | ✓      |
+| Microphone with RFC 6464 audio level           | ✓          | ✓   | ✓    | ✓      | ✓    | ✓      |
+| Camera                                         | ✓          | VP8 | VP8  | ✓      | VP8  | VP8    |
+| Screen share                                   | browser    | –   | –    | –      | –    | –      |
+| Push-to-talk (audience)                        | ✓          | ✓   | ✓    | ✓      | ✓    | ✓      |
+| Room messages, metadata, moderation            | ✓          | ✓   | ✓    | ✓      | ✓    | ✓      |
+| Video receiving on/off, keyframe requests      | ✓          | ✓   | ✓    | ✓      | ✓    | ✓      |
+| Active speakers                                | ✓          | ✓   | ✓    | ✓      | ✓    | ✓      |
+| Reconnect with token refresh                   | ✓          | ✓   | ✓    | ✓      | ✓    | ✓      |
 
 ## Examples
 
@@ -191,7 +199,9 @@ this SDK's recorder example and plays it back with its bot example).
 - `mezonai/mezon-sfu#480` (open): the server relays participant metadata and room messages without escaping control
   characters other than CR, LF and TAB, and without validating UTF-8. The SDK drops raw control characters from
   server frames and parses them again, but a frame with invalid UTF-8 fails the socket read (.NET's
-  WebSocket validates text frames) and the session reconnects.
+  WebSocket validates text frames) and the session reconnects. Invalid UTF-8 in a participant's metadata is in
+  every snapshot, so while that participant stays in the room every rejoin fails the same way: the room ends with
+  `ReconnectExhausted`, or the first connect with `JoinFailed`.
 - Servers built before mezon-sfu `6a05e2b` also drop `peer_left` in fixed-slot rooms and for a peer that leaves within
   about three seconds (`mezonai/mezon-sfu#476`), and accept kick and mute moderation tokens as join tokens
   (`mezonai/mezon-sfu#477`).
@@ -207,6 +217,7 @@ this SDK's recorder example and plays it back with its bot example).
 | Rust | `mezonai/mezon-sfu-sdk-rust` (`mezon-sfu-core`, `mezon-sfu`) | webrtc-rs 0.21 | Opus and VP8 RTP | servers, bots |
 | Kotlin | `mezonai/mezon-sfu-sdk-kotlin` | libwebrtc: webrtc-java (JVM), webrtc-sdk/android (Android) | PCM, I420 video | JVM 17+, Android 7+ (API 24) |
 | **.NET** | **`huy-buidoanquang/Mezon.NET`, NuGet `Mezon.Net.Sdk.Sfu`** | **SIPSorcery 10** | **Opus and VP8 RTP** | **.NET Standard 2.1, .NET 6–10** |
+| Python | `mezonai/mezon-sfu-sdk-python`, PyPI `mezon-sfu-sdk` | aiortc 1.15 | PCM, I420 video | Python 3.11+ |
 
 ## Development
 
@@ -232,7 +243,7 @@ The test project (`net10.0`) has five levels:
 ### Real-SFU stacks (Docker)
 
 `tools/SfuE2e` starts nats and mezon-sfu with the same image, templates and Dockerfile as the other SDKs
-(`tools/SfuE2e/stack/` holds copies: keep them identical in all five; `stack/sfu.lock` pins mezon-sfu `develop`
+(`tools/SfuE2e/stack/` holds copies: keep them identical in all six; `stack/sfu.lock` pins mezon-sfu `develop`
 6a05e2b). `SFU_IMAGE` runs an existing image and is never rebuilt; without it, `up` builds `../mezon-sfu` into the
 shared tag `mezon-sfu:e2e` unless `--no-build`:
 
@@ -253,6 +264,7 @@ dotnet run --project tools/SfuE2e -- down [--mode <mode>] [--keep]
   | Rust | 7020-7022 / 8020-8022 / 4242-4244 | 172.28.20-22 | `sfu-e2e-rust-<mode>` | `cargo xtask e2e` |
   | Kotlin | 7030-7032 / 8030-8032 / 4252-4254 | 172.28.30-32 | `sfu-e2e-kotlin-<mode>` | `./gradlew :harness:run` |
   | .NET | 7040-7042 / 8040-8042 / 4262-4264 | 172.28.40-42 | `sfu-e2e-dotnet-<mode>` | `dotnet run --project tools/SfuE2e` |
+  | Python | 7050-7052 / 8050-8052 / 4272-4274 | 172.28.50-52 | `sfu-e2e-python-<mode>` | `python -m tools.e2e` |
 
 - `host` (default on Windows/macOS) publishes on 127.0.0.1 for tests on this machine; `bridge` (default on Linux) is
   for containers. `test` attaches the container to every running bridge stack and runs with

@@ -41,6 +41,9 @@ internal static class OfferFixtures
         _ => null,
     };
 
+    private const string TransportCc = "a=extmap:6 http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01";
+    private const string MidExtension = "a=extmap:7 urn:ietf:params:rtp-hdrext:sdes:mid";
+
     private static void Audio(List<string> lines, uint mid, string direction, string? msid, bool ssrc = true)
     {
         lines.Add("m=audio 7000 UDP/TLS/RTP/SAVPF 111");
@@ -48,8 +51,17 @@ internal static class OfferFixtures
         lines.Add($"a={direction}");
         lines.Add($"a=mid:{mid}");
         lines.Add("a=rtcp-mux");
-        lines.Add("a=extmap:8 urn:ietf:params:rtp-hdrext:ssrc-audio-level");
-        lines.Add("a=extmap:7 urn:ietf:params:rtp-hdrext:sdes:mid");
+        if (mid == Sdp.MidMicrophone)
+        {
+            lines.Add(TransportCc);
+            lines.Add(MidExtension);
+            lines.Add("a=extmap:8 urn:ietf:params:rtp-hdrext:ssrc-audio-level");
+        }
+        else
+        {
+            lines.Add(MidExtension);
+        }
+
         lines.Add("a=rtpmap:111 opus/48000/2");
         lines.Add("a=fmtp:111 minptime=10;useinbandfec=1;usedtx=1;maxaveragebitrate=32000");
         if (msid is not null)
@@ -75,7 +87,20 @@ internal static class OfferFixtures
         lines.Add($"a={direction}");
         lines.Add($"a=mid:{mid}");
         lines.Add("a=rtcp-mux");
-        lines.Add("a=extmap:7 urn:ietf:params:rtp-hdrext:sdes:mid");
+        if (mid < Sdp.RemoteMidBase)
+        {
+            lines.Add(TransportCc);
+            lines.Add(MidExtension);
+        }
+        else
+        {
+            lines.Add(MidExtension);
+            if (direction == "sendonly")
+            {
+                lines.Add(TransportCc);
+            }
+        }
+
         if (codecs != "vp8")
         {
             lines.AddRange(new[] { "a=rtpmap:98 VP9/90000", "a=fmtp:98 profile-id=0", "a=rtcp-fb:98 nack pli", "a=rtpmap:99 rtx/90000", "a=fmtp:99 apt=98" });

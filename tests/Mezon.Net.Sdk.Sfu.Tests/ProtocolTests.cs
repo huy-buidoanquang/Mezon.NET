@@ -410,4 +410,32 @@ public class ProtocolTests
         var decoded = MeetTokenMessages.DecodeGenerateMeetTokenResponse(Google.Protobuf.MessageExtensions.ToByteArray(response));
         Assert.Equal(new GenerateMeetTokenResponse("a.b.c-d", "wss://sfu/ws"), decoded);
     }
+
+    [Fact]
+    public void Records_holding_secrets_redact_them_in_ToString()
+    {
+        const string secret = "s3cret.t0ken.value";
+        var turn = new[] { "turn:turn.example:3478" };
+        var printed = new object[]
+        {
+            new TokenRequest(TokenReason.Rejected, secret),
+            new IceServer(turn, "user", secret),
+            new RoomOptions { IceServers = new[] { new IceServer(turn, "user", secret) } },
+            new GenerateMeetTokenResponse(secret, "wss://sfu.example/ws"),
+            new GenerateMeetTokenExternalResponse(secret, "5", secret, "wss://sfu.example/ws"),
+            new ClientMessage.Join(Role.Audience, ScreenCodec.Vp9, secret),
+            new ClientMessage.ParticipantAction(secret),
+            new WireIceServer(turn, "user", secret),
+            new ServerMessage.Joined("1", 2, "", new[] { new WireIceServer(turn, "user", secret) }),
+        }.Select(o => o.ToString()!).ToList();
+        Assert.All(printed, s => Assert.DoesNotContain(secret, s));
+        Assert.Equal("TokenRequest { Reason = Rejected, Previous = <redacted> }", printed[0]);
+        Assert.Equal("TokenRequest { Reason = Initial, Previous =  }", new TokenRequest(TokenReason.Initial, null).ToString());
+        Assert.Equal("IceServer { Urls = System.String[], Username = user, Credential = <redacted> }", printed[1]);
+        Assert.Equal("GenerateMeetTokenResponse { Token = <redacted>, Url = wss://sfu.example/ws }", printed[3]);
+        Assert.Equal("GenerateMeetTokenExternalResponse { Token = <redacted>, GuestUserId = 5, GuestAccessToken = <redacted>, Url = wss://sfu.example/ws }", printed[4]);
+        Assert.Equal("Join { TypeName = join, Role = Audience, ScreenCodec = Vp9, Token = <redacted> }", printed[5]);
+        Assert.Equal("ParticipantAction { TypeName = participant_action, Token = <redacted> }", printed[6]);
+        Assert.Equal("WireIceServer { Urls = System.String[], Username = user, Credential = <redacted> }", printed[7]);
+    }
 }

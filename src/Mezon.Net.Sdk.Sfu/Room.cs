@@ -70,6 +70,7 @@ public sealed class Room : IAsyncDisposable
     private long _connectGen;
     private CancellationTokenSource _timers = new();
     private bool _disposed;
+    private Task? _disposing;
 
     public Room(RoomOptions? options = null)
     {
@@ -194,6 +195,7 @@ public sealed class Room : IAsyncDisposable
         }
 
         long generation;
+        CancellationToken lifetime;
         lock (_gate)
         {
             ThrowIfDisposed();
@@ -209,11 +211,13 @@ public sealed class Room : IAsyncDisposable
             _policy.Reset();
             _connectGen++;
             _timers = new CancellationTokenSource();
+            lifetime = _timers.Token;
             SetState(ConnectionState.Connecting);
             generation = _connectGen;
         }
 
         var completed = false;
+        using var connecting = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, lifetime);
         try
         {
             var attempt = 0;
@@ -223,7 +227,7 @@ public sealed class Room : IAsyncDisposable
                 Exception? failure = null;
                 try
                 {
-                    await StartSessionAsync(generation, reason, cancellationToken).ConfigureAwait(false);
+                    await StartSessionAsync(generation, reason, connecting.Token).ConfigureAwait(false);
                     if (_options.AdmissionProbe is { } probe)
                     {
                         await probe().ConfigureAwait(false);
@@ -262,7 +266,7 @@ public sealed class Room : IAsyncDisposable
                         throw error;
                     }
 
-                    if (error.Kind == SfuErrorKind.State)
+                    if (error.Kind == SfuErrorKind.State || _lastEnd?.Reason == "invalid_room")
                     {
                         Finish(DisconnectReason.JoinFailed, false);
                         completed = true;
@@ -354,25 +358,35 @@ public sealed class Room : IAsyncDisposable
         }
     }
 
-    /// <summary>Disconnects (see <see cref="DisconnectAsync"/>) and completes <see cref="Events"/>. The room cannot be used afterwards.</summary>
-    public async ValueTask DisposeAsync()
+    /// <summary>
+    /// Disconnects (see <see cref="DisconnectAsync"/>) and completes <see cref="Events"/>. The room cannot be used
+    /// afterwards. Concurrent calls all return once the first one finished.
+    /// </summary>
+    public ValueTask DisposeAsync()
     {
         lock (_gate)
         {
-            if (_disposed)
+            if (_disposing is null)
             {
-                return;
+                _disposed = true;
+                _disposing = Task.Run(DisposeCoreAsync);
             }
 
-            _disposed = true;
+            return new ValueTask(_disposing);
         }
+    }
 
+    private async Task DisposeCoreAsync()
+    {
         await DisconnectAsync().ConfigureAwait(false);
+        CancellationTokenSource timers;
         lock (_gate)
         {
-            _timers.Cancel();
+            timers = _timers;
             _events.Writer.TryComplete();
         }
+
+        CancelTimers(timers);
     }
 
     /// <summary>Sends a text message to everyone else in the room (at most 2047 UTF-8 bytes).</summary>
@@ -693,8 +707,18 @@ public sealed class Room : IAsyncDisposable
             (mute, ptt) = PushToTalkRequest();
         }
 
-        await Settle(mute).ConfigureAwait(false);
-        await Settle(ptt).ConfigureAwait(false);
+        var settling = Settle(ptt);
+        try
+        {
+            await Settle(mute).ConfigureAwait(false);
+        }
+        catch
+        {
+            _ = settling.ContinueWith(t => _ = t.Exception, TaskScheduler.Default);
+            throw;
+        }
+
+        await settling.ConfigureAwait(false);
     }
 
     internal Task SetMetadata(string metadata)
@@ -741,6 +765,10 @@ public sealed class Room : IAsyncDisposable
             var (mute, ptt) = PushToTalkRequest();
             SpawnSettle(mute, "restoring push-to-talk");
             SpawnSettle(ptt, "restoring push-to-talk");
+        }
+        else if (_session!.Mute.LastSent == false)
+        {
+            SpawnSettle(SendMute(), "muting after push-to-talk");
         }
 
         if (!_visibility.Camera || !_visibility.Screen)
@@ -854,6 +882,9 @@ public sealed class Room : IAsyncDisposable
 
         public IPeerConnection? Pc { get; set; }
 
+        /// <summary>Creates the PeerConnection, or closes it when the session ended meanwhile.</summary>
+        public Task? PcCreation { get; set; }
+
         public Correlator Correlator { get; } = new();
 
         public MuteSync Mute { get; } = new();
@@ -928,6 +959,11 @@ public sealed class Room : IAsyncDisposable
             string? previous;
             lock (_gate)
             {
+                if (generation != _connectGen)
+                {
+                    throw SfuException.Disconnected("client");
+                }
+
                 previous = _token;
             }
 
@@ -1021,7 +1057,10 @@ public sealed class Room : IAsyncDisposable
         {
             lock (_gate)
             {
-                _lastEnd = new SessionEnd(null, "auth_failed", false, e);
+                if (generation == _connectGen)
+                {
+                    _lastEnd = new SessionEnd(null, "auth_failed", false, e);
+                }
             }
 
             throw;
@@ -1029,6 +1068,7 @@ public sealed class Room : IAsyncDisposable
 
         var session = new Session();
         var started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _ = started.Task.ContinueWith(t => _ = t.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
         string url;
         lock (_gate)
         {
@@ -1090,7 +1130,7 @@ public sealed class Room : IAsyncDisposable
 
             var reader = Task.Run(() => ReadLoopAsync(session, ws));
             session.Writer = Task.Run(() => WriteLoopAsync(session, ws, reader));
-            _ = Task.Run(() => TickLoopAsync(session));
+            _ = Task.Run(() => GuardAsync(session, "timers", () => TickLoopAsync(session)));
             var state = _session!;
             state.Phase = Phase.Joining;
             state.JoinDeadline = Clock.DeadlineAfter(_options.Timeouts.Join);
@@ -1243,6 +1283,29 @@ public sealed class Room : IAsyncDisposable
         }
     }
 
+    /// <summary>Runs a task of <paramref name="session"/>: an unexpected exception is logged and ends the session.</summary>
+    private async Task GuardAsync(Session session, string what, Func<Task> run)
+    {
+        try
+        {
+            await run().ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            lock (_gate)
+            {
+                if (!IsCurrent(session))
+                {
+                    _logger.LogDebug(e, "the {What} of an ended session failed", what);
+                    return;
+                }
+
+                _logger.LogError(e, "the session's {What} failed", what);
+                EndSession(session, new SessionEnd(null, "internal_error", false, SfuException.Disconnected("internal_error", e)));
+            }
+        }
+    }
+
     private async Task TickLoopAsync(Session session)
     {
         var stop = session.Stop.Token;
@@ -1349,6 +1412,11 @@ public sealed class Room : IAsyncDisposable
             _closing.RemoveAll(t => t.IsCompleted);
             _closing.Add(Task.Run(() => pc.CloseAsync()));
         }
+        else if (state.PcCreation is { IsCompleted: false } creation)
+        {
+            _closing.RemoveAll(t => t.IsCompleted);
+            _closing.Add(creation);
+        }
 
         if (state.Started is { } started)
         {
@@ -1374,6 +1442,12 @@ public sealed class Room : IAsyncDisposable
         if (end.Reason == "room_full")
         {
             Finish(DisconnectReason.RoomFull, false);
+            return;
+        }
+
+        if (end.Reason == "invalid_room")
+        {
+            Finish(DisconnectReason.JoinFailed, false);
             return;
         }
 
@@ -1532,8 +1606,10 @@ public sealed class Room : IAsyncDisposable
     /// <summary>Leaves the room for good (locked).</summary>
     private void Finish(DisconnectReason reason, bool clientInitiated)
     {
-        _timers.Cancel();
+        var timers = _timers;
+        _ = Task.Run(() => CancelTimers(timers));
         _timers = new CancellationTokenSource();
+        _connectGen++;
         _detector.Clear();
         if (_session is { } state)
         {
@@ -1563,6 +1639,19 @@ public sealed class Room : IAsyncDisposable
         if (wasConnected)
         {
             Emit(new Disconnected(reason));
+        }
+    }
+
+    /// <summary>Cancels the timers and pending attempts of a finished room, never under the room lock (continuations run inline).</summary>
+    private void CancelTimers(CancellationTokenSource timers)
+    {
+        try
+        {
+            timers.Cancel();
+        }
+        catch (AggregateException e)
+        {
+            _logger.LogWarning(e, "a cancellation callback failed");
         }
     }
 
@@ -1645,6 +1734,7 @@ public sealed class Room : IAsyncDisposable
                 case ServerMessage.RoomSnapshot snapshot:
                     state.SnapshotSeen = true;
                     ApplyMemberEvents(_membership.ApplySnapshot(snapshot, now));
+                    AssignSnapshotSlots(snapshot);
                     Reconcile();
                     CheckActive();
                     break;
@@ -1706,6 +1796,10 @@ public sealed class Room : IAsyncDisposable
         if (info is { Fatal: true } && info.Sources.Contains("answer"))
         {
             EndSession(session, new SessionEnd(null, code, false, SfuException.Signaling(code, "answer", info.Retryable)));
+        }
+        else if (code is "invalid_room" or "room_creation_failed")
+        {
+            EndSession(session, new SessionEnd(null, code, false, SfuException.Signaling(code, "join", info?.Retryable ?? false)));
         }
     }
 
@@ -1775,7 +1869,7 @@ public sealed class Room : IAsyncDisposable
 
         var factory = _options.PeerFactory ?? SipsorceryPeer.CreateAsync;
         var stop = session.Stop.Token;
-        _ = Task.Run(async () =>
+        var creation = Task.Run<IPeerConnection?>(async () =>
         {
             IPeerConnection? pc = null;
             Exception? failure = null;
@@ -1802,19 +1896,22 @@ public sealed class Room : IAsyncDisposable
                 }
             }
 
-            if (pc is null)
-            {
-                return;
-            }
-
-            if (!current)
+            if (pc is not null && !current)
             {
                 await pc.CloseAsync().ConfigureAwait(false);
-                return;
+                return null;
             }
 
-            await NegotiateLoopAsync(session, pc).ConfigureAwait(false);
+            return pc;
         });
+        state.PcCreation = creation;
+        _ = Task.Run(() => GuardAsync(session, "negotiation", async () =>
+        {
+            if (await creation.ConfigureAwait(false) is { } pc)
+            {
+                await NegotiateLoopAsync(session, pc).ConfigureAwait(false);
+            }
+        }));
     }
 
     /// <summary>
@@ -2055,6 +2152,22 @@ public sealed class Room : IAsyncDisposable
 
     // -----------------------------------------------------------------------------------------
     // Membership
+
+    /// <summary>
+    /// Seeds the slot map from every member's mapping in a snapshot, known members included: a new session learns
+    /// the current slot holders only from its snapshot (<c>slot_assigned</c> is sent for changes only).
+    /// </summary>
+    private void AssignSnapshotSlots(ServerMessage.RoomSnapshot snapshot)
+    {
+        foreach (var member in snapshot.Members)
+        {
+            if (member.State.PeerId != snapshot.SelfPeerId
+                && Tracks.OccupantFromMapping(member.State.PeerId, member.State.UserId, member.Mapping, member.State) is { } assignment)
+            {
+                _slots.Assign(assignment.Slot, assignment.Occupant);
+            }
+        }
+    }
 
     private void ApplyMemberEvents(List<MemberEvent> events)
     {

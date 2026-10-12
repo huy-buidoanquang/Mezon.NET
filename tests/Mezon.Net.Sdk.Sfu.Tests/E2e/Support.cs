@@ -57,6 +57,35 @@ internal sealed class Stack
     /// <summary>The same stack reached through <paramref name="proxy"/>.</summary>
     public Stack Via(Proxy proxy) => new(Mode, proxy.Url, _secretFile, Loopback);
 
+    /// <summary>
+    /// A JSON string with raw UTF-8, like the tokens mezon-proto-server issues: the SFU's claim
+    /// reader keeps <c>\u</c> escapes as text, and System.Text.Json escapes non-BMP characters.
+    /// </summary>
+    private static string RawUtf8(string text)
+    {
+        var json = new StringBuilder("\"");
+        foreach (var c in text)
+        {
+            switch (c)
+            {
+                case '"':
+                    json.Append("\\\"");
+                    break;
+                case '\\':
+                    json.Append("\\\\");
+                    break;
+                case < ' ':
+                    json.Append($"\\u{(int)c:x4}");
+                    break;
+                default:
+                    json.Append(c);
+                    break;
+            }
+        }
+
+        return json.Append('"').ToString();
+    }
+
     /// <summary>Signs a meet token with the stack's secret (never print it).</summary>
     public string Token(string userId, string roomId, string metadata, TimeSpan ttl)
     {
@@ -65,7 +94,7 @@ internal sealed class Stack
         static string B64(byte[] b) => Convert.ToBase64String(b).TrimEnd('=').Replace('+', '-').Replace('/', '_');
         var head = B64(Encoding.UTF8.GetBytes("""{"alg":"HS256","typ":"JWT"}"""));
         var body = B64(Encoding.UTF8.GetBytes(
-            $"{{\"identity\":\"{userId}\",\"room\":\"{roomId}\",\"exp\":{now + (long)ttl.TotalSeconds},\"nbf\":{now - 30},\"metadata\":{JsonSerializer.Serialize(metadata)}}}"));
+            $"{{\"identity\":\"{userId}\",\"room\":\"{roomId}\",\"exp\":{now + (long)ttl.TotalSeconds},\"nbf\":{now - 30},\"metadata\":{RawUtf8(metadata)}}}"));
         using var mac = new HMACSHA256(Encoding.UTF8.GetBytes(secret));
         return $"{head}.{body}.{B64(mac.ComputeHash(Encoding.UTF8.GetBytes($"{head}.{body}")))}";
     }

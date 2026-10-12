@@ -251,6 +251,10 @@ internal sealed class SipsorceryPeer : IPeerConnection
 
     public Task RollbackAsync() => Task.CompletedTask;
 
+    /// <summary>The id the microphone writes the audio-level extension with (SIPSorcery adopts the offered id when answering).</summary>
+    internal int? MicrophoneAudioLevelId =>
+        _pc.AudioStreamList[0].LocalTrack?.HeaderExtensions.Values.FirstOrDefault(e => e.Uri == AudioLevelExtension.RTP_HEADER_EXTENSION_URI)?.Id;
+
     public string LocalSdp
     {
         get

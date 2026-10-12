@@ -67,7 +67,7 @@ internal sealed class Membership
 
     /// <summary>
     /// Forgets the session but keeps the remote members, so the next session's snapshot is diffed against them:
-    /// other peers keep their ids when this client reconnects.
+    /// other peers keep their ids when this client reconnects. Their slot mappings are dropped.
     /// </summary>
     public void ResetSession()
     {
@@ -76,6 +76,10 @@ internal sealed class Membership
         OwnState = null;
         _buffered.Clear();
         _orphans.Clear();
+        foreach (var id in _members.Keys.ToList())
+        {
+            _members[id] = _members[id] with { Mapping = null };
+        }
     }
 
     /// <summary>Drops every member, returning a <see cref="MemberEvent.Left"/> for each.</summary>

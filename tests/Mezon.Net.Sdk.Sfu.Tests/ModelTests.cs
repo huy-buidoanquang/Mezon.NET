@@ -27,6 +27,17 @@ public class ModelTests
     }
 
     [Fact]
+    public void Fixtures_use_the_servers_header_extensions()
+    {
+        var offer = OfferFixtures.BuildOffer(new OfferOptions(Slots: new[] { FixtureSlot.Peer("9", 2), FixtureSlot.Empty, FixtureSlot.Fixed(2) }));
+        var ids = Sdp.Parse(offer).Sections.Select(s => string.Join(",", s.Lines.Where(l => l.StartsWith("a=extmap:")).Select(l => l.Substring(9, 1)))).ToArray();
+        Assert.Equal(new[] { "6,7,8", "6,7", "6,7", "7", "7,6", "7", "7", "7", "7", "7", "7,6", "7" }, ids);
+        Assert.Contains("a=extmap:6 http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01", offer);
+        Assert.Contains("a=extmap:7 urn:ietf:params:rtp-hdrext:sdes:mid", offer);
+        Assert.Contains("a=extmap:8 urn:ietf:params:rtp-hdrext:ssrc-audio-level", offer);
+    }
+
+    [Fact]
     public void Msid_forms()
     {
         foreach (var (line, want) in new (string, Occupant?)[]
@@ -252,6 +263,19 @@ public class ModelTests
         Assert.Equal(new uint[] { 4 }, JoinedIds(events));
         Assert.Contains(events, e => e is MemberEvent.Left l && l.Member.State.PeerId == 3);
         Assert.Equal(2, m.Clear().Count);
+    }
+
+    [Fact]
+    public void A_new_session_forgets_the_mappings_of_the_previous_one()
+    {
+        var m = new Membership();
+        m.ApplySnapshot(Snapshot(5, 1, Member(1), Member(2) with { Mapping = new SlotMapping(3, 4, 5, 0, 4) }, Member(3) with { Mapping = new SlotMapping(6, 7, 8, 1, 9) }), T0);
+        m.ResetSession();
+        Assert.All(m.Members.Values, member => Assert.Null(member.Mapping));
+        var events = m.ApplySnapshot(Snapshot(1, 9, Member(9), Member(2) with { Mapping = new SlotMapping(3, 4, 5, 0, 1) }), T0);
+        var left = Assert.Single(events.OfType<MemberEvent.Left>());
+        Assert.Equal((3u, (SlotMapping?)null), (left.Member.State.PeerId, left.Mapping));
+        Assert.Equal(1, m.Members[2].Mapping!.Value.AssignmentGeneration);
     }
 
     [Fact]

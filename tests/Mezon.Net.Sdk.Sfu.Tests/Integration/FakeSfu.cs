@@ -137,6 +137,7 @@ internal sealed class FakeSfu : IAsyncDisposable
     private readonly CancellationTokenSource _stop = new();
     private readonly List<string> _requestLines = new();
     private uint _nextPeer = 100;
+    private int _factoryCalls;
 
     private FakeSfu()
     {
@@ -161,6 +162,23 @@ internal sealed class FakeSfu : IAsyncDisposable
     public int FailOffers { get; set; }
 
     public bool NeverConnect { get; set; }
+
+    /// <summary>PeerConnections whose <c>ReceivingMids</c> throws (counted down per PeerConnection created).</summary>
+    public int BrokenPeers { get; set; }
+
+    /// <summary>When set, the PeerConnection factory waits for it before creating the PeerConnection.</summary>
+    public Task? CreateGate { get; set; }
+
+    public int FactoryCalls
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _factoryCalls;
+            }
+        }
+    }
 
     public int ConnCount
     {
@@ -213,6 +231,17 @@ internal sealed class FakeSfu : IAsyncDisposable
             lock (_lock)
             {
                 return _peers.Count;
+            }
+        }
+    }
+
+    public List<FakePeer> Peers
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _peers.ToList();
             }
         }
     }
@@ -292,16 +321,30 @@ internal sealed class FakeSfu : IAsyncDisposable
         conn.Send(new { type = "room_snapshot", room = "42", room_revision = 1, self_peer_id = conn.PeerId, participant_count = all.Count, members = all });
     }
 
-    public Func<PeerConfig, CancellationToken, Task<IPeerConnection>> Factory() => (config, _) =>
+    public Func<PeerConfig, CancellationToken, Task<IPeerConnection>> Factory() => async (config, _) =>
     {
+        Task? gate;
+        lock (_lock)
+        {
+            _factoryCalls++;
+            gate = CreateGate;
+        }
+
+        if (gate is not null)
+        {
+            await gate;
+        }
+
         var peer = new FakePeer(config, this);
         lock (_lock)
         {
             peer.Ufrag = $"cli{_peers.Count}";
+            peer.Broken = BrokenPeers > 0;
+            BrokenPeers = Math.Max(0, BrokenPeers - 1);
             _peers.Add(peer);
         }
 
-        return Task.FromResult<IPeerConnection>(peer);
+        return peer;
     };
 
     internal bool TakeOfferFailure()
@@ -606,6 +649,8 @@ internal sealed class FakeSfu : IAsyncDisposable
 /// <summary>Answers like a browser would, without media; connects after the first answer.</summary>
 internal sealed class FakePeer : IPeerConnection
 {
+    public const string BrokenMessage = "fake: the WebRTC stack failed";
+
     private readonly FakeSfu _sfu;
     private readonly object _lock = new();
     private string _remote = "";
@@ -623,6 +668,9 @@ internal sealed class FakePeer : IPeerConnection
     public string Ufrag { get; set; } = "cli";
 
     public bool Closed { get; private set; }
+
+    /// <summary>Makes <see cref="ReceivingMids"/> throw, like a WebRTC stack failing unexpectedly.</summary>
+    public bool Broken { get; set; }
 
     public Task SetRemoteOfferAsync(string sdp)
     {
@@ -699,6 +747,11 @@ internal sealed class FakePeer : IPeerConnection
 
     public IReadOnlyCollection<uint> ReceivingMids()
     {
+        if (Broken)
+        {
+            throw new InvalidOperationException(BrokenMessage);
+        }
+
         lock (_lock)
         {
             return Sdp.Parse(_local).Sections

@@ -24,14 +24,14 @@ public class E2eTests
     {
         var stack = Require(mode);
         var roomId = Peer.RandomId();
-        await using var alice = await Join(stack, roomId, "Alice");
+        await using var alice = await Join(stack, roomId, "Alice Nguyễn 😀");
         await alice.Publish((byte)'A', () => 30);
         await using var bob = await Join(stack, roomId, "Bob");
         Assert.Equal(ConnectionState.Connected, alice.Room.State);
         Assert.Equal(bob.UserId, bob.Room.LocalParticipant.UserId);
         await WaitFor(5, "Bob sees Alice", () => bob.Room.GetParticipantsByUserId(alice.UserId).Count == 1);
         var seen = bob.Room.GetParticipantsByUserId(alice.UserId)[0];
-        Assert.Equal("Alice", seen.Info.DisplayName);
+        Assert.Equal("Alice Nguyễn 😀", seen.Info.DisplayName);
         await WaitFor(10, "Bob receives Alice's frames", () => bob.Frames(alice.UserId, (byte)'A') > 50);
         Assert.Equal(mode == "fixed2" ? DownlinkMode.Fixed : DownlinkMode.Dynamic, bob.Room.DownlinkMode);
         await WaitFor(5, "Alice is an active speaker", () => bob.Room.ActiveSpeakers.Any(s => s.UserId == alice.UserId));
@@ -274,6 +274,23 @@ public class E2eTests
             var sessions = bob.Room.GetParticipantsByUserId(alice.UserId);
             return sessions.Count == 1 && !sessions[0].IsMuted && bob.Frames(alice.UserId, (byte)'A') > resumed + 20;
         });
+    }
+
+    [E2eFact("fixed2")]
+    public async Task Reconnect_in_a_fixed_slot_room_hears_the_existing_publisher()
+    {
+        var stack = Require("fixed2");
+        using var proxy = Proxy.Start(stack);
+        var roomId = Peer.RandomId();
+        await using var alice = await Join(stack, roomId, "Alice");
+        await alice.Publish((byte)'A', () => 30);
+        await using var bob = await Join(stack.Via(proxy), roomId, "Bob");
+        await WaitFor(10, "Bob receives Alice", () => bob.Frames(alice.UserId, (byte)'A') > 20);
+        proxy.Cut();
+        await WaitFor(15, "Bob reconnected", () => bob.Has("reconnected"));
+        var resumed = bob.Frames(alice.UserId, (byte)'A');
+        await WaitFor(10, "Bob hears Alice again", () => bob.Frames(alice.UserId, (byte)'A') > resumed + 20);
+        Assert.Equal(DownlinkMode.Fixed, bob.Room.DownlinkMode);
     }
 
     [E2eFact("dynamic")]
