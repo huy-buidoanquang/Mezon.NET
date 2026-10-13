@@ -192,11 +192,11 @@ stays out of the process list. Both examples are run against the real SFU by `Ex
 
 ## Compatibility and known server issues
 
-Tested against mezon-sfu `6a05e2b` (`tools/SfuE2e/stack/sfu.lock`) in dynamic and fixed-slot rooms, on Windows and in
+Tested against mezon-sfu `0520143` (`tools/SfuE2e/stack/sfu.lock`) in dynamic and fixed-slot rooms, on Windows and in
 Linux containers, and with the other SDKs (`mezon-sfu-sdk-js` `test/e2e-node/interop.e2e.test.ts` records a JS tone with
 this SDK's recorder example and plays it back with its bot example).
 
-- `mezonai/mezon-sfu#480` (open): the server relays participant metadata and room messages without escaping control
+- Servers built before mezon-sfu `0520143` (`mezonai/mezon-sfu#480`) relay participant metadata and room messages without escaping control
   characters other than CR, LF and TAB, and without validating UTF-8. The SDK drops raw control characters from
   server frames and parses them again, but a frame with invalid UTF-8 fails the socket read (.NET's
   WebSocket validates text frames) and the session reconnects. Invalid UTF-8 in a participant's metadata is in
@@ -205,6 +205,8 @@ this SDK's recorder example and plays it back with its bot example).
 - Servers built before mezon-sfu `6a05e2b` also drop `peer_left` in fixed-slot rooms and for a peer that leaves within
   about three seconds (`mezonai/mezon-sfu#476`), and accept kick and mute moderation tokens as join tokens
   (`mezonai/mezon-sfu#477`).
+- Since mezon-sfu `0520143` (`mezonai/mezon-sfu#482`), an audience member's push-to-talk also reaches the other
+  audience members; older servers forward it to speakers only.
 - The server debounces renegotiation for 2–3 s: a participant who joins later receives existing publishers only
   after that.
 
@@ -244,11 +246,11 @@ The test project (`net10.0`) has five levels:
 
 `tools/SfuE2e` starts nats and mezon-sfu with the same image, templates and Dockerfile as the other SDKs
 (`tools/SfuE2e/stack/` holds copies: keep them identical in all six; `stack/sfu.lock` pins mezon-sfu `develop`
-6a05e2b). `SFU_IMAGE` runs an existing image and is never rebuilt; without it, `up` builds `../mezon-sfu` into the
+0520143). `SFU_IMAGE` runs an existing image and is never rebuilt; without it, `up` builds `../mezon-sfu` into the
 shared tag `mezon-sfu:e2e` unless `--no-build`:
 
 ```sh
-SFU_IMAGE=mezon-sfu:develop-6a05e2b dotnet run --project tools/SfuE2e -- up --mode dynamic --no-build
+SFU_IMAGE=mezon-sfu:develop-0520143 dotnet run --project tools/SfuE2e -- up --mode dynamic --no-build
 dotnet run --project tools/SfuE2e -- up --mode fixed2 [--net host|bridge] [--no-build]
 dotnet run --project tools/SfuE2e -- test          # the test project in mcr.microsoft.com/dotnet/sdk:10.0 on every bridge stack
 dotnet run --project tools/SfuE2e -- down [--mode <mode>] [--keep]
