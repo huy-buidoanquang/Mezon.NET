@@ -187,6 +187,7 @@ public class E2eTests
         var roomId = Peer.RandomId();
         await using var speaker = await Join(stack, roomId, "Speaker");
         await using var listener = await Join(stack, roomId, "Listener", Options(Role.Audience));
+        await using var other = await Join(stack, roomId, "Other", Options(Role.Audience));
         listener.StartFrames((byte)'L', () => 30);
         await WaitFor(5, "the speaker sees the audience member", () => speaker.Room.GetParticipantsByUserId(listener.UserId).Count == 1);
         await Task.Delay(1500);
@@ -195,6 +196,7 @@ public class E2eTests
         await Assert.ThrowsAsync<SfuException>(() => speaker.Room.LocalParticipant.SetPushToTalkAsync(true));
         await listener.Room.LocalParticipant.SetPushToTalkAsync(true);
         await WaitFor(10, "the speaker hears push-to-talk", () => speaker.Frames(listener.UserId, (byte)'L') > 20);
+        await WaitFor(10, "the other audience member hears push-to-talk (mezon-sfu#482)", () => other.Frames(listener.UserId, (byte)'L') > 20);
         await listener.Room.LocalParticipant.SetPushToTalkAsync(false);
         await Task.Delay(500);
         var before = speaker.Frames(listener.UserId, (byte)'L');
