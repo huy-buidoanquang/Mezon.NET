@@ -1,6 +1,6 @@
 // Real-SFU e2e harness for Mezon.Net.Sdk.Sfu (port of the Rust SDK's `cargo xtask e2e`).
 //
-//   dotnet run --project tools/SfuE2e -- up [--mode dynamic|fixed2|alone] [--net host|bridge] [--no-build]
+//   dotnet run --project tools/SfuE2e -- up [--mode dynamic|fixed2|alone|decoupled] [--net host|bridge] [--no-build]
 //   dotnet run --project tools/SfuE2e -- down [--mode <mode>] [--keep]
 //   dotnet run --project tools/SfuE2e -- test [--image <sdk image>] [-- <dotnet test args>]
 //
@@ -30,6 +30,7 @@ internal static class Program
         "dynamic" => new Stack("172.28.40", 7040, 8040, 4262),
         "fixed2" => new Stack("172.28.41", 7041, 8041, 4263),
         "alone" => new Stack("172.28.42", 7042, 8042, 4264),
+        "decoupled" => new Stack("172.28.43", 7043, 8043, 4265),
         _ => null,
     };
 

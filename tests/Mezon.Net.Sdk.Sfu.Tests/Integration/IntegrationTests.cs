@@ -32,7 +32,7 @@ public class IntegrationTests
         var mute = c.Messages("mute")[0];
         Assert.Equal((true, 1L), (mute["is_mute"]!.GetValue<bool>(), mute["mute_revision"]!.GetValue<long>()));
         var join = c.Messages("join")[0];
-        Assert.Equal(("speaker", "vp8"), (join["role"]!.GetValue<string>(), join["screen_codec"]!.GetValue<string>()));
+        Assert.Equal(("speaker", "vp8", 1), (join["role"]!.GetValue<string>(), join["screen_codec"]!.GetValue<string>(), join["media_pool_version"]!.GetValue<int>()));
         await h.WaitEvent("state:Connected");
     }
 

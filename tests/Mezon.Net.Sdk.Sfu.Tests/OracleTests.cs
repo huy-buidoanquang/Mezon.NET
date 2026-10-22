@@ -6,7 +6,8 @@ namespace Mezon.Net.Sdk.Sfu.Tests;
 
 /// <summary>
 /// Answer-shape oracle: SIPSorcery answers (through the adapter) to mezon-sfu-shaped offers must pass the server's
-/// <c>validate_answer_mline_shape</c> and keep the uplink directions the protocol needs.
+/// <c>validate_answer_mline_shape</c> (<c>validate_answer_mline_shape_layout</c> for decoupled rooms) and keep the
+/// uplink directions the protocol needs.
 /// </summary>
 public class OracleTests
 {
@@ -36,6 +37,10 @@ public class OracleTests
         ["speaker, fixed 2"] = (true, new OfferOptions(Slots: new[] { FixtureSlot.Fixed(0), FixtureSlot.Fixed(1) })),
         ["speaker, vp9 screen"] = (true, new OfferOptions(Screen: "vp9", Slots: DynamicSlots(2))),
         ["speaker, vp9+vp8 screen"] = (true, new OfferOptions(Screen: "vp9+vp8", Slots: DynamicSlots(2))),
+        ["speaker, decoupled 6/6/6"] = (true, new OfferOptions(Pool: new MediaPoolLayout(6, 6, 6))),
+        ["audience, decoupled 2/1/1"] = (false, new OfferOptions(Audience: true, Pool: new MediaPoolLayout(2, 1, 1))),
+        ["speaker, decoupled audio only"] = (true, new OfferOptions(Pool: new MediaPoolLayout(2, 0, 0))),
+        ["speaker, decoupled vp9 screen"] = (true, new OfferOptions(Screen: "vp9", Pool: new MediaPoolLayout(1, 1, 1))),
     };
 
     public static IEnumerable<object[]> Cases() => CaseTable.Keys.Select(k => new object[] { k });
@@ -49,7 +54,7 @@ public class OracleTests
         try
         {
             var answer = await Negotiate(pc, OfferFixtures.BuildOffer(options));
-            var problem = Sdp.CheckAnswerShape(answer, (uint)options.SlotList.Count);
+            var problem = options.Pool is { } pool ? Sdp.CheckAnswerShape(answer, pool) : Sdp.CheckAnswerShape(answer, (uint)options.SlotList.Count);
             Assert.True(problem is null, $"{name}: {problem}\n{answer}");
             var dirs = Directions(answer);
             Assert.Equal("sendonly", dirs[0]);
@@ -61,6 +66,12 @@ public class OracleTests
                 Assert.Equal(slot.Occupant is not null ? "recvonly" : "inactive", dirs[3 + 3 * k]);
                 Assert.Equal(slot.Occupant is not null ? "recvonly" : "inactive", dirs[4 + 3 * k]);
                 Assert.Equal(slot.Occupant is not null && slot.Screen ? "recvonly" : "inactive", dirs[5 + 3 * k]);
+            }
+
+            if (options.Pool is { } layout)
+            {
+                Assert.All(dirs.Skip(3), d => Assert.Equal("recvonly", d));
+                Assert.Equal(Enumerable.Range(3, (int)layout.MLines - 3).Select(m => (uint)m), pc.ReceivingMids().OrderBy(m => m));
             }
 
             var sections = Sdp.Parse(answer).Sections;

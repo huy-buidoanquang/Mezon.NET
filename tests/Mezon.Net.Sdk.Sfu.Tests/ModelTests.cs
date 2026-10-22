@@ -48,6 +48,9 @@ public class ModelTests
                      ("a=msid:u42-p0 audio-u42-p0", null),
                      ("a=msid:stream track", null),
                      ("a=msid:u0042-p9 audio", new Occupant.Peer("42", 9)),
+                     ("a=msid:audio-slot-3 audio-slot-3", null),
+                     ("a=msid:camera-slot-0 video-slot-0", null),
+                     ("a=msid:screen-slot-1 screen-slot-1", null),
                  })
         {
             var parsed = Sdp.Parse($"v=0\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\na=mid:3\r\n{line}\r\n");
@@ -101,6 +104,38 @@ public class ModelTests
         Assert.NotNull(Sdp.CheckAnswerShape(Answer("0", "2", "1"), 0));
         Assert.NotNull(Sdp.CheckAnswerShape(Answer("0", "1", ""), 0));
         Assert.NotNull(Sdp.CheckAnswerShape(ReplaceFirst(Answer("0", "1", "2"), "m=audio", "m=video"), 0));
+    }
+
+    [Fact]
+    public void Media_pool_layout()
+    {
+        var pool = new MediaPoolLayout(6, 6, 6);
+        Assert.Equal(21L, pool.MLines);
+        Assert.Equal(
+            new uint?[] { 3, 8, 9, 14, 15, 20, null, null },
+            new[]
+            {
+                pool.Mid(TrackSource.Microphone, 0), pool.Mid(TrackSource.Microphone, 5), pool.Mid(TrackSource.Camera, 0), pool.Mid(TrackSource.Camera, 5),
+                pool.Mid(TrackSource.Screen, 0), pool.Mid(TrackSource.Screen, 5), pool.Mid(TrackSource.Screen, 6), pool.Mid(TrackSource.Microphone, uint.MaxValue),
+            });
+        var noCamera = new MediaPoolLayout(2, 0, 1);
+        Assert.Equal((null, 5u, (uint?)null), (noCamera.Mid(TrackSource.Camera, 0), noCamera.Mid(TrackSource.Screen, 0), noCamera.Mid(TrackSource.Microphone, 2)));
+
+        var offer = Sdp.AnalyzeOffer(OfferFixtures.BuildOffer(new OfferOptions(Pool: noCamera)));
+        Assert.Equal(DownlinkMode.Unknown, offer.Mode);
+        Assert.Equal(new[] { "audio", "video", "video", "audio", "audio", "video" }, offer.Sdp.Sections.Select(s => s.Media));
+        Assert.All(offer.Sdp.Sections.Skip(3), s => Assert.Equal("sendonly", s.Direction));
+    }
+
+    [Fact]
+    public void Answer_shape_check_follows_the_decoupled_layout()
+    {
+        var pool = new MediaPoolLayout(2, 1, 0);
+        var offer = OfferFixtures.BuildOffer(new OfferOptions(Pool: pool));
+        Assert.Null(Sdp.CheckAnswerShape(offer, pool));
+        Assert.Equal("m-line 4 is audio, expected video", Sdp.CheckAnswerShape(offer, 1));
+        Assert.Equal("m-line 5 is video, expected audio", Sdp.CheckAnswerShape(offer, new MediaPoolLayout(3, 0, 0)));
+        Assert.Equal("expected 7 m-lines, found 6", Sdp.CheckAnswerShape(offer, new MediaPoolLayout(2, 1, 1)));
     }
 
     private static string ReplaceFirst(string s, string from, string to)
@@ -393,6 +428,57 @@ public class ModelTests
     }
 
     [Fact]
+    public void Media_pools_follow_slot_events_per_kind()
+    {
+        var pools = new MediaPools(new MediaPoolLayout(2, 1, 1));
+        Assert.Equal(SlotChange.Assigned, pools.Assign(TrackSource.Microphone, 1, 4, 7, "107", 3, true));
+        Assert.Equal(SlotChange.Assigned, pools.Assign(TrackSource.Camera, 0, 5, 7, "107", 1, true));
+        Assert.Equal(SlotChange.Ignored, pools.Assign(TrackSource.Camera, 0, 6, 8, "108", 2, true));
+        Assert.Equal(SlotChange.Ignored, pools.Assign(TrackSource.Screen, 1, 0, 8, "108", 1, true));
+        Assert.Equal(SlotChange.Assigned, pools.Assign(TrackSource.Screen, 0, 0, 8, "108", 1, true));
+        Assert.Equal(SlotChange.Flags, pools.Assign(TrackSource.Microphone, 1, 4, 7, "107", 3, false));
+        Assert.Equal(SlotChange.Ignored, pools.Assign(TrackSource.Microphone, 1, 4, 9, "109", 2, true));
+        Assert.Null(pools.Release(TrackSource.Microphone, 1, 2));
+        Assert.Null(pools.Release(TrackSource.Screen, 1, 9));
+        Assert.Equal(7u, pools.Release(TrackSource.Microphone, 1, 3)!.PeerId);
+        Assert.Equal(SlotChange.Ignored, pools.Assign(TrackSource.Microphone, 1, 4, 7, "107", 3, true));
+        Assert.Equal(new[] { (TrackSource.Camera, 0u, 7u), (TrackSource.Screen, 0u, 8u) }, pools.Occupied.Select(o => (o.Kind, o.Slot, o.Occupant.PeerId)));
+
+        // Membership seeds active slots, never over a generation this client already knows.
+        pools.Seed(9, "109", new MediaSlots(new MediaSlot(0, 4, 3), new MediaSlot(0, 1, 5), null));
+        Assert.Equal((9u, true), (pools[TrackSource.Microphone].Get(0)!.PeerId, pools[TrackSource.Microphone].Get(0)!.AudioActive));
+        Assert.Equal(7u, pools[TrackSource.Camera].Get(0)!.PeerId);
+        pools.Seed(9, "109", new MediaSlots(null, new MediaSlot(0, 2, 5), null));
+        Assert.Equal(9u, pools[TrackSource.Camera].Get(0)!.PeerId);
+
+        // A departure frees the peer's slots everywhere and retires the ones its peer_left lists.
+        pools.ReleasePeer(9, new MediaSlots(null, null, new MediaSlot(0, 2, 6)));
+        Assert.Empty(pools.Occupied);
+        Assert.Equal(SlotChange.Ignored, pools.Assign(TrackSource.Microphone, 0, 3, 9, "109", 4, true));
+        Assert.Equal(SlotChange.Ignored, pools.Assign(TrackSource.Screen, 0, 6, 8, "108", 2, true));
+        Assert.Equal(SlotChange.Assigned, pools.Assign(TrackSource.Screen, 0, 6, 8, "108", 3, true));
+    }
+
+    [Fact]
+    public void Desired_tracks_of_decoupled_pools()
+    {
+        var pools = new MediaPools(new MediaPoolLayout(2, 1, 1));
+        pools.Assign(TrackSource.Microphone, 1, 0, 7, "107", 2, false);
+        pools.Assign(TrackSource.Microphone, 0, 3, 8, "108", 1, true);
+        pools.Assign(TrackSource.Camera, 0, 5, 7, "107", 1, true);
+        pools.Assign(TrackSource.Screen, 0, 6, 8, "108", 4, true);
+        Assert.Equal(
+            new[] { (3u, TrackSource.Microphone, 8u, false, 1L), (4u, TrackSource.Microphone, 7u, true, 2L), (5u, TrackSource.Camera, 7u, false, 1L), (6u, TrackSource.Screen, 8u, false, 4L) },
+            Describe(Tracks.Desired(DownlinkMode.Decoupled, 0, new SlotMap(), new DynamicOccupancy(), pools)));
+
+        var before = Tracks.Desired(DownlinkMode.Decoupled, 0, new SlotMap(), new DynamicOccupancy(), pools);
+        pools.Assign(TrackSource.Microphone, 1, 4, 7, "107", 2, true);
+        pools.Assign(TrackSource.Camera, 0, 5, 9, "109", 2, true);
+        var diff = Tracks.Compare(before, Tracks.Desired(DownlinkMode.Decoupled, 0, new SlotMap(), new DynamicOccupancy(), pools));
+        Assert.Equal((4u, 5u, 9u), (diff.MuteChanged.Single().Mid, diff.Unsubscribed.Single().Mid, diff.Subscribed.Single().PeerId));
+    }
+
+    [Fact]
     public void Occupant_from_a_membership_mapping()
     {
         var state = ParticipantState.Empty(4) with { IsMuted = true, CameraActive = true };
@@ -400,6 +486,7 @@ public class ModelTests
         Assert.Equal((1u, 3L, false, true), (slot, occupant.Generation, occupant.AudioActive, occupant.VideoActive));
         Assert.Null(Tracks.OccupantFromMapping(4, "104", default(SlotMapping), state));
         Assert.Null(Tracks.OccupantFromMapping(4, "104", null, state));
+        Assert.Null(Tracks.OccupantFromMapping(4, "104", new SlotMapping(0, 0, 0, null, 0, new MediaSlots(new MediaSlot(0, 1, 3), null, null)), state));
     }
 
     // -------------------------------------------------------------------------------------------

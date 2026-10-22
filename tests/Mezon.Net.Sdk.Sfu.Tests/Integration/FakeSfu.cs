@@ -39,6 +39,9 @@ internal sealed class Conn
 
     public long Generation { get; set; } = -1;
 
+    /// <summary>The pools of a decoupled room, shaping every offer.</summary>
+    public MediaPoolLayout? Pool { get; set; }
+
     public bool Ended { get; set; }
 
     public ChannelReader<object> Outgoing => _out.Reader;
@@ -87,7 +90,7 @@ internal sealed class Conn
             audience = Role == "audience";
         }
 
-        Send(new { type = "offer", offer_generation = g, sdp = OfferFixtures.BuildOffer(new OfferOptions(Audience: audience, Slots: slots)) });
+        Send(new { type = "offer", offer_generation = g, sdp = OfferFixtures.BuildOffer(new OfferOptions(Audience: audience, Slots: slots, Pool: Pool)) });
         return g;
     }
 
@@ -125,7 +128,8 @@ internal sealed class Conn
 
 /// <summary>
 /// A scripted mezon-sfu on a real WebSocket: joined then offer generation 0 on join, a snapshot after the first
-/// answer, acknowledgements for control messages, and a client close answered with 4008.
+/// answer, acknowledgements for control messages, and a client close answered with 4008. With <see cref="Pool"/> set,
+/// a decoupled room: it rejects a join without <c>media_pool_version: 1</c> like mezon-sfu (error, then close 1002).
 /// </summary>
 internal sealed class FakeSfu : IAsyncDisposable
 {
@@ -152,6 +156,8 @@ internal sealed class FakeSfu : IAsyncDisposable
     public string Url { get; }
 
     public List<FixtureSlot> Slots { get; set; } = new();
+
+    public MediaPoolLayout? Pool { get; set; }
 
     public List<object> Members { get; set; } = new();
 
@@ -290,6 +296,22 @@ internal sealed class FakeSfu : IAsyncDisposable
         slot = 4294967295u,
         assignment_generation = 0,
     };
+
+    /// <summary>A member of a decoupled room holding the given <c>media_slots</c> (see <see cref="PoolSlot"/>).</summary>
+    public static JsonObject PoolMember(uint peer, JsonObject? audio = null, JsonObject? camera = null, JsonObject? screen = null)
+    {
+        var node = MemberWith(peer, m =>
+        {
+            foreach (var key in new[] { "mid_audio", "mid_video", "mid_screen", "slot", "assignment_generation" })
+            {
+                m.Remove(key);
+            }
+        });
+        node["media_slots"] = new JsonObject { ["audio"] = audio, ["camera"] = camera, ["screen"] = screen };
+        return node;
+    }
+
+    public static JsonObject PoolSlot(uint slot, long generation, uint mid) => new() { ["slot"] = slot, ["generation"] = generation, ["mid"] = mid };
 
     /// <summary>A member with fields replaced, e.g. <c>MemberWith(2, camera_active: true)</c>.</summary>
     public static JsonObject MemberWith(uint peer, Action<JsonObject> edit)
@@ -531,12 +553,21 @@ internal sealed class FakeSfu : IAsyncDisposable
 
                 bool silent;
                 List<FixtureSlot> slots;
+                MediaPoolLayout? pool;
                 uint peer;
                 lock (_lock)
                 {
                     peer = _nextPeer++;
                     silent = SilentJoin;
                     slots = Slots.ToList();
+                    pool = Pool;
+                }
+
+                if (pool is not null && m["media_pool_version"]?.GetValue<int>() != 1)
+                {
+                    conn.Send(new { type = "error", message = "unsupported_media_pool_version" });
+                    conn.Close(1002);
+                    return;
                 }
 
                 conn.UserId = claims.UserId;
@@ -552,7 +583,18 @@ internal sealed class FakeSfu : IAsyncDisposable
                     return;
                 }
 
-                conn.Send(new { type = "joined", room = "42", peer_id = peer, metadata = "", iceServers = new[] { new { urls = "stun:stun.example:3478" } } });
+                var joined = JsonSerializer.SerializeToNode(new { type = "joined", room = "42", peer_id = peer, metadata = "", iceServers = new[] { new { urls = "stun:stun.example:3478" } } })!.AsObject();
+                if (pool is not null)
+                {
+                    joined["media_pool_version"] = 1;
+                    joined["media_pool_mode"] = "decoupled";
+                    joined["max_audio_slots"] = pool.Audio;
+                    joined["max_camera_slots"] = pool.Camera;
+                    joined["max_screen_slots"] = pool.Screen;
+                }
+
+                conn.Send(joined.ToJsonString());
+                conn.Pool = pool;
                 conn.Offer(slots, 0);
                 break;
             }

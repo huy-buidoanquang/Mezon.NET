@@ -36,6 +36,12 @@ public enum DownlinkMode
 
     /// <summary>A pool of slots reassigned to active speakers with slot events; msids name the slot.</summary>
     Fixed,
+
+    /// <summary>
+    /// Separate audio, camera and screen pools (server <c>media_pool_mode = decoupled</c>) whose slots are assigned
+    /// one by one with slot events: audio to active speakers, camera and screen to the participants who turn them on.
+    /// </summary>
+    Decoupled,
 }
 
 /// <summary>Connection state of a <see cref="Room"/>.</summary>

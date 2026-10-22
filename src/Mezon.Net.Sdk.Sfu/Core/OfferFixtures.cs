@@ -16,7 +16,8 @@ internal sealed record FixtureSlot(Occupant? Occupant = null, bool NoCamera = fa
 
 /// <summary>Options of a built offer.</summary>
 /// <param name="Screen">"vp8" (default), "vp9" or "vp9+vp8".</param>
-internal sealed record OfferOptions(bool Audience = false, string Screen = "vp8", IReadOnlyList<FixtureSlot>? Slots = null)
+/// <param name="Pool">The pools of a decoupled room, whose remote m-lines replace <paramref name="Slots"/>.</param>
+internal sealed record OfferOptions(bool Audience = false, string Screen = "vp8", IReadOnlyList<FixtureSlot>? Slots = null, MediaPoolLayout? Pool = null)
 {
     public IReadOnlyList<FixtureSlot> SlotList => Slots ?? new List<FixtureSlot>();
 }
@@ -44,7 +45,7 @@ internal static class OfferFixtures
     private const string TransportCc = "a=extmap:6 http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01";
     private const string MidExtension = "a=extmap:7 urn:ietf:params:rtp-hdrext:sdes:mid";
 
-    private static void Audio(List<string> lines, uint mid, string direction, string? msid, bool ssrc = true)
+    private static void Audio(List<string> lines, uint mid, string direction, string? msid, bool ssrc = true, string? track = null)
     {
         lines.Add("m=audio 7000 UDP/TLS/RTP/SAVPF 111");
         lines.AddRange(Transport);
@@ -66,7 +67,7 @@ internal static class OfferFixtures
         lines.Add("a=fmtp:111 minptime=10;useinbandfec=1;usedtx=1;maxaveragebitrate=32000");
         if (msid is not null)
         {
-            lines.Add($"a=msid:{msid} audio-{msid}");
+            lines.Add($"a=msid:{msid} {track ?? "audio-" + msid}");
             if (ssrc)
             {
                 lines.Add($"a=ssrc:{1000 + mid} cname:{msid}");
@@ -74,7 +75,7 @@ internal static class OfferFixtures
         }
     }
 
-    private static void Video(List<string> lines, uint mid, string direction, string codecs, string? msid, string prefix, bool ssrc = true)
+    private static void Video(List<string> lines, uint mid, string direction, string codecs, string? msid, string prefix, bool ssrc = true, string? track = null)
     {
         var pts = codecs switch
         {
@@ -113,7 +114,7 @@ internal static class OfferFixtures
 
         if (msid is not null)
         {
-            lines.Add($"a=msid:{msid} {prefix}-{msid}");
+            lines.Add($"a=msid:{msid} {track ?? prefix + "-" + msid}");
             if (ssrc)
             {
                 lines.Add($"a=ssrc:{2000 + mid} cname:{msid}");
@@ -124,13 +125,32 @@ internal static class OfferFixtures
     /// <summary>Builds an offer.</summary>
     public static string BuildOffer(OfferOptions options)
     {
-        var slots = options.SlotList;
-        var mids = "0 1 2" + string.Concat(Enumerable.Range(0, slots.Count).Select(k => $" {3 + 3 * k} {4 + 3 * k} {5 + 3 * k}"));
+        var slots = options.Pool is null ? options.SlotList : new List<FixtureSlot>();
+        var mids = string.Join(" ", Enumerable.Range(0, (int)(options.Pool?.MLines ?? Sdp.RemoteMidBase + Sdp.MidsPerSlot * slots.Count)));
         var lines = new List<string> { "v=0", "o=- 1 1 IN IP4 127.0.0.1", "s=-", "t=0 0", $"a=group:BUNDLE {mids}", "a=ice-lite" };
         var uplink = options.Audience ? "inactive" : "recvonly";
         Audio(lines, 0, "recvonly", null);
         Video(lines, 1, uplink, "vp8", null, "video");
         Video(lines, 2, uplink, options.Screen, null, "video");
+        if (options.Pool is { } pool)
+        {
+            // mezon-sfu append_fixed_decoupled_slot_audio/_video: every pool m-line is sendonly, msids name the slot.
+            for (var n = 0u; n < pool.Audio; n++)
+            {
+                Audio(lines, pool.Mid(TrackSource.Microphone, n)!.Value, "sendonly", $"audio-slot-{n}", track: $"audio-slot-{n}");
+            }
+
+            for (var n = 0u; n < pool.Camera; n++)
+            {
+                Video(lines, pool.Mid(TrackSource.Camera, n)!.Value, "sendonly", "vp8", $"camera-slot-{n}", "video", track: $"video-slot-{n}");
+            }
+
+            for (var n = 0u; n < pool.Screen; n++)
+            {
+                Video(lines, pool.Mid(TrackSource.Screen, n)!.Value, "sendonly", options.Screen, $"screen-slot-{n}", "screen", track: $"screen-slot-{n}");
+            }
+        }
+
         for (var k = 0u; k < slots.Count; k++)
         {
             var slot = slots[(int)k];

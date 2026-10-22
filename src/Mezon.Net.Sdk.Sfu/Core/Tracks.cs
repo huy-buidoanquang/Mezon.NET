@@ -6,10 +6,12 @@ namespace Mezon.Net.Sdk.Sfu.Core;
 
 /// <summary>One remote media stream as the application should see it.</summary>
 /// <param name="Epoch">
-/// Distinguishes successive occupants of the same mid: the slot generation in fixed mode, or the offer generation
-/// that installed the occupant in dynamic mode.
+/// Distinguishes successive occupants of the same mid: the slot generation in fixed and decoupled mode, or the offer
+/// generation that installed the occupant in dynamic mode.
 /// </param>
-/// <param name="Muted">Audio only: the publisher is muted (fixed mode <c>audio_active: false</c>).</param>
+/// <param name="Muted">
+/// Audio only: the publisher is muted (fixed mode <c>audio_active: false</c>, decoupled mode <c>active: false</c>).
+/// </param>
 internal sealed record TrackSpec(uint Mid, uint Slot, TrackSource Source, uint PeerId, string UserId, long Epoch, bool Muted);
 
 /// <summary>The publisher holding a fixed slot.</summary>
@@ -104,6 +106,75 @@ internal sealed class SlotMap
     }
 }
 
+/// <summary>
+/// Decoupled downlink (<c>media_pool_mode: "decoupled"</c>): separate audio, camera and screen pools whose slots are
+/// assigned and released one by one with slot events carrying <c>kind</c>, each slot with its own generations. A
+/// publisher can hold a slot in every pool, at unrelated mids.
+/// </summary>
+internal sealed class MediaPools
+{
+    private readonly SlotMap[] _pools = { new(), new(), new() };
+
+    public MediaPools(MediaPoolLayout layout) => Layout = layout;
+
+    public MediaPoolLayout Layout { get; }
+
+    /// <summary>The slots of one pool (<see cref="TrackSource.Microphone"/> is the audio pool).</summary>
+    public SlotMap this[TrackSource kind] => _pools[(int)kind];
+
+    /// <summary>Every occupied slot, pool by pool, each pool in ascending slot order.</summary>
+    public IEnumerable<(TrackSource Kind, uint Slot, SlotOccupant Occupant)> Occupied =>
+        _pools.SelectMany((pool, kind) => pool.Occupied.Select(s => ((TrackSource)kind, s.Key, s.Value)));
+
+    /// <summary>
+    /// Applies <c>slot_assigned</c> (generation rules of <see cref="SlotMap"/>). A pool slot has a single
+    /// <c>active</c> flag, stored in every flag of its occupant; only audio's is reliable. Ignored when the pool has no
+    /// such slot or <paramref name="mid"/> (0 = absent) is not the slot's mid.
+    /// </summary>
+    public SlotChange Assign(TrackSource kind, uint slot, uint mid, uint peerId, string userId, long generation, bool active)
+    {
+        if (Layout.Mid(kind, slot) is not { } expected || (mid != 0 && mid != expected))
+        {
+            return SlotChange.Ignored;
+        }
+
+        return this[kind].Assign(slot, new SlotOccupant(peerId, userId, generation, active, active, active));
+    }
+
+    /// <summary>Applies <c>slot_released</c>.</summary>
+    public SlotOccupant? Release(TrackSource kind, uint slot, long generation) =>
+        Layout.Mid(kind, slot) is null ? null : this[kind].Release(slot, generation);
+
+    /// <summary>
+    /// Seeds the slots a member holds (snapshot, <c>peer_joined</c>) as active. A slot whose generation this client
+    /// already knows is left alone: its slot events are newer than the membership message.
+    /// </summary>
+    public void Seed(uint peerId, string userId, MediaSlots held)
+    {
+        foreach (var (kind, slot) in held.Held())
+        {
+            if (this[kind].Get(slot.Slot) is not { } current || current.Generation < slot.Generation)
+            {
+                Assign(kind, slot.Slot, slot.Mid, peerId, userId, slot.Generation, true);
+            }
+        }
+    }
+
+    /// <summary>Frees every slot of a peer that left and retires the slots its <c>peer_left</c> lists, so late assignments of them are ignored.</summary>
+    public void ReleasePeer(uint peerId, MediaSlots held)
+    {
+        foreach (var pool in _pools)
+        {
+            pool.ReleasePeer(peerId);
+        }
+
+        foreach (var (kind, slot) in held.Held())
+        {
+            Release(kind, slot.Slot, slot.Generation);
+        }
+    }
+}
+
 /// <summary>The publisher of a dynamic mid.</summary>
 internal sealed record DynamicOccupant(uint PeerId, string UserId, long Epoch);
 
@@ -192,12 +263,26 @@ internal static class Tracks
     /// <summary>
     /// The remote tracks the application should currently have, keyed by mid. Fixed mode: every occupied slot
     /// yields its audio (muted when <c>audio_active</c> is false) plus camera and screen while active. Dynamic
-    /// mode: every occupied sendonly mid yields its track. <paramref name="slotCount"/> bounds fixed slots to those
-    /// negotiated in the PeerConnection.
+    /// mode: every occupied sendonly mid yields its track. Decoupled mode: every occupied slot of
+    /// <paramref name="pools"/> yields its track (audio muted when <c>active</c> is false). <paramref name="slotCount"/>
+    /// bounds fixed slots to those negotiated in the PeerConnection.
     /// </summary>
-    public static SortedDictionary<uint, TrackSpec> Desired(DownlinkMode mode, uint slotCount, SlotMap slots, DynamicOccupancy dynamic)
+    public static SortedDictionary<uint, TrackSpec> Desired(DownlinkMode mode, uint slotCount, SlotMap slots, DynamicOccupancy dynamic, MediaPools? pools = null)
     {
         var result = new SortedDictionary<uint, TrackSpec>();
+        if (mode == DownlinkMode.Decoupled && pools is not null)
+        {
+            foreach (var (kind, slot, occupant) in pools.Occupied)
+            {
+                if (pools.Layout.Mid(kind, slot) is { } mid)
+                {
+                    result[mid] = new TrackSpec(mid, slot, kind, occupant.PeerId, occupant.UserId, occupant.Generation, kind == TrackSource.Microphone && !occupant.AudioActive);
+                }
+            }
+
+            return result;
+        }
+
         if (mode == DownlinkMode.Fixed)
         {
             foreach (var (slot, occupant) in slots.Occupied.Select(kv => (kv.Key, kv.Value)))

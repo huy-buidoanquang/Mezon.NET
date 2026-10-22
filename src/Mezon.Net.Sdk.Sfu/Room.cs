@@ -60,6 +60,7 @@ public sealed class Room : IAsyncDisposable
     private ParticipantState? _serverState;
     private DownlinkMode _mode = DownlinkMode.Unknown;
     private uint _slotCount;
+    private MediaPools? _pools;
     private string _url = "";
     private TokenProvider? _tokens;
     private string? _token;
@@ -107,7 +108,7 @@ public sealed class Room : IAsyncDisposable
         }
     }
 
-    /// <summary>How the server maps remote publishers, known after the first offer with a publisher.</summary>
+    /// <summary>How the server maps remote publishers, known after the first offer with a publisher (decoupled rooms: on joining).</summary>
     public DownlinkMode DownlinkMode
     {
         get
@@ -1627,6 +1628,7 @@ public sealed class Room : IAsyncDisposable
         _dynamic.Clear();
         _mode = DownlinkMode.Unknown;
         _slotCount = 0;
+        _pools = null;
         _localPeerId = 0;
         _serverState = null;
         _micEnabled = false;
@@ -1664,6 +1666,7 @@ public sealed class Room : IAsyncDisposable
         _dynamic.Clear();
         _mode = DownlinkMode.Unknown;
         _slotCount = 0;
+        _pools = null;
         _localPeerId = 0;
         _serverState = null;
         ClearSpeakers();
@@ -1761,6 +1764,14 @@ public sealed class Room : IAsyncDisposable
                     _slots.Release(released.Slot, released.Generation);
                     Reconcile();
                     break;
+                case ServerMessage.MediaSlotAssigned m:
+                    _pools?.Assign(m.Kind, m.Slot, m.Mid, m.PeerId, m.UserId, m.Generation, m.Active);
+                    Reconcile();
+                    break;
+                case ServerMessage.MediaSlotReleased released:
+                    _pools?.Release(released.Kind, released.Slot, released.Generation);
+                    Reconcile();
+                    break;
                 case ServerMessage.MuteChanged changed:
                     state.Mute.Acknowledge(changed.IsMute, changed.MuteRevision);
                     break;
@@ -1835,6 +1846,12 @@ public sealed class Room : IAsyncDisposable
         if (joined.Room.Length > 0)
         {
             _roomId = joined.Room;
+        }
+
+        if (joined.MediaPool is { } pool)
+        {
+            _pools = new MediaPools(pool);
+            SetMode(DownlinkMode.Decoupled);
         }
 
         var config = new PeerConfig
@@ -2078,7 +2095,7 @@ public sealed class Room : IAsyncDisposable
             SetMode(layout.Mode);
         }
 
-        if (_mode != DownlinkMode.Fixed)
+        if (_mode is not (DownlinkMode.Fixed or DownlinkMode.Decoupled))
         {
             _dynamic.ApplyOffer(layout, generation, Clock.Now);
         }
@@ -2141,7 +2158,7 @@ public sealed class Room : IAsyncDisposable
 
     private void SetMode(DownlinkMode mode)
     {
-        if (_mode == mode || mode == DownlinkMode.Unknown || _mode == DownlinkMode.Fixed)
+        if (_mode == mode || mode == DownlinkMode.Unknown || _mode is DownlinkMode.Fixed or DownlinkMode.Decoupled)
         {
             return;
         }
@@ -2154,18 +2171,25 @@ public sealed class Room : IAsyncDisposable
     // Membership
 
     /// <summary>
-    /// Seeds the slot map from every member's mapping in a snapshot, known members included: a new session learns
-    /// the current slot holders only from its snapshot (<c>slot_assigned</c> is sent for changes only).
+    /// Seeds the slot map (or the decoupled pools) from every member's mapping in a snapshot, known members included:
+    /// a new session learns the current slot holders only from its snapshot (<c>slot_assigned</c> is sent for
+    /// changes only).
     /// </summary>
     private void AssignSnapshotSlots(ServerMessage.RoomSnapshot snapshot)
     {
         foreach (var member in snapshot.Members)
         {
-            if (member.State.PeerId != snapshot.SelfPeerId
-                && Tracks.OccupantFromMapping(member.State.PeerId, member.State.UserId, member.Mapping, member.State) is { } assignment)
+            if (member.State.PeerId == snapshot.SelfPeerId)
+            {
+                continue;
+            }
+
+            if (Tracks.OccupantFromMapping(member.State.PeerId, member.State.UserId, member.Mapping, member.State) is { } assignment)
             {
                 _slots.Assign(assignment.Slot, assignment.Occupant);
             }
+
+            _pools?.Seed(member.State.PeerId, member.State.UserId, member.Mapping.MediaSlots);
         }
     }
 
@@ -2191,6 +2215,7 @@ public sealed class Room : IAsyncDisposable
                     _slots.Assign(assignment.Slot, assignment.Occupant);
                 }
 
+                _pools?.Seed(p.PeerId, p.UserId, joined.Member.Mapping?.MediaSlots ?? default);
                 Emit(new ParticipantConnected(p));
                 break;
             }
@@ -2204,6 +2229,7 @@ public sealed class Room : IAsyncDisposable
                     _slots.Release(slot, mapping.AssignmentGeneration);
                 }
 
+                _pools?.ReleasePeer(id, left.Mapping?.MediaSlots ?? default);
                 _dynamic.RemovePeer(id, Clock.Now, TimeSpan.FromSeconds(30));
                 if (!_participants.TryGetValue(id, out var p))
                 {
@@ -2250,7 +2276,7 @@ public sealed class Room : IAsyncDisposable
         }
 
         var receiving = state.Receiving;
-        var desired = Tracks.Desired(_mode, _slotCount, _slots, _dynamic);
+        var desired = Tracks.Desired(_mode, _slotCount, _slots, _dynamic, _pools);
         foreach (var entry in desired.ToList())
         {
             var spec = entry.Value;
@@ -2260,7 +2286,7 @@ public sealed class Room : IAsyncDisposable
                 continue;
             }
 
-            // Dynamic offers keep a slot's camera and screen m-lines sendonly even while the publisher sends
+            // Dynamic and decoupled offers keep camera and screen m-lines sendonly even while the publisher sends
             // nothing, so video is subscribed only while the server reports it active.
             var inactiveVideo = _mode != DownlinkMode.Fixed
                                 && ((spec.Source == TrackSource.Camera && !p.CameraActive) || (spec.Source == TrackSource.Screen && !p.ScreenActive));
@@ -2339,17 +2365,19 @@ public sealed class Room : IAsyncDisposable
     }
 
     /// <summary>
-    /// Fixed-slot rooms: the server's voice activity detection decides who holds a slot, so the speakers are the
-    /// occupied slots with active audio. Dynamic rooms: see <see cref="SampleSpeakers"/>.
+    /// Fixed-slot and decoupled rooms: the server's voice activity detection decides who holds a slot (an audio slot
+    /// in decoupled rooms), so the speakers are the occupied slots with active audio. Dynamic rooms: see
+    /// <see cref="SampleSpeakers"/>.
     /// </summary>
     private void UpdateActiveSpeakers()
     {
         var next = new List<RemoteParticipant>();
-        if (_mode == DownlinkMode.Fixed)
+        if (_mode is DownlinkMode.Fixed or DownlinkMode.Decoupled)
         {
-            foreach (var entry in _slots.Occupied)
+            var held = _pools is { } pools ? pools[TrackSource.Microphone].Occupied : _slots.Occupied.Where(entry => entry.Key < _slotCount);
+            foreach (var entry in held)
             {
-                if (entry.Key < _slotCount && entry.Value.AudioActive && _participants.TryGetValue(entry.Value.PeerId, out var p) && !next.Contains(p))
+                if (entry.Value.AudioActive && _participants.TryGetValue(entry.Value.PeerId, out var p) && !next.Contains(p))
                 {
                     next.Add(p);
                 }
@@ -2370,7 +2398,7 @@ public sealed class Room : IAsyncDisposable
 
     private void SampleSpeakers(TimeSpan now)
     {
-        if (_mode == DownlinkMode.Fixed)
+        if (_mode is DownlinkMode.Fixed or DownlinkMode.Decoupled)
         {
             return;
         }

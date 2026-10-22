@@ -46,7 +46,7 @@ public class ProtocolTests
     public void Encode_orders_keys_type_first_and_free_text_last()
     {
         Assert.Equal(
-            """{"type":"join","role":"audience","screen_codec":"vp9","token":"a.b.c"}""",
+            """{"type":"join","role":"audience","screen_codec":"vp9","media_pool_version":1,"token":"a.b.c"}""",
             Enc(new ClientMessage.Join(Role.Audience, ScreenCodec.Vp9, "a.b.c")));
         Assert.Equal("""{"type":"answer","offer_generation":3,"sdp":"v=0"}""", Enc(new ClientMessage.Answer(3, "v=0")));
     }
@@ -153,6 +153,38 @@ public class ProtocolTests
         var updated = Assert.IsType<ServerMessage.PeerUpdated>(Protocol.Decode(
             """{"type":"peer_updated","peer":{"peer_id":4,"user_id":"9","role":"speaker","is_mute":"true"}}"""));
         Assert.True(updated.State.IsMuted && updated.State.PeerId == 4);
+    }
+
+    [Fact]
+    public void Decode_decoupled_pools()
+    {
+        var joined = Assert.IsType<ServerMessage.Joined>(Protocol.Decode(
+            """{"type":"joined","room":"7","peer_id":12,"metadata":"","iceServers":[],"media_pool_version":1,"media_pool_mode":"decoupled","max_audio_slots":6,"max_camera_slots":4,"max_screen_slots":1}"""));
+        Assert.Equal(new MediaPoolLayout(6, 4, 1), joined.MediaPool);
+        Assert.Null(Assert.IsType<ServerMessage.Joined>(Protocol.Decode("""{"type":"joined","room":"7","peer_id":12,"metadata":"","max_audio_slots":6}""")).MediaPool);
+
+        Assert.Equal(
+            new ServerMessage.MediaSlotAssigned(TrackSource.Camera, 1, 5, 10, 8, "77", false),
+            Protocol.Decode("""{"type":"slot_assigned","kind":"camera","slot":1,"generation":5,"mid":10,"peer_id":8,"user_id":"77","active":false}"""));
+        Assert.Equal(new ServerMessage.MediaSlotReleased(TrackSource.Microphone, 2, 5), Protocol.Decode("""{"type":"slot_released","kind":"audio","slot":2,"generation":5}"""));
+        Assert.Equal(new ServerMessage.MediaSlotReleased(TrackSource.Screen, 0, 3), Protocol.Decode("""{"type":"slot_released","kind":"screen","slot":0,"generation":3}"""));
+        Assert.Equal("slot_assigned", Assert.IsType<ServerMessage.Unknown>(Protocol.Decode(
+            """{"type":"slot_assigned","kind":"data","slot":0,"generation":1,"mid":3,"peer_id":8,"user_id":"77","active":true}""")).RawType);
+
+        const string slots = """{"audio":{"slot":0,"generation":3,"mid":3},"camera":null,"screen":{"slot":0,"generation":1,"mid":10}}""";
+        var member = $$"""{"peer_id":3,"user_id":"9","metadata":"","role":"speaker","is_mute":false,"camera_requested":false,"camera_active":false,"screen_requested":true,"screen_active":true,"ufrag":"ab","media_slots":{{slots}}}""";
+        var snapshot = Assert.IsType<ServerMessage.RoomSnapshot>(Protocol.Decode(
+            $$"""{"type":"room_snapshot","room":"1","room_revision":4,"self_peer_id":2,"participant_count":2,"members":[{{member}}]}"""));
+        var want = new MediaSlots(new MediaSlot(0, 3, 3), null, new MediaSlot(0, 1, 10));
+        Assert.Equal(new SlotMapping(0, 0, 0, null, 0, want), snapshot.Members[0].Mapping);
+        Assert.True(snapshot.Members[0].Mapping.IsMapped);
+        var peerJoined = Assert.IsType<ServerMessage.PeerJoined>(Protocol.Decode($$"""{"type":"peer_joined","room_revision":5,"participant_count":2,"peer":{{member}}}"""));
+        Assert.Equal(want, peerJoined.Peer.Mapping.MediaSlots);
+        var left = Assert.IsType<ServerMessage.PeerLeft>(Protocol.Decode(
+            """{"type":"peer_left","room_revision":6,"participant_count":1,"ufrag":"ab","user_id":"9","peer_id":3,"media_slots":{"audio":null,"camera":{"slot":1,"generation":2,"mid":8},"screen":{"slot":4294967295,"generation":1,"mid":9}}}"""));
+        Assert.Equal(new MediaSlots(null, new MediaSlot(1, 2, 8), null), left.Mapping.MediaSlots);
+        var empty = Assert.IsType<ServerMessage.PeerLeft>(Protocol.Decode("""{"type":"peer_left","peer_id":3,"media_slots":{"audio":null,"camera":null,"screen":null}}"""));
+        Assert.False(empty.Mapping.IsMapped);
     }
 
     [Fact]

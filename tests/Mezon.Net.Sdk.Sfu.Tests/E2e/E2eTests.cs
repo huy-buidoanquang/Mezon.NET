@@ -14,11 +14,21 @@ public class E2eTests
 
     private static Stack Require(string mode) => Stack.Get(mode) ?? throw new InvalidOperationException($"the {mode} stack is not running");
 
+    private static DownlinkMode ModeOf(string mode) => mode switch
+    {
+        "fixed2" => DownlinkMode.Fixed,
+        "decoupled" => DownlinkMode.Decoupled,
+        _ => DownlinkMode.Dynamic,
+    };
+
     [E2eFact("dynamic")]
     public Task Join_and_hear_dynamic() => JoinAndHear("dynamic");
 
     [E2eFact("fixed2")]
     public Task Join_and_hear_fixed2() => JoinAndHear("fixed2");
+
+    [E2eFact("decoupled")]
+    public Task Join_and_hear_decoupled() => JoinAndHear("decoupled");
 
     private static async Task JoinAndHear(string mode)
     {
@@ -33,7 +43,7 @@ public class E2eTests
         var seen = bob.Room.GetParticipantsByUserId(alice.UserId)[0];
         Assert.Equal("Alice Nguyễn 😀", seen.Info.DisplayName);
         await WaitFor(10, "Bob receives Alice's frames", () => bob.Frames(alice.UserId, (byte)'A') > 50);
-        Assert.Equal(mode == "fixed2" ? DownlinkMode.Fixed : DownlinkMode.Dynamic, bob.Room.DownlinkMode);
+        Assert.Equal(ModeOf(mode), bob.Room.DownlinkMode);
         await WaitFor(5, "Alice is an active speaker", () => bob.Room.ActiveSpeakers.Any(s => s.UserId == alice.UserId));
         Assert.False(seen.IsMuted);
         Assert.Equal("audio/opus", seen.AudioTrack?.MimeType);
@@ -44,6 +54,9 @@ public class E2eTests
 
     [E2eFact("fixed2")]
     public Task Mute_unmute_fixed2() => MuteUnmute("fixed2");
+
+    [E2eFact("decoupled")]
+    public Task Mute_unmute_decoupled() => MuteUnmute("decoupled");
 
     private static async Task MuteUnmute(string mode)
     {
@@ -71,6 +84,9 @@ public class E2eTests
     [E2eFact("fixed2")]
     public Task Room_messages_fixed2() => RoomMessages("fixed2");
 
+    [E2eFact("decoupled")]
+    public Task Room_messages_decoupled() => RoomMessages("decoupled");
+
     private static async Task RoomMessages(string mode)
     {
         var stack = Require(mode);
@@ -89,6 +105,9 @@ public class E2eTests
 
     [E2eFact("fixed2")]
     public Task Participant_leaves_fixed2() => ParticipantLeaves("fixed2");
+
+    [E2eFact("decoupled")]
+    public Task Participant_leaves_decoupled() => ParticipantLeaves("decoupled");
 
     private static async Task ParticipantLeaves(string mode)
     {
@@ -110,6 +129,9 @@ public class E2eTests
 
     [E2eFact("fixed2")]
     public Task Duplicate_session_fixed2() => DuplicateSession("fixed2");
+
+    [E2eFact("decoupled")]
+    public Task Duplicate_session_decoupled() => DuplicateSession("decoupled");
 
     private static async Task DuplicateSession(string mode)
     {
@@ -141,6 +163,24 @@ public class E2eTests
         return frame;
     }
 
+    /// <summary>Writes VP8 frames at 30 fps, a keyframe every second, until <paramref name="stop"/>.</summary>
+    private static Task WriteCamera(Peer peer, CancellationToken stop) => Task.Run(async () =>
+    {
+        var camera = peer.Room.LocalParticipant.Camera;
+        for (var i = 0; !stop.IsCancellationRequested; i++)
+        {
+            camera.WriteVp8(Vp8Frame(i % 30 == 0, i), TimeSpan.FromMilliseconds(33));
+            try
+            {
+                await Task.Delay(33, stop);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+        }
+    });
+
     [E2eFact("dynamic")]
     public async Task Camera_video_is_forwarded()
     {
@@ -150,22 +190,7 @@ public class E2eTests
         await using var bob = await Join(stack, roomId, "Bob");
         await WaitFor(5, "Bob sees Alice", () => bob.Room.GetParticipantsByUserId(alice.UserId).Count == 1);
         using var stop = new CancellationTokenSource();
-        var camera = alice.Room.LocalParticipant.Camera;
-        var writer = Task.Run(async () =>
-        {
-            for (var i = 0; !stop.IsCancellationRequested; i++)
-            {
-                camera.WriteVp8(Vp8Frame(i % 30 == 0, i), TimeSpan.FromMilliseconds(33));
-                try
-                {
-                    await Task.Delay(33, stop.Token);
-                }
-                catch (OperationCanceledException)
-                {
-                    return;
-                }
-            }
-        });
+        var writer = WriteCamera(alice, stop.Token);
         await alice.Room.LocalParticipant.SetCameraEnabledAsync(true);
         RemoteTrack? track = null;
         await WaitFor(10, "Bob subscribes Alice's camera", () => (track = bob.Room.GetParticipantsByUserId(alice.UserId).FirstOrDefault()?.CameraTrack) is not null);
@@ -180,10 +205,49 @@ public class E2eTests
         await writer;
     }
 
-    [E2eFact("dynamic")]
-    public async Task Audience_push_to_talk()
+    [E2eFact("decoupled")]
+    public async Task Decoupled_camera_slots_forward_video_and_report_capacity()
     {
-        var stack = Require("dynamic");
+        var stack = Require("decoupled");
+        var roomId = Peer.RandomId();
+        await using var alice = await Join(stack, roomId, "Alice");
+        await using var bob = await Join(stack, roomId, "Bob");
+        await using var carol = await Join(stack, roomId, "Carol");
+        await WaitFor(5, "Bob sees Alice and Carol", () => bob.Room.RemoteParticipants.Count == 2);
+
+        // mezon-sfu 19f885a refuses to stop the camera of a publisher that holds no other slot (camera_update_failed).
+        await alice.Publish((byte)'A', () => 30);
+        await WaitFor(10, "Bob receives Alice", () => bob.Frames(alice.UserId, (byte)'A') > 10);
+        using var stop = new CancellationTokenSource();
+        var writers = new[] { WriteCamera(alice, stop.Token), WriteCamera(carol, stop.Token) };
+        await alice.Room.LocalParticipant.SetCameraEnabledAsync(true);
+        RemoteTrack? track = null;
+        await WaitFor(10, "Bob subscribes Alice's camera", () => (track = bob.Room.GetParticipantsByUserId(alice.UserId).FirstOrDefault()?.CameraTrack) is not null);
+        await WaitFor(10, "camera packets", () => track!.Stats.PacketsReceived > 30);
+
+        // decoupled.ini.template has one camera slot, held by Alice.
+        var full = await Assert.ThrowsAsync<SfuException>(() => carol.Room.LocalParticipant.SetCameraEnabledAsync(true));
+        Assert.Equal((SfuErrorKind.Signaling, "camera_capacity_full", true), (full.Kind, full.Code, full.Retryable));
+        Assert.Equal(ConnectionState.Connected, carol.Room.State);
+
+        await alice.Room.LocalParticipant.SetCameraEnabledAsync(false);
+        await WaitFor(5, "Alice's camera unsubscribed", () => bob.Has($"unsubscribed:Camera:{alice.UserId}"));
+        Assert.True(track!.IsEnded);
+        await carol.Room.LocalParticipant.SetCameraEnabledAsync(true);
+        await WaitFor(10, "Bob receives Carol's camera", () => bob.Room.GetParticipantsByUserId(carol.UserId).FirstOrDefault()?.CameraTrack is { Stats.PacketsReceived: > 30 });
+        stop.Cancel();
+        await Task.WhenAll(writers);
+    }
+
+    [E2eFact("dynamic")]
+    public Task Audience_push_to_talk() => AudiencePushToTalk("dynamic");
+
+    [E2eFact("decoupled")]
+    public Task Audience_push_to_talk_decoupled() => AudiencePushToTalk("decoupled");
+
+    private static async Task AudiencePushToTalk(string mode)
+    {
+        var stack = Require(mode);
         var roomId = Peer.RandomId();
         await using var speaker = await Join(stack, roomId, "Speaker");
         await using var listener = await Join(stack, roomId, "Listener", Options(Role.Audience));
@@ -205,9 +269,15 @@ public class E2eTests
     }
 
     [E2eFact("fixed2")]
-    public async Task Fixed_slots_follow_voice_activity()
+    public Task Fixed_slots_follow_voice_activity() => SlotsFollowVoiceActivity("fixed2");
+
+    [E2eFact("decoupled")]
+    public Task Decoupled_audio_slots_follow_voice_activity() => SlotsFollowVoiceActivity("decoupled");
+
+    /// <summary>Both stacks have two audio slots for three publishers.</summary>
+    private static async Task SlotsFollowVoiceActivity(string mode)
     {
-        var stack = Require("fixed2");
+        var stack = Require(mode);
         var roomId = Peer.RandomId();
         var levels = new[] { Loud, Loud, Silent };
         var peers = new List<Peer>();
@@ -279,9 +349,14 @@ public class E2eTests
     }
 
     [E2eFact("fixed2")]
-    public async Task Reconnect_in_a_fixed_slot_room_hears_the_existing_publisher()
+    public Task Reconnect_in_a_fixed_slot_room_hears_the_existing_publisher() => ReconnectHearsTheExistingPublisher("fixed2");
+
+    [E2eFact("decoupled")]
+    public Task Reconnect_in_a_decoupled_room_hears_the_existing_publisher() => ReconnectHearsTheExistingPublisher("decoupled");
+
+    private static async Task ReconnectHearsTheExistingPublisher(string mode)
     {
-        var stack = Require("fixed2");
+        var stack = Require(mode);
         using var proxy = Proxy.Start(stack);
         var roomId = Peer.RandomId();
         await using var alice = await Join(stack, roomId, "Alice");
@@ -292,7 +367,7 @@ public class E2eTests
         await WaitFor(15, "Bob reconnected", () => bob.Has("reconnected"));
         var resumed = bob.Frames(alice.UserId, (byte)'A');
         await WaitFor(10, "Bob hears Alice again", () => bob.Frames(alice.UserId, (byte)'A') > resumed + 20);
-        Assert.Equal(DownlinkMode.Fixed, bob.Room.DownlinkMode);
+        Assert.Equal(ModeOf(mode), bob.Room.DownlinkMode);
     }
 
     [E2eFact("dynamic")]

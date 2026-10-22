@@ -25,7 +25,10 @@ internal abstract record ClientMessage
 {
     public abstract string TypeName { get; }
 
-    /// <summary>Authenticates and joins the room named by the token's claims.</summary>
+    /// <summary>
+    /// Authenticates and joins the room named by the token's claims. It always declares
+    /// <see cref="Protocol.MediaPoolVersion"/>: decoupled rooms reject a join without it, legacy rooms ignore it.
+    /// </summary>
     public sealed record Join(Role Role, ScreenCodec ScreenCodec, string Token) : ClientMessage
     {
         public override string TypeName => "join";
@@ -132,11 +135,40 @@ internal sealed record WireIceServer(IReadOnlyList<string> Urls, string? Usernam
 
 /// <summary>
 /// Where a peer's media lands in the recipient's PeerConnection. Mids are 0 and <see cref="Slot"/> is null when
-/// unmapped (the server's sentinels are mid 0 and slot 0xFFFFFFFF).
+/// unmapped (the server's sentinels are mid 0 and slot 0xFFFFFFFF). Decoupled rooms send <see cref="MediaSlots"/>
+/// instead of the legacy fields.
 /// </summary>
-internal readonly record struct SlotMapping(uint MidAudio, uint MidVideo, uint MidScreen, uint? Slot, long AssignmentGeneration)
+internal readonly record struct SlotMapping(uint MidAudio, uint MidVideo, uint MidScreen, uint? Slot, long AssignmentGeneration, MediaSlots MediaSlots = default)
 {
-    public bool IsMapped => Slot.HasValue || MidAudio > 0 || MidVideo > 0 || MidScreen > 0;
+    public bool IsMapped => Slot.HasValue || MidAudio > 0 || MidVideo > 0 || MidScreen > 0 || !MediaSlots.IsEmpty;
+}
+
+/// <summary>A slot of one decoupled pool: its number in the pool, its assignment generation and its mid.</summary>
+internal readonly record struct MediaSlot(uint Slot, long Generation, uint Mid);
+
+/// <summary>The slots a peer holds in the recipient's decoupled pools (<c>media_slots</c>); null where it holds none.</summary>
+internal readonly record struct MediaSlots(MediaSlot? Audio, MediaSlot? Camera, MediaSlot? Screen)
+{
+    public bool IsEmpty => Audio is null && Camera is null && Screen is null;
+
+    /// <summary>The held slots with their pool (<see cref="TrackSource.Microphone"/> is the audio pool).</summary>
+    public IEnumerable<(TrackSource Kind, MediaSlot Slot)> Held()
+    {
+        if (Audio is { } audio)
+        {
+            yield return (TrackSource.Microphone, audio);
+        }
+
+        if (Camera is { } camera)
+        {
+            yield return (TrackSource.Camera, camera);
+        }
+
+        if (Screen is { } screen)
+        {
+            yield return (TrackSource.Screen, screen);
+        }
+    }
 }
 
 /// <summary>One entry of <c>room_snapshot</c> or <c>peer_joined</c>.</summary>
@@ -146,7 +178,8 @@ internal abstract record ServerMessage
 {
     public abstract string TypeName { get; }
 
-    public sealed record Joined(string Room, uint PeerId, string Metadata, IReadOnlyList<WireIceServer> IceServers) : ServerMessage
+    /// <param name="MediaPool">The decoupled pools of the room; null in legacy rooms.</param>
+    public sealed record Joined(string Room, uint PeerId, string Metadata, IReadOnlyList<WireIceServer> IceServers, MediaPoolLayout? MediaPool = null) : ServerMessage
     {
         public override string TypeName => "joined";
     }
@@ -193,6 +226,21 @@ internal abstract record ServerMessage
 
     /// <summary>Retires <see cref="Generation"/> of <see cref="Slot"/>.</summary>
     public sealed record SlotReleased(uint Slot, long Generation) : ServerMessage
+    {
+        public override string TypeName => "slot_released";
+    }
+
+    /// <summary>
+    /// Decoupled rooms: <see cref="Slot"/> of the <see cref="Kind"/> pool now carries the publisher. <see cref="Mid"/> is
+    /// 0 when absent; <see cref="Active"/> is reliable for audio only.
+    /// </summary>
+    public sealed record MediaSlotAssigned(TrackSource Kind, uint Slot, long Generation, uint Mid, uint PeerId, string UserId, bool Active) : ServerMessage
+    {
+        public override string TypeName => "slot_assigned";
+    }
+
+    /// <summary>Decoupled rooms: retires <see cref="Generation"/> of <see cref="Slot"/> in the <see cref="Kind"/> pool.</summary>
+    public sealed record MediaSlotReleased(TrackSource Kind, uint Slot, long Generation) : ServerMessage
     {
         public override string TypeName => "slot_released";
     }
@@ -287,6 +335,9 @@ internal static class Protocol
     public const int MaxMetadataBytes = 511;
     public const int MaxMessageBytes = 2047;
     public const int MaxSdpBytes = 1_048_575;
+
+    /// <summary>The <c>media_pool_version</c> every join declares: this SDK handles decoupled media pools.</summary>
+    public const int MediaPoolVersion = 1;
 
     private const long MaxSafeInteger = (1L << 53) - 1;
     private const long SlotUnassigned = 0xFFFF_FFFF;
@@ -438,6 +489,7 @@ internal static class Protocol
             case ClientMessage.Join join:
                 w.Enumeration("role", join.Role == Role.Audience ? "audience" : "speaker");
                 w.Enumeration("screen_codec", join.ScreenCodec == ScreenCodec.Vp9 ? "vp9" : "vp8");
+                w.Integer("media_pool_version", MediaPoolVersion, 0, MaxSafeInteger);
                 w.Text("token", join.Token, MaxTokenBytes);
                 break;
             case ClientMessage.Answer answer:
@@ -610,6 +662,8 @@ internal static class Protocol
             return n is > 0 and <= uint.MaxValue ? (uint)n : 0;
         }
 
+        public uint UInt(string key) => (uint)Math.Min(Math.Max(Int(key, 0), 0), uint.MaxValue);
+
         /// <summary>64-bit ids stay decimal strings; numbers are accepted when they are integers.</summary>
         public string UserId(string key)
         {
@@ -662,13 +716,29 @@ internal static class Protocol
         {
             var key = Has("slot") ? "slot" : "remote_slot";
             var slot = Int(key, SlotUnassigned);
+            var pools = new Fields(Child("media_slots"));
             return new SlotMapping(
                 Mid("mid_audio"),
                 Mid("mid_video"),
                 Mid("mid_screen"),
                 slot is >= 0 and < SlotUnassigned ? (uint)slot : null,
-                Int("assignment_generation", 0));
+                Int("assignment_generation", 0),
+                new MediaSlots(pools.PoolSlot("audio"), pools.PoolSlot("camera"), pools.PoolSlot("screen")));
         }
+
+        /// <summary>One entry of <c>media_slots</c>; null when it is null, absent or not a valid slot.</summary>
+        private MediaSlot? PoolSlot(string key)
+        {
+            var entry = new Fields(Child(key));
+            var slot = entry.Int("slot", SlotUnassigned);
+            var generation = entry.Int("generation", 0);
+            return slot is >= 0 and < SlotUnassigned && generation > 0 ? new MediaSlot((uint)slot, generation, entry.Mid("mid")) : null;
+        }
+
+        /// <summary>The pool sizes of a decoupled room (<c>media_pool_mode: "decoupled"</c>), else null.</summary>
+        public MediaPoolLayout? MediaPool() => Str("media_pool_mode") == "decoupled"
+            ? new MediaPoolLayout(UInt("max_audio_slots"), UInt("max_camera_slots"), UInt("max_screen_slots"))
+            : null;
 
         public ParticipantState PeerState() => new(
             PeerId("peer_id"),
@@ -687,6 +757,15 @@ internal static class Protocol
         var f = new Fields(value);
         return new Member(f.PeerState(), f.SlotMapping(), f.Str("ufrag"));
     }
+
+    /// <summary>The pool a decoupled slot message names in <c>kind</c>; null for kinds this SDK does not know.</summary>
+    private static TrackSource? PoolKind(string kind) => kind switch
+    {
+        "audio" => TrackSource.Microphone,
+        "camera" => TrackSource.Camera,
+        "screen" => TrackSource.Screen,
+        _ => null,
+    };
 
     private static IReadOnlyList<WireIceServer> ReadIceServers(JsonElement root)
     {
@@ -752,9 +831,10 @@ internal static class Protocol
 
     /// <summary>
     /// Parses one server text frame. Decoding is tolerant: absent optional fields take neutral defaults, and
-    /// well-formed frames with an unknown type decode to <see cref="ServerMessage.Unknown"/>. It fails for invalid
-    /// JSON, a frame without a string type, a missing field the message cannot be used without, or an integer
-    /// beyond 64 bits. Raw control characters, which the server relays unescaped from participant text, are removed.
+    /// well-formed frames with an unknown type, or slot messages of an unknown <c>kind</c>, decode to
+    /// <see cref="ServerMessage.Unknown"/>. It fails for invalid JSON, a frame without a string type, a missing field
+    /// the message cannot be used without, or an integer beyond 64 bits. Raw control characters, which the server
+    /// relays unescaped from participant text, are removed.
     /// </summary>
     public static ServerMessage Decode(string frame)
     {
@@ -770,7 +850,7 @@ internal static class Protocol
         switch (type)
         {
             case "joined":
-                return new ServerMessage.Joined(f.RoomId("room"), f.PeerId("peer_id"), f.Str("metadata"), ReadIceServers(root));
+                return new ServerMessage.Joined(f.RoomId("room"), f.PeerId("peer_id"), f.Str("metadata"), ReadIceServers(root), f.MediaPool());
             case "offer":
             {
                 f.Required("sdp", "offer");
@@ -822,6 +902,13 @@ internal static class Protocol
             {
                 f.Required("slot", "slot_assigned");
                 f.Required("generation", "slot_assigned");
+                if (f.Has("kind"))
+                {
+                    return PoolKind(f.Str("kind")) is { } kind
+                        ? new ServerMessage.MediaSlotAssigned(kind, f.UInt("slot"), f.Int("generation", 0), f.Mid("mid"), f.PeerId("peer_id"), f.UserId("user_id"), f.Boolean("active"))
+                        : new ServerMessage.Unknown(type, root.GetRawText());
+                }
+
                 var slot = (uint)Math.Min(Math.Max(f.Int("slot", 0), 0), uint.MaxValue / 3 - 2);
                 long first = 3 + 3L * slot;
                 var fields = f;
@@ -842,6 +929,13 @@ internal static class Protocol
             case "slot_released":
                 f.Required("slot", "slot_released");
                 f.Required("generation", "slot_released");
+                if (f.Has("kind"))
+                {
+                    return PoolKind(f.Str("kind")) is { } kind
+                        ? new ServerMessage.MediaSlotReleased(kind, f.UInt("slot"), f.Int("generation", 0))
+                        : new ServerMessage.Unknown(type, root.GetRawText());
+                }
+
                 return new ServerMessage.SlotReleased((uint)Math.Min(Math.Max(f.Int("slot", 0), 0), uint.MaxValue), f.Int("generation", 0));
             case "mute_changed":
             {

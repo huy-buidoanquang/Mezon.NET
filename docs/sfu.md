@@ -4,8 +4,9 @@
 publish Opus audio (and VP8 camera video) and receive the other participants' RTP. WebRTC is provided by
 [SIPSorcery](https://github.com/sipsorcery-org/sipsorcery) 10.0.16 (managed code, no native libraries).
 
-> **Status: pre-1.0.** Everything listed under [Features](#features) works against a real `mezon-sfu` in both
-> downlink modes (dynamic and fixed slots), on Windows and Linux. The API may still change before 1.0.
+> **Status: pre-1.0.** Everything listed under [Features](#features) works against a real `mezon-sfu` in every
+> downlink mode: dynamic and fixed slots on Windows and Linux, decoupled pools on Windows so far. The API may still
+> change before 1.0.
 
 It is a port of the Rust SDK (`mezon-sfu-sdk-rust`), with the same protocol rules and the same tests. Targets:
 `netstandard2.1`, `net6.0`, `net8.0`, `net9.0`, `net10.0`. It does not depend on `Mezon.Net.Sdk`.
@@ -104,18 +105,25 @@ response (protobuf or bare JWT) for the socket API.
 
 - **Audio out:** `Microphone.WriteOpus(frame, duration, level)` sends one Opus frame per RTP packet (48 kHz clock).
   `level` is the RFC 6464 audio level, 0 (loudest) to 127 (silence); the SFU's voice activity detection uses it to
-  pick active speakers in fixed-slot rooms. Without a level the frame counts as voice (as if the extension were
-  absent). Frames written while the microphone is disabled, push-to-talk is released or no session is negotiated
-  are dropped (`WriteOpus` returns false). `OggOpusReader` reads files packet by packet with their durations.
+  pick active speakers in fixed-slot and decoupled rooms. Without a level the frame counts as voice (as if the
+  extension were absent). Frames written while the microphone is disabled, push-to-talk is released or no session
+  is negotiated are dropped (`WriteOpus` returns false). `OggOpusReader` reads files packet by packet with their
+  durations.
 - **Video out:** `SetCameraEnabledAsync(true)` and `Camera.WriteVp8(frame, duration)` (speakers). Keyframe requests
-  from receivers are not surfaced: send keyframes periodically.
+  from receivers are not surfaced: send keyframes periodically. In a decoupled room whose camera pool is full,
+  `SetCameraEnabledAsync(true)` throws `SfuException` (`Signaling`, code `camera_capacity_full`, retryable); the
+  camera stays enabled locally and is requested again after a reconnect, so disable it or call again later.
 - **Media in:** `RemoteTrack.ReadRtpAsync`/`ReadAllAsync` return the forwarded RTP (no decoding, `MimeType`
   `audio/opus` or `video/VP8`). A track buffers 512 packets and then drops the oldest (`Stats.PacketsDropped`).
-  Tracks follow the publisher across slot reassignments in fixed-slot rooms; every change is an unsubscribe plus a
-  subscribe. `OggOpusWriter` stores Opus packets as Ogg Opus.
+  Tracks follow the publisher across slot reassignments in fixed-slot and decoupled rooms; every change is an
+  unsubscribe plus a subscribe. `OggOpusWriter` stores Opus packets as Ogg Opus.
 - **Downlink modes:** dynamic rooms renegotiate one slot per publisher (msids name the publisher, mids are
   reused); fixed-slot rooms (`max_active_speakers`) reassign a pool of slots with `slot_assigned`/`slot_released`
-  events. The mode is detected per session (`DownlinkMode`).
+  events. Decoupled rooms (`media_pool_mode = decoupled`, mezon-sfu `19f885a` and later) have separate audio, camera
+  and screen pools whose sizes come in `joined` (`max_audio_slots`, `max_camera_slots`, `max_screen_slots`); every
+  offer lists all their m-lines, and slot events carry the pool (`kind`). Audio slots go to the active speakers (a
+  muted publisher loses its slot), camera and screen slots to the participants who turn them on. The mode is
+  detected per session (`DownlinkMode`; decoupled on joining).
 - **Audience:** `RoomOptions.Role = Role.Audience` listens; `SetPushToTalkAsync(true)` unmutes and publishes.
 
 ## SIPSorcery adaptation
@@ -169,6 +177,7 @@ behaviours:
 |                                                | TypeScript | Go  | Rust | Kotlin | .NET | Python |
 | ---------------------------------------------- | ---------- | --- | ---- | ------ | ---- | ------ |
 | Dynamic and fixed-slot downlink                | ✓          | ✓   | ✓    | ✓      | ✓    | ✓      |
+| Decoupled media pools (`media_pool_version` 1) | –          | –   | –    | –      | ✓    | –      |
 | Microphone with RFC 6464 audio level           | ✓          | ✓   | ✓    | ✓      | ✓    | ✓      |
 | Camera                                         | ✓          | VP8 | VP8  | ✓      | VP8  | VP8    |
 | Screen share                                   | browser    | –   | –    | –      | –    | –      |
@@ -194,8 +203,20 @@ stays out of the process list. Both examples are run against the real SFU by `Ex
 
 Tested against mezon-sfu `0520143` (`tools/SfuE2e/stack/sfu.lock`) in dynamic and fixed-slot rooms, on Windows and in
 Linux containers, and with the other SDKs (`mezon-sfu-sdk-js` `test/e2e-node/interop.e2e.test.ts` records a JS tone with
-this SDK's recorder example and plays it back with its bot example).
+this SDK's recorder example and plays it back with its bot example). Decoupled rooms were tested against mezon-sfu
+`develop` `19f885a` on Windows (host stacks), and so were that build's legacy rooms.
 
+- Decoupled rooms refuse a join without `media_pool_version: 1` (error `unsupported_media_pool_version`, then close
+  1002). This SDK declares it on every join (legacy rooms ignore it); a server that requires another version ends the
+  room with `ProtocolRejected` after one retry. The other SDKs do not declare it yet, so they cannot join decoupled
+  rooms.
+- mezon-sfu `19f885a` rejects every renegotiation answer in legacy rooms (`invalid_answer_sdp`, since `244313c`): in a
+  dynamic room nobody receives a publisher who starts after them, whatever the client. Its fixed-slot rooms pass.
+- In decoupled rooms, `19f885a` moves audio slots by voice activity, and gives a freed audio slot to a waiting
+  speaker, only when `max_active_speakers` is above 0 as well; the e2e stack sets it to `max_audio_slots`.
+- In decoupled rooms, `19f885a` refuses to stop the camera of a publisher that holds no other slot at some receiver:
+  `SetCameraEnabledAsync(false)` throws `SfuException` (`camera_update_failed`) and the server keeps the camera on,
+  holding its slot.
 - Servers built before mezon-sfu `0520143` (`mezonai/mezon-sfu#480`) relay participant metadata and room messages without escaping control
   characters other than CR, LF and TAB, and without validating UTF-8. The SDK drops raw control characters from
   server frames and parses them again, but a frame with invalid UTF-8 fails the socket read (.NET's
@@ -231,13 +252,14 @@ dotnet test tests/Mezon.Net.Sdk.Sfu.Tests/Mezon.Net.Sdk.Sfu.Tests.csproj -c Rele
 The test project (`net10.0`) has five levels:
 
 - `ProtocolTests`, `ModelTests`, `OggOpusTests`: the pure core (codec key order and escaping, tolerant decoding,
-  close/error tables, JWT claims, metadata, meet-token protobuf, SDP layout, membership, slot map, dynamic
-  occupancy, mute sync, reconnect policy, speaker detector, Ogg Opus). `Tables_match_the_protocol_spec` compares the
-  tables with `../mezon-sfu/docs/protocol/*.json` (or `MEZON_SFU_PROTOCOL_DIR`) and the meet-token messages are
-  checked against `../mezon-protocol/api/api.proto` (or `MEZON_PROTOCOL_DIR`); both skip when absent. The vendored
-  `Mezon.Net.Core` copy of `api.proto` and its generated types are always checked.
+  close/error tables, JWT claims, metadata, meet-token protobuf, SDP layout, membership, slot map, decoupled pools,
+  dynamic occupancy, mute sync, reconnect policy, speaker detector, Ogg Opus). `Tables_match_the_protocol_spec`
+  compares the tables with `../mezon-sfu/docs/protocol/*.json` (or `MEZON_SFU_PROTOCOL_DIR`) and the meet-token
+  messages are checked against `../mezon-protocol/api/api.proto` (or `MEZON_PROTOCOL_DIR`); both skip when absent.
+  The vendored `Mezon.Net.Core` copy of `api.proto` and its generated types are always checked.
 - `OracleTests`: SIPSorcery answers to synthetic mezon-sfu offers must pass a port of the server's
-  `validate_answer_mline_shape` and keep the uplink directions.
+  `validate_answer_mline_shape` (`validate_answer_mline_shape_layout` for decoupled offers) and keep the uplink
+  directions.
 - `IntegrationTests`: the real `Room` against a scripted SFU on a real WebSocket plus a fake PeerConnection,
   including the regression tests of every pitfall found in the other SDKs' reviews.
 - `E2eTests`, `ExampleTests`: the real SFU in Docker; they skip when their stack is not running.
@@ -245,19 +267,23 @@ The test project (`net10.0`) has five levels:
 ### Real-SFU stacks (Docker)
 
 `tools/SfuE2e` starts nats and mezon-sfu with the same image, templates and Dockerfile as the other SDKs
-(`tools/SfuE2e/stack/` holds copies: keep them identical in all six; `stack/sfu.lock` pins mezon-sfu `develop`
-0520143). `SFU_IMAGE` runs an existing image and is never rebuilt; without it, `up` builds `../mezon-sfu` into the
-shared tag `mezon-sfu:e2e` unless `--no-build`:
+(`tools/SfuE2e/stack/` holds copies: keep them identical in all six, except `decoupled.ini.template`, which only this
+SDK has so far; `stack/sfu.lock` pins mezon-sfu `develop` 0520143). `SFU_IMAGE` runs an existing image and is never
+rebuilt; without it, `up` builds `../mezon-sfu` into the shared tag `mezon-sfu:e2e` unless `--no-build`:
 
 ```sh
 SFU_IMAGE=mezon-sfu:develop-0520143 dotnet run --project tools/SfuE2e -- up --mode dynamic --no-build
+SFU_IMAGE=mezon-sfu:develop-19f885a dotnet run --project tools/SfuE2e -- up --mode decoupled --no-build
 dotnet run --project tools/SfuE2e -- up --mode fixed2 [--net host|bridge] [--no-build]
 dotnet run --project tools/SfuE2e -- test          # the test project in mcr.microsoft.com/dotnet/sdk:10.0 on every bridge stack
 dotnet run --project tools/SfuE2e -- down [--mode <mode>] [--keep]
 ```
 
-- Modes: `dynamic`, `fixed2` (`max_active_speakers = 2`) and `alone` (alone timeout 8 s). Every SDK has its own
-  ports, subnets and compose projects, so all stacks can run together; never stop another SDK's stacks:
+- Modes: `dynamic`, `fixed2` (`max_active_speakers = 2`), `alone` (alone timeout 8 s) and `decoupled`
+  (`media_pool_mode = decoupled` with 2 audio, 1 camera and 1 screen slots, plus `max_active_speakers = 2` for the
+  server's voice activity detection; needs an image of mezon-sfu `19f885a` or later, and the Dockerfile builds such
+  sources only with `zlib1g-dev` added to its build packages). Every SDK has its own ports, subnets and compose
+  projects, so all stacks can run together; never stop another SDK's stacks:
 
   | SDK | Media / signaling / NATS ports | Subnets | Compose projects | Command |
   | --- | --- | --- | --- | --- |
@@ -265,7 +291,7 @@ dotnet run --project tools/SfuE2e -- down [--mode <mode>] [--keep]
   | Go | 7010-7012 / 8010-8012 / 4232-4234 | 172.28.10-12 | `sfu-e2e-go-<mode>` | `go run ./e2e/stack` |
   | Rust | 7020-7022 / 8020-8022 / 4242-4244 | 172.28.20-22 | `sfu-e2e-rust-<mode>` | `cargo xtask e2e` |
   | Kotlin | 7030-7032 / 8030-8032 / 4252-4254 | 172.28.30-32 | `sfu-e2e-kotlin-<mode>` | `./gradlew :harness:run` |
-  | .NET | 7040-7042 / 8040-8042 / 4262-4264 | 172.28.40-42 | `sfu-e2e-dotnet-<mode>` | `dotnet run --project tools/SfuE2e` |
+  | .NET | 7040-7043 / 8040-8043 / 4262-4265 | 172.28.40-43 | `sfu-e2e-dotnet-<mode>` | `dotnet run --project tools/SfuE2e` |
   | Python | 7050-7052 / 8050-8052 / 4272-4274 | 172.28.50-52 | `sfu-e2e-python-<mode>` | `python -m tools.e2e` |
 
 - `host` (default on Windows/macOS) publishes on 127.0.0.1 for tests on this machine; `bridge` (default on Linux) is

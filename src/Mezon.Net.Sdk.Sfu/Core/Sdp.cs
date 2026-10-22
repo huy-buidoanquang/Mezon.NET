@@ -10,7 +10,8 @@ namespace Mezon.Net.Sdk.Sfu.Core;
 //
 // Fixed mid layout of every mezon-sfu offer (mezon-sfu/include/sfu/datadef.h, src/protocol/signaling/sdp.c):
 // mids 0/1/2 are this client's uplinks (microphone, camera, screen); from mid 3 on, each remote slot k owns
-// mids 3+3k (audio), 4+3k (camera), 5+3k (screen).
+// mids 3+3k (audio), 4+3k (camera), 5+3k (screen). Decoupled rooms (MediaPoolLayout) instead list every audio
+// slot, then every camera slot, then every screen slot.
 
 /// <summary>Who a remote m-line carries, from its <c>a=msid</c> line.</summary>
 internal abstract record Occupant
@@ -66,6 +67,38 @@ internal sealed record RemoteSection(uint Mid, uint Slot, TrackSource Source, st
 
 /// <summary>The remote-slot structure of a server offer.</summary>
 internal sealed record OfferLayout(ParsedSdp Sdp, uint SlotCount, IReadOnlyList<RemoteSection> Remote, DownlinkMode Mode);
+
+/// <summary>
+/// The pools of a decoupled room (<c>joined</c> with <c>media_pool_mode: "decoupled"</c>): every offer has the three
+/// uplink m-lines, then <see cref="Audio"/> audio slots, <see cref="Camera"/> camera slots and <see cref="Screen"/>
+/// screen slots, one m-line each with consecutive mids (mezon-sfu <c>sfu_layout_slot_mid</c>).
+/// </summary>
+internal sealed record MediaPoolLayout(uint Audio, uint Camera, uint Screen)
+{
+    /// <summary>The number of m-lines of an offer (and of its answer).</summary>
+    public long MLines => Sdp.RemoteMidBase + (long)Audio + Camera + Screen;
+
+    /// <summary>The mid of <paramref name="slot"/> in the <paramref name="kind"/> pool, or null when the pool has no such slot.</summary>
+    public uint? Mid(TrackSource kind, uint slot)
+    {
+        long start = Sdp.RemoteMidBase;
+        long count = Audio;
+        if (kind != TrackSource.Microphone)
+        {
+            start += Audio;
+            count = Camera;
+        }
+
+        if (kind == TrackSource.Screen)
+        {
+            start += Camera;
+            count = Screen;
+        }
+
+        var mid = start + slot;
+        return slot < count && mid <= uint.MaxValue ? (uint)mid : null;
+    }
+}
 
 internal static class Sdp
 {
@@ -248,10 +281,19 @@ internal static class Sdp
     /// <c>mezon-sfu/src/protocol/signaling/signaling.c</c>): exactly 3 + 3×slots m-lines, audio/video/video per
     /// triple, and each m-line's <c>a=mid</c> equal to its index. Returns null when valid, else the problem.
     /// </summary>
-    public static string? CheckAnswerShape(string answer, uint slots)
+    public static string? CheckAnswerShape(string answer, uint slots) =>
+        CheckAnswerShape(answer, RemoteMidBase + MidsPerSlot * (long)slots, index => index % MidsPerSlot == 0);
+
+    /// <summary>
+    /// <see cref="CheckAnswerShape(string, uint)"/> for a decoupled room (<c>validate_answer_mline_shape_layout</c>):
+    /// 3 + A + C + S m-lines, audio for mid 0 and the audio pool, video for the others.
+    /// </summary>
+    public static string? CheckAnswerShape(string answer, MediaPoolLayout pool) =>
+        CheckAnswerShape(answer, pool.MLines, index => index == MidMicrophone || (index >= RemoteMidBase && index < RemoteMidBase + (long)pool.Audio));
+
+    private static string? CheckAnswerShape(string answer, long expected, Func<long, bool> audio)
     {
         var sections = Parse(answer).Sections;
-        var expected = (int)(RemoteMidBase + MidsPerSlot * slots);
         if (sections.Count != expected)
         {
             return $"expected {expected} m-lines, found {sections.Count}";
@@ -260,7 +302,7 @@ internal static class Sdp
         for (var index = 0; index < sections.Count; index++)
         {
             var section = sections[index];
-            var want = index % MidsPerSlot == 0 ? "audio" : "video";
+            var want = audio(index) ? "audio" : "video";
             if (section.Media != want)
             {
                 return $"m-line {index} is {section.Media}, expected {want}";

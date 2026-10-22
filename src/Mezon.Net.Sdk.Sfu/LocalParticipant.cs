@@ -50,7 +50,11 @@ public sealed class LocalParticipant
         await _room.SetMicrophoneEnabled(enabled).ConfigureAwait(false);
     }
 
-    /// <summary>Starts or stops the camera (speakers). The camera m-line is negotiated once, so this needs no renegotiation.</summary>
+    /// <summary>
+    /// Starts or stops the camera (speakers). The camera m-line is negotiated once, so this needs no renegotiation.
+    /// A decoupled room whose camera pool is full refuses it (<see cref="SfuException"/> with code
+    /// <c>camera_capacity_full</c>); the camera stays enabled locally and is requested again after a reconnect.
+    /// </summary>
     public async Task SetCameraEnabledAsync(bool enabled)
     {
         if (Role == Role.Audience)
