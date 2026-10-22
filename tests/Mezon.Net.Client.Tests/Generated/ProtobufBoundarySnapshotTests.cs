@@ -16,6 +16,8 @@ namespace Mezon.Net.Client.Tests.Generated
             Assert.Contains("Task<Mezon.Net.Models.ChannelMessageAckResponse> SendChannelMessageAsync", facade);
             Assert.Contains("SearchMentionUsersAsync", facade);
             Assert.Contains("GenerateCDNSignatureAsync", facade);
+            Assert.Contains("Task<Mezon.Net.Models.GetStreamPlaybackResponse> GetStreamPlaybackAsync", facade);
+            Assert.Contains("Task LinkCDNFileAsync", facade);
         }
 
         [Fact]
@@ -25,9 +27,11 @@ namespace Mezon.Net.Client.Tests.Generated
             var models = Path.Combine(root, "src", "Mezon.Net.Client", "Models");
             var upload = File.ReadAllText(Path.Combine(models, "Requests", "UploadAttachmentParams.g.cs"));
             var meetToken = File.ReadAllText(Path.Combine(models, "Responses", "GenerateMeetTokenResponse.g.cs"));
+            var streamingJoined = File.ReadAllText(Path.Combine(models, "Responses", "StreamingJoinedEventResponse.g.cs"));
 
             Assert.Contains("long? channelId = null", upload);
             Assert.Contains("public string Url =>", meetToken);
+            Assert.Contains("public bool IsPublisher =>", streamingJoined);
         }
 
         [Fact]
@@ -68,7 +72,7 @@ namespace Mezon.Net.Client.Tests.Generated
         }
 
         [Fact]
-        public void Generated_realtime_facade_has_22_methods()
+        public void Generated_realtime_facade_has_23_methods()
         {
             var root = FindRepoRoot();
             var facade = File.ReadAllText(Path.Combine(root, "src", "Mezon.Net.Client", "Generated", "BaseMezonSocketClient.Realtime.g.cs"));
@@ -76,7 +80,8 @@ namespace Mezon.Net.Client.Tests.Generated
             var methodCount = System.Text.RegularExpressions.Regex.Matches(
                 facade,
                 @"public async Task(?:<[^>]+>)? (\w+RtAsync)\s*\(").Count;
-            Assert.Equal(22, methodCount);
+            Assert.Equal(23, methodCount);
+            Assert.Contains("SendStreamingWatchRtAsync", facade);
             Assert.Contains("SendVoiceInteractiveEventRtAsync", facade);
             Assert.Contains("SendChatMessageRtAsync", facade);
             Assert.Contains("LeaveChannelChatRtAsync", facade);

@@ -2517,6 +2517,8 @@ message StreamingChannelUser {
   int64 channel_id = 3;
   // participant
   string participant = 4;
+  // true for the stream's publisher; listed viewers (at most 100 per channel) are false
+  bool is_publisher = 5;
 }
 
 // A list of users belonging to a channel, along with their role.
@@ -3223,6 +3225,7 @@ message SdTopic {
   uint32 update_time_seconds = 8;
   string content = 9;
   ChannelMessageHeader last_sent_message = 10;
+  int32 unread_count = 11;
 }
 
 message SdTopicRequest {
@@ -3556,6 +3559,7 @@ message GenerateMeetTokenExternalResponse {
   string token = 1;
   int64 guest_user_id = 2;
   string guest_access_token = 3;
+  string url = 4;
 }
 
 message KafkaActionMsg {
@@ -3860,4 +3864,80 @@ message GenerateCDNSignatureResponse {
     string signature = 1;
 }
 
+// Where a client publishes to or watches a stream channel served by mezon-streaming-server.
+message GetStreamPlaybackRequest {
+    int64 channel_id = 1;
+    // Publish (WHIP) instead of watching.
+    bool publish = 2;
+}
+
+message GetStreamPlaybackResponse {
+    // Bearer token for whip_url and whep_url.
+    string token = 1;
+    // Publish: the origin's WHIP endpoint.
+    string whip_url = 2;
+    // Watch over WebRTC; empty when no edge has room, and the client then plays hls_url.
+    string whep_url = 3;
+    // Watch over LL-HLS, with the credential in its query. Also the fallback when WebRTC cannot connect.
+    string hls_url = 4;
+    // Unix seconds; the token is refused for new sessions after this.
+    int64 expires_at = 5;
+}
+
+message LinkCDNFileRequest {
+    string src = 1;
+    string dst = 2;
+}
+
 message NoParams {}
+
+enum EveryoneChannelExcludeType {
+  EVERYONE_CHANNEL_EXCLUDE_TYPE_UNSPECIFIED = 0;
+  EVERYONE_CHANNEL_EXCLUDE_TYPE_USER = 1;
+  EVERYONE_CHANNEL_EXCLUDE_TYPE_ROLE = 2;
+}
+
+message SetOverrideEveryoneChannelRequest {
+  int64 clan_id = 1;
+  int64 channel_id = 2;
+  bool override = 3;
+  EveryoneChannelExcludeType exclude_type = 4;
+  repeated int64 exclude_ids = 5;
+}
+
+message GetOverrideEveryoneChannelRequest {
+  int64 clan_id = 1;
+  int64 channel_id = 2;
+}
+
+message GetOverrideEveryoneChannelResponse {
+  int64 clan_id = 1;
+  int64 channel_id = 2;
+  bool override = 3;
+  repeated int64 user_ids = 4;
+  repeated int64 role_ids = 5;
+}
+
+message SfuBreakoutParticipant {
+    int64 channel_id = 1;
+    repeated int64 user_ids = 2;
+}
+
+message SfuBreakoutRoomRequest {
+    int64 parent_channel_id = 1;
+    int32 room_count = 2;
+    int32 break_rule_type = 3;
+    // only assign for manually rule
+    repeated SfuBreakoutParticipant list_participants = 4;
+}
+
+message SfuBreakoutRoomResponse {
+    int64 breakout_id = 1;
+    int32 room_count = 2;
+    int32 break_rule_type = 3;
+    repeated int64 list_child_rooms = 4;
+}
+
+message SfuBreakoutMergeRequest {
+    int64 target_id = 1;
+}

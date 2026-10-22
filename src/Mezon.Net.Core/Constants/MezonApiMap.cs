@@ -223,6 +223,8 @@ namespace Mezon.Net.Core
             ["SearchCtrlK"] = 210,
             ["SearchMentionUsers"] = 211,
             ["GenerateCDNSignature"] = 212,
+            ["GetStreamPlayback"] = 213,
+            ["LinkCDNFile"] = 214,
         };
 
 #if NET8_0_OR_GREATER

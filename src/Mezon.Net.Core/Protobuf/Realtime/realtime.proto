@@ -229,7 +229,21 @@ message Envelope {
     ScreenShareEvent screen_share_event = 99;
     // VoiceInteractiveEvent
     VoiceInteractiveEvent voice_interactive_event = 100;
+    // Metric Message Event
+    MetricMessageEvent metric_message_event = 101;
+    // Start or stop watching a streaming channel as audience
+    StreamingWatch streaming_watch = 104;
+    // SFU breakout room
+    SfuBreakoutRoomEvent sfu_breakout_room_event = 105;
+    // Aggregated audience count of a streaming channel
+    StreamingViewerCountEvent streaming_viewer_count_event = 106;
   }
+}
+
+message SfuBreakoutRoomEvent {
+    int64 channel_id = 1;
+    string token = 2;
+    repeated int64 self_select_ids = 3;
 }
 
 message VoiceInteractiveEvent {
@@ -259,6 +273,7 @@ message ApiRequestEvent {
   int32 api_index = 1;
   string api_name = 2;
   bytes body = 3;
+  int32 region = 4;
 }
 
 message FollowEvent {}
@@ -858,6 +873,8 @@ message StreamingJoinedEvent {
   string streaming_channel_label = 6;
   // streaming channel id
   int64 streaming_channel_id = 7;
+  // true for the stream's publisher; listed viewers (at most 100 per channel) are false
+  bool is_publisher = 8;
 }
 
 // Streaming start event
@@ -878,6 +895,24 @@ message StreamingEndedEvent {
   int64 clan_id = 1;
   // channel id
   int64 channel_id = 2;
+}
+
+// Audience size of a streaming channel, sent when it changes. Publishers are not counted.
+message StreamingViewerCountEvent {
+  // clan id
+  int64 clan_id = 1;
+  // streaming channel id
+  int64 channel_id = 2;
+  // number of distinct users watching as audience
+  int32 viewer_count = 3;
+}
+
+// Sent by a client when it starts or stops watching a streaming channel as audience.
+message StreamingWatch {
+  // streaming channel id
+  int64 channel_id = 1;
+  // true when the client starts watching, false when it stops
+  bool watching = 2;
 }
 
 message ChannelCreatedEvent {
@@ -1312,6 +1347,24 @@ message FCMTokens {
   string platform = 3;
 }
 
+message StreamingNode {
+  string id = 1;
+  string role = 2;
+  string url = 3;
+  bool hls = 4;
+  int64 sessions = 5;
+  int64 max_sessions = 6;
+  int64 ts = 7;
+  int64 boot = 8;
+  int64 seen_ms = 9;
+  bool down = 10;
+}
+
+message StreamingLive {
+  string node = 1;
+  int64 ts = 2;
+}
+
 message CheckNameExistedEvent {
   // name
   string name = 1;
@@ -1521,4 +1574,22 @@ message GotifyMessage {
   map<string, string> extras = 8;
   uint32 app_id = 9;
   int64 sender_id = 10;
+}
+
+message BreakoutSession {
+	int64 breakout_id = 1;
+	int64 parent_channel_id = 2;
+	int64 clan_id = 3;
+	int32 room_count = 4;
+	int32 break_rule_type = 5;
+	repeated int64 list_child_rooms = 6;
+	int64 creator_id = 7;
+}
+
+message MetricMessageEvent {
+  string request_id = 1;
+  int32 sessions_active = 2;
+  int32 sessions_peak = 3;
+  int64 sessions_created_total = 4;
+  int64 sessions_closed_total = 5;
 }

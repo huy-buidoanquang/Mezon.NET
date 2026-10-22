@@ -119,6 +119,41 @@ public sealed class EventDispatchTests
         Assert.Equal("urgent", select.Values[1]);
     }
 
+    [Fact]
+    public async Task SocketMessageHandlerAsync_dispatches_streaming_payload_events()
+    {
+        var client = new MezonClient();
+        var joinedWithoutPayload = 0;
+        StreamingJoinedEventEventData? joined = null;
+        StreamingLeavedEventEventData? leaved = null;
+        StreamingViewerCountEventEventData? count = null;
+
+        client.StreamingJoinedEvent += () => { Interlocked.Increment(ref joinedWithoutPayload); return Task.CompletedTask; };
+        client.StreamingJoinedDataEvent += payload => { joined = payload; return Task.CompletedTask; };
+        client.StreamingLeavedDataEvent += payload => { leaved = payload; return Task.CompletedTask; };
+        client.StreamingViewerCountChangedEvent += payload => { count = payload; return Task.CompletedTask; };
+
+        var envelopes = new[]
+        {
+            new Envelope { StreamingJoinedEvent = new StreamingJoinedEvent { ClanId = 1, StreamingChannelId = 2, UserId = 3, Participant = "dj", IsPublisher = true } },
+            new Envelope { StreamingLeavedEvent = new StreamingLeavedEvent { ClanId = 1, StreamingChannelId = "2", StreamingUserId = "3" } },
+            new Envelope { StreamingViewerCountEvent = new StreamingViewerCountEvent { ClanId = 1, ChannelId = 2, ViewerCount = 5 } },
+        };
+
+        await DispatchAllAsync(client, envelopes);
+        await WaitUntilAsync(() => joinedWithoutPayload == 1 && joined.HasValue && leaved.HasValue && count.HasValue);
+
+        var joinedEvent = (StreamingJoinedEventResponse)joined!.Value;
+        Assert.True(joinedEvent.IsPublisher);
+        Assert.Equal(2, joinedEvent.StreamingChannelId);
+        Assert.Equal(3, joinedEvent.UserId);
+        Assert.Equal("dj", joinedEvent.Participant);
+        Assert.Equal("3", ((StreamingLeavedEventResponse)leaved!.Value).StreamingUserId);
+        var viewers = (StreamingViewerCountEventResponse)count!.Value;
+        Assert.Equal(2, viewers.ChannelId);
+        Assert.Equal(5, viewers.ViewerCount);
+    }
+
     private static async Task DispatchAllAsync(MezonClient client, Envelope[] envelopes)
     {
         var process = typeof(MezonClient).GetMethod("SocketMessageHandlerAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
