@@ -346,5 +346,26 @@ namespace Mezon.Net.Client
         }
         internal readonly AsyncEvent<Func<DropdownBoxSelectedEventData, Task>> _dropdownBoxSelectedEvent = new AsyncEvent<Func<DropdownBoxSelectedEventData, Task>>();
 
+        public event Func<StreamingJoinedEventEventData, Task> StreamingJoinedDataEvent
+        {
+            add { _streamingJoinedDataEvent.Add(value); }
+            remove { _streamingJoinedDataEvent.Remove(value); }
+        }
+        internal readonly AsyncEvent<Func<StreamingJoinedEventEventData, Task>> _streamingJoinedDataEvent = new AsyncEvent<Func<StreamingJoinedEventEventData, Task>>();
+
+        public event Func<StreamingLeavedEventEventData, Task> StreamingLeavedDataEvent
+        {
+            add { _streamingLeavedDataEvent.Add(value); }
+            remove { _streamingLeavedDataEvent.Remove(value); }
+        }
+        internal readonly AsyncEvent<Func<StreamingLeavedEventEventData, Task>> _streamingLeavedDataEvent = new AsyncEvent<Func<StreamingLeavedEventEventData, Task>>();
+
+        public event Func<StreamingViewerCountEventEventData, Task> StreamingViewerCountChangedEvent
+        {
+            add { _streamingViewerCountChangedEvent.Add(value); }
+            remove { _streamingViewerCountChangedEvent.Remove(value); }
+        }
+        internal readonly AsyncEvent<Func<StreamingViewerCountEventEventData, Task>> _streamingViewerCountChangedEvent = new AsyncEvent<Func<StreamingViewerCountEventEventData, Task>>();
+
     }
 }

@@ -262,5 +262,7 @@ namespace Mezon.Net.Abstractions
         Task<SearchCtrlKResponse> SearchCtrlKAsync(SearchCtrlKRequest body, RequestOptions? options = null);
         Task<SearchMentionUsersResponse> SearchMentionUsersAsync(SearchMentionUsersRequest body, RequestOptions? options = null);
         Task<GenerateCDNSignatureResponse> GenerateCDNSignatureAsync(GenerateCDNSignatureRequest body, RequestOptions? options = null);
+        Task<GetStreamPlaybackResponse> GetStreamPlaybackAsync(GetStreamPlaybackRequest body, RequestOptions? options = null);
+        Task LinkCDNFileAsync(LinkCDNFileRequest body, RequestOptions? options = null);
     }
 }

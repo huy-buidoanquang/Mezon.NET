@@ -14,5 +14,6 @@ namespace Mezon.Net.Models
         public long UserId => _proto.UserId;
         public long ChannelId => _proto.ChannelId;
         public string Participant => _proto.Participant;
+        public bool IsPublisher => _proto.IsPublisher;
     }
 }

@@ -396,6 +396,9 @@ namespace Mezon.Net.Sdk
         public Task<GenerateMeetTokenResponse> GenerateMeetTokenAsync(GenerateMeetTokenParams body, RequestOptions? options = null)
             => _engine.GenerateMeetTokenAsync(body, options);
 
+        public Task<GetStreamPlaybackResponse> GetStreamPlaybackAsync(GetStreamPlaybackParams body, RequestOptions? options = null)
+            => _engine.GetStreamPlaybackAsync(body, options);
+
         public Task<ChannelMessageAckResponse> SendChannelMessageAsync(SendChannelMessageParams message, RequestOptions? options = null)
             => MessageSendHelper.SendAsync(_engine, message, options);
 

@@ -1,5 +1,48 @@
 # Changelog
 
+## 1.8.0
+
+### Added
+
+- `GetStreamPlaybackAsync` (socket API 213), on the engine and on `Mezon.Net.Sdk.MezonClient`, for stream channels
+  served by mezon-streaming-server. `publish: true` returns a publish token and the WHIP URL; `publish: false` returns a
+  view token and the HLS URL. Socket only: the REST client throws `NotSupportedException`.
+  - `ExpiresAt` is in Unix seconds. The node checks the token only when a session starts, so a running session
+    outlives it; fetch a new grant for every (re)connect. Publish tokens last 10 minutes, view tokens 6 hours.
+  - `WhepUrl` is empty: mezon-proto-server hands viewers only `HlsUrl`.
+  - Never log `Token`, `HlsUrl` or a WHIP/WHEP resource URL.
+- `LinkCDNFileAsync` (socket API 214) on the engine.
+- `SendStreamingWatchRtAsync` (Envelope 104, mezon-js `writeStreamingWatch`): tell mezon-proto-server that the user
+  starts or stops watching a stream channel. Clients renew `watching: true` every 30 s; a viewer that stops renewing is
+  dropped after 90 s.
+- Streaming events with payloads; the parameterless `StreamingJoined`/`StreamingLeaved` events keep firing:
+  - `StreamingJoinedDataEvent` / Sdk `StreamingJoinedData`, with `IsPublisher`. It comes for the publisher and for at
+    most 100 listed viewers per channel.
+  - `StreamingLeavedDataEvent` / Sdk `StreamingLeavedData`.
+  - `StreamingViewerCountChangedEvent` / Sdk `StreamingViewerCountChanged` (Envelope 106): distinct users watching,
+    without the publisher. It is sent to the clan at most once per 10 s per channel and only when the count changes.
+- `MezonApiException.RawCode`: the code exactly as the server sent it. mezon-proto-server answers some socket APIs
+  with HTTP-style codes (400, 403, 500, 503), which `StatusCode` reports as `Unknown`.
+- `Mezon.Net.Sdk.Sfu`, a client for the Mezon meeting SFU (`docs/sfu.md`), is published for the first time.
+
+### Protocol
+
+- Synced with mezon-protocol v2.0.97: `GetStreamPlaybackRequest`/`Response`, `LinkCDNFileRequest`, `StreamingWatch`
+  (Envelope 104), `StreamingViewerCountEvent` (Envelope 106), `is_publisher` on `StreamingJoinedEvent` and
+  `StreamingChannelUser`, `ApiRequestEvent.region` and `SdTopic.unread_count`. The new breakout-room and
+  everyone-channel override messages have no API in mezon-js and none here.
+- Envelope 101 is mezon-proto-server's `MetricMessageEvent` session probe and 105 the SFU breakout room event; both are
+  ignored, as in mezon-js. mezon-protocol v2.0.87 to v2.0.96 had the viewer count on 101; nothing released read it.
+
+### Upgrading
+
+- **Mezube:** get WHIP grants with `GetStreamPlaybackAsync(new GetStreamPlaybackParams(channelId, publish: true))`.
+  Treat `RawCode` 3, 5, 7, 400, 403 and 404 as "cannot stream in this channel" and anything else as temporarily
+  unavailable. Bot sessions need mezon-proto-server with mezonai/mezon-proto-server#505; older servers answer 403.
+- **Monze:** no change.
+- Servers without the streaming configuration answer 213 with 503, and a channel missing from the server cache with
+  500.
+
 ## 1.7.0
 
 ### Security

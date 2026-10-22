@@ -9,6 +9,11 @@ namespace Mezon.Net.Core
     public class MezonApiException : MezonException
     {
         public MezonStatusCode StatusCode { get; }
+
+        /// <summary>The code exactly as the server sent it. Codes outside <see cref="MezonStatusCode"/>, such as
+        /// mezon-proto-server's 400, 403, 500 and 503, leave <see cref="StatusCode"/> at Unknown.</summary>
+        public int RawCode { get; private set; }
+
         public string? ApiName { get; }
         public string? Detail { get; }
 
@@ -16,6 +21,7 @@ namespace Mezon.Net.Core
             : base(BuildMessage(statusCode, apiName, detail))
         {
             StatusCode = statusCode;
+            RawCode = (int)statusCode;
             ApiName = apiName;
             Detail = detail;
         }
@@ -26,7 +32,7 @@ namespace Mezon.Net.Core
                 ? (MezonStatusCode)code
                 : MezonStatusCode.Unknown;
 
-            return new MezonApiException(statusCode, apiName, TryDecodePayload(payload));
+            return new MezonApiException(statusCode, apiName, TryDecodePayload(payload)) { RawCode = code };
         }
 
         private static string? TryDecodePayload(ReadOnlyMemory<byte> payload)

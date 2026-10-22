@@ -37,6 +37,7 @@ REALTIME_JS_TO_DOTNET = {
     "forwardWebrtcSignaling": "ForwardWebrtcSignalingRtAsync",
     "makeCallPush": "MakeCallPushRtAsync",
     "writeChannelAppEvent": "SendChannelAppEventRtAsync",
+    "writeStreamingWatch": "SendStreamingWatchRtAsync",
 }
 
 
@@ -83,8 +84,8 @@ def main() -> int:
 
     missing_rt = expected_rt - dotnet_rt
     extra_rt = dotnet_rt - expected_rt
-    if len(dotnet_rt) != 22:
-        errors.append(f"BaseMezonSocketClient.Realtime expected 22 methods, found {len(dotnet_rt)}")
+    if len(dotnet_rt) != 23:
+        errors.append(f"BaseMezonSocketClient.Realtime expected 23 methods, found {len(dotnet_rt)}")
     if missing_rt:
         errors.append(f"Missing realtime methods: {sorted(missing_rt)}")
     if extra_rt:

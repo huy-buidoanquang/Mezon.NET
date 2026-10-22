@@ -121,6 +121,24 @@ namespace Mezon.Net.Sdk
             remove => _engine.StreamingLeavedEvent -= value;
         }
 
+        public event Func<StreamingJoinedEventEventData, Task> StreamingJoinedData
+        {
+            add => _engine.StreamingJoinedDataEvent += value;
+            remove => _engine.StreamingJoinedDataEvent -= value;
+        }
+
+        public event Func<StreamingLeavedEventEventData, Task> StreamingLeavedData
+        {
+            add => _engine.StreamingLeavedDataEvent += value;
+            remove => _engine.StreamingLeavedDataEvent -= value;
+        }
+
+        public event Func<StreamingViewerCountEventEventData, Task> StreamingViewerCountChanged
+        {
+            add => _engine.StreamingViewerCountChangedEvent += value;
+            remove => _engine.StreamingViewerCountChangedEvent -= value;
+        }
+
         public event Func<DropdownBoxSelectedEventData, Task> DropdownBoxSelected
         {
             add => _engine.DropdownBoxSelectedEvent += value;

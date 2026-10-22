@@ -1190,5 +1190,16 @@ namespace Mezon.Net.Client
             return new Mezon.Net.Models.GenerateCDNSignatureResponse(result);
         }
 
+        public async Task<Mezon.Net.Models.GetStreamPlaybackResponse> GetStreamPlaybackAsync(Mezon.Net.Models.GetStreamPlaybackParams body, RequestOptions? options = null)
+        {
+            var result = await ApiClient.GetStreamPlaybackAsync(GetStreamPlaybackParamsMapper.ToProto(body), options).ConfigureAwait(false);
+            return new Mezon.Net.Models.GetStreamPlaybackResponse(result);
+        }
+
+        public async Task LinkCDNFileAsync(Mezon.Net.Models.LinkCDNFileParams body, RequestOptions? options = null)
+        {
+            await ApiClient.LinkCDNFileAsync(LinkCDNFileParamsMapper.ToProto(body), options).ConfigureAwait(false);
+        }
+
     }
 }

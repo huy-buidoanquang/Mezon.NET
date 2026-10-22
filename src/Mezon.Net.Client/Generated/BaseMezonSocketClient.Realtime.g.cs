@@ -169,5 +169,12 @@ namespace Mezon.Net.Client
             await ApiClient.SendRtAsync(envelope, options).ConfigureAwait(false);
         }
 
+        /// <summary>Realtime envelope send (StreamingWatch). mezon-js: writeStreamingWatch.</summary>
+        public async Task SendStreamingWatchRtAsync(Mezon.Net.Models.StreamingWatchParams body, RequestOptions? options = null)
+        {
+            var envelope = new global::Mezon.Net.Internal.Realtime.Envelope { StreamingWatch = StreamingWatchParamsMapper.ToProto(body) };
+            await ApiClient.SendRtAsync(envelope, options).ConfigureAwait(false);
+        }
+
     }
 }

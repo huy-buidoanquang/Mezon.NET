@@ -13,5 +13,6 @@ namespace Mezon.Net.Models
         public int ApiIndex => _proto.ApiIndex;
         public string ApiName => _proto.ApiName;
         public byte[] Body => _proto.Body.ToByteArray();
+        public int Region => _proto.Region;
     }
 }

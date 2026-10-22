@@ -219,15 +219,20 @@ namespace Mezon.Net.Client
                         break;
                     case Envelope.MessageOneofCase.StreamingJoinedEvent:
                         ScheduleEvent(lane, () => TimedInvokeAsync(_streamingJoinedEvent, nameof(StreamingJoinedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_streamingJoinedDataEvent, nameof(StreamingJoinedDataEvent), new StreamingJoinedEventEventData(new StreamingJoinedEventResponse(envelope.StreamingJoinedEvent))));
                         break;
                     case Envelope.MessageOneofCase.StreamingLeavedEvent:
                         ScheduleEvent(lane, () => TimedInvokeAsync(_streamingLeavedEvent, nameof(StreamingLeavedEvent)));
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_streamingLeavedDataEvent, nameof(StreamingLeavedDataEvent), new StreamingLeavedEventEventData(new StreamingLeavedEventResponse(envelope.StreamingLeavedEvent))));
                         break;
                     case Envelope.MessageOneofCase.StreamingStartedEvent:
                         ScheduleEvent(lane, () => TimedInvokeAsync(_streamingStartedEvent, nameof(StreamingStartedEvent)));
                         break;
                     case Envelope.MessageOneofCase.StreamingEndedEvent:
                         ScheduleEvent(lane, () => TimedInvokeAsync(_streamingEndedEvent, nameof(StreamingEndedEvent)));
+                        break;
+                    case Envelope.MessageOneofCase.StreamingViewerCountEvent:
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_streamingViewerCountChangedEvent, nameof(StreamingViewerCountChangedEvent), new StreamingViewerCountEventEventData(new StreamingViewerCountEventResponse(envelope.StreamingViewerCountEvent))));
                         break;
                     case Envelope.MessageOneofCase.PermissionSetEvent:
                         ScheduleEvent(lane, () => TimedInvokeAsync(_permissionsSetEvent, nameof(PermissionsSetEvent)));

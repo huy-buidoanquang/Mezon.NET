@@ -2245,6 +2245,18 @@ namespace Mezon.Net.Client
             return SendApiAsync("GenerateCDNSignature", body, GenerateCDNSignatureResponse.Parser, options);
         }
 
+        public override Task<GetStreamPlaybackResponse> GetStreamPlaybackAsync(GetStreamPlaybackRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            return SendApiAsync("GetStreamPlayback", body, GetStreamPlaybackResponse.Parser, options);
+        }
+
+        public override async Task LinkCDNFileAsync(LinkCDNFileRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            await SendApiAsync("LinkCDNFile", body, Empty.Parser, options);
+        }
+
         #endregion
     }
 }

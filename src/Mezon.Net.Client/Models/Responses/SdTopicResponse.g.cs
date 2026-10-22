@@ -20,5 +20,6 @@ namespace Mezon.Net.Models
         public uint UpdateTimeSeconds => _proto.UpdateTimeSeconds;
         public string Content => _proto.Content;
         public ChannelMessageHeaderResponse LastSentMessage => new ChannelMessageHeaderResponse(_proto.LastSentMessage);
+        public int UnreadCount => _proto.UnreadCount;
     }
 }

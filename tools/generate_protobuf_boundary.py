@@ -298,6 +298,15 @@ REALTIME_METHODS: List[RealtimeMethod] = [
         "body",
         "{Mapper}.ToProto(body)",
     ),
+    RealtimeMethod(
+        "writeStreamingWatch",
+        "SendStreamingWatchRtAsync",
+        "StreamingWatch",
+        "StreamingWatch",
+        "StreamingWatchParams",
+        "body",
+        "{Mapper}.ToProto(body)",
+    ),
 ]
 
 
@@ -1386,6 +1395,9 @@ SOCKET_EVENT_MANIFEST: List[Tuple[str, str, str]] = [
     ("VoiceInteractiveReceivedEvent", "VoiceInteractiveEvent", RT_NS),
     ("MessageButtonClickedEvent", "MessageButtonClicked", RT_NS),
     ("DropdownBoxSelectedEvent", "DropdownBoxSelected", RT_NS),
+    ("StreamingJoinedDataEvent", "StreamingJoinedEvent", RT_NS),
+    ("StreamingLeavedDataEvent", "StreamingLeavedEvent", RT_NS),
+    ("StreamingViewerCountChangedEvent", "StreamingViewerCountEvent", RT_NS),
 ]
 
 
@@ -1449,9 +1461,9 @@ def parse_realtime_transport_methods(transport_path: Path) -> Set[str]:
 
 def assert_realtime_transport_parity() -> None:
     manifest = {m.js_name for m in REALTIME_METHODS}
-    if len(REALTIME_METHODS) != 22:
-        raise RuntimeError(f"REALTIME_METHODS must contain 22 entries, got {len(REALTIME_METHODS)}")
-    if len(manifest) != 22:
+    if len(REALTIME_METHODS) != 23:
+        raise RuntimeError(f"REALTIME_METHODS must contain 23 entries, got {len(REALTIME_METHODS)}")
+    if len(manifest) != 23:
         raise RuntimeError("REALTIME_METHODS contains duplicate js_name entries")
     if not MEZON_JS_TRANSPORT.is_file():
         print(f"Warning: mezon-js transport not found at {MEZON_JS_TRANSPORT}; skipping transport parity assert")

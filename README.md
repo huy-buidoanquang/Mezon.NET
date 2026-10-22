@@ -36,7 +36,7 @@ Public API types live in `Mezon.Net.Models` (generated under `Mezon.Net.Client/M
 Facades are generated on base classes (not on `MezonClient` directly):
 
 - `BaseMezonClient` — REST/auth bootstrap (~7 methods)
-- `BaseMezonSocketClient` — socket API (~213 methods) + **realtime envelope** (22 `*RtAsync` methods) + payload events
+- `BaseMezonSocketClient` — socket API (~215 methods) + **realtime envelope** (23 `*RtAsync` methods) + payload events
 - `MezonClient` — connect, heartbeat, event dispatch only
 
 Two socket send paths (parity with mezon-js):
@@ -90,6 +90,14 @@ Realtime events are dispatched in order per channel (else per clan) on bounded l
 `MezonSocketClientOptions` to switch back to unordered concurrent dispatch.
 
 See [`src/Mezon.Net.Sdk.Example`](src/Mezon.Net.Sdk.Example) for a sample bot host (env/CLI config, commands, graceful shutdown).
+
+### Stream channels
+
+Stream channels are served by mezon-streaming-server. `GetStreamPlaybackAsync(new GetStreamPlaybackParams(channelId, publish: true))`
+returns a short-lived token and the WHIP URL to publish to (with `publish: false`, a view token and the HLS URL).
+The SDK has no media code: publish with your own WebRTC stack, as Mezube does. Fetch a new grant for every
+(re)connect, and never log the token, the HLS URL or a WHIP resource URL. `StreamingJoinedData` (with `IsPublisher`),
+`StreamingLeavedData` and `StreamingViewerCountChanged` report who is live and how many users watch.
 
 ## Socket protocol
 
