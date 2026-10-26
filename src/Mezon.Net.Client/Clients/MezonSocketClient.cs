@@ -369,7 +369,9 @@ namespace Mezon.Net.Client
                     if (envelope.Cid > 0)
                     {
                         cid = envelope.Cid;
-                        _ = _correlationHub.TryComplete(envelope.Cid, code, SerializeEnvelop(envelope));
+                        _ = envelope.MessageCase == Envelope.MessageOneofCase.Error
+                            ? _correlationHub.TryComplete(envelope.Cid, envelope.Error.Code != 0 ? envelope.Error.Code : (int)MezonStatusCode.Unknown, Encoding.UTF8.GetBytes(envelope.Error.Message))
+                            : _correlationHub.TryComplete(envelope.Cid, code, SerializeEnvelop(envelope));
                     }
 
                     if (IsTraceEnabled)

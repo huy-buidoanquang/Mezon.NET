@@ -28,6 +28,8 @@ internal sealed class LoopbackNetworkTransporter : IMezonNetworkTransporter
     /// <summary>Optional reply body for API requests; null falls back to an empty ChannelDescription.</summary>
     public Func<ApiRequestEvent, byte[]?>? ApiResponder { get; set; }
 
+    public Func<Envelope, Error?>? ErrorResponder { get; set; }
+
     public Func<MezonMessageType, int, int, ReadOnlyMemory<byte>, ValueTask>? MessageReceived { get; set; }
     public Func<Task>? Opened { get; set; }
     public Func<Exception?, Task>? Closed { get; set; }
@@ -87,7 +89,11 @@ internal sealed class LoopbackNetworkTransporter : IMezonNetworkTransporter
             try
             {
                 var envelope = Envelope.Parser.ParseFrom(data.Span);
-                if (envelope.MessageCase == Envelope.MessageOneofCase.ApiRequestEvent && envelope.Cid > 0)
+                if (envelope.Cid > 0 && ErrorResponder?.Invoke(envelope) is { } error)
+                {
+                    _inbound.Writer.TryWrite((MezonMessageType.Realtime, 0, 0, new Envelope { Cid = envelope.Cid, Error = error }.ToByteArray()));
+                }
+                else if (envelope.MessageCase == Envelope.MessageOneofCase.ApiRequestEvent && envelope.Cid > 0)
                 {
                     var body = ApiResponder?.Invoke(envelope.ApiRequestEvent)
                         ?? new global::Mezon.Net.Internal.Api.ChannelDescription { ChannelId = 1, ClanId = 1 }.ToByteArray();
