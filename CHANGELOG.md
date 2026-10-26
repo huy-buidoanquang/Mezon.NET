@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.9.0
+
+### Added
+
+- `Mezon.Net.Sdk.Sfu` joins mezon-sfu's decoupled rooms (`media_pool_mode = decoupled`, mezon-sfu `19f885a` and later).
+  1.8.0 could not: those rooms refuse a join without `media_pool_version: 1`.
+  - Every join declares `media_pool_version: 1`; legacy rooms ignore it.
+  - `DownlinkMode.Decoupled` follows the room's audio, camera and screen pools (`slot_assigned`/`slot_released` with
+    `kind`, and `media_slots` in snapshots and peer events). Active speakers come from the audio pool.
+  - `docs/sfu.md` lists the mezon-sfu `19f885a` issues that the SDK and its e2e stack work around.
+
+### Fixed
+
+- Socket requests that mezon-proto-server rejects now throw `MezonApiException`. proto-server answers a rejected
+  socket API call or realtime send with an `Error` envelope that carries the request's cid; 1.8.0 and earlier parsed
+  that envelope as the response, so the caller got an empty response instead of an exception. `RawCode` is the code
+  from the envelope (for example 403 when a bot calls an API that bots may not use) and `Detail` its message.
+  - This covers every socket API and the realtime sends that wait for an ack (`SendChatMessageRtAsync`,
+    `UpdateChatMessageRtAsync`, `RemoveChatMessageRtAsync`, `SendEphemeralMessageRtAsync`), which now throw where
+    they returned an empty ack.
+
+### Server changes since 1.8.0
+
+- mezon-proto-server no longer sends Envelope 106 (mezonai/mezon-proto-server#507), so `StreamingViewerCountChanged`
+  does not fire. Count viewers from `ListStreamingChannelUsers` and the Joined/Leaved events instead.
+- A viewer no longer expires 90 s after its last `watching: true`; it stays listed until it sends `watching: false` or
+  the stream ends. Joined comes for every viewer, not only for the first 100.
+
 ## 1.8.0
 
 ### Added
