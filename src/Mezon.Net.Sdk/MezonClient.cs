@@ -396,6 +396,9 @@ namespace Mezon.Net.Sdk
         public Task<GenerateMeetTokenResponse> GenerateMeetTokenAsync(GenerateMeetTokenParams body, RequestOptions? options = null)
             => _engine.GenerateMeetTokenAsync(body, options);
 
+        public Task<GenerateCDNSignatureResponse> GenerateCDNSignatureAsync(GenerateCDNSignatureParams body, RequestOptions? options = null)
+            => _engine.GenerateCDNSignatureAsync(body, options);
+
         public Task<GetStreamPlaybackResponse> GetStreamPlaybackAsync(GetStreamPlaybackParams body, RequestOptions? options = null)
             => _engine.GetStreamPlaybackAsync(body, options);
 
