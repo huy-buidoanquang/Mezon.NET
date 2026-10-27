@@ -15,7 +15,7 @@
     Bump MAJOR for breaking API, MINOR for features, PATCH for fixes.
   -->
   <PropertyGroup>
-    <VersionPrefix>1.9.1</VersionPrefix>
+    <VersionPrefix>1.10.0</VersionPrefix>
     <LangVersion>latest</LangVersion>
     <Authors>Mezon.Net Contributors</Authors>
     <Company>Mezon.Net</Company>
