@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.9.1
+
+### Added
+
+- `Mezon.Net.Sdk.MezonClient.GenerateCDNSignatureAsync` (socket API 212), forwarding the engine's call. It returns
+  `Signature`, the `<ts>-<mac>` query that signs every file under the channel's folder (`/<channel id as %016x>/…`)
+  on Mezon's CDN for 3 hours. mezon-proto-server lets bots call it, and answers 403 when the caller is neither in the
+  channel nor, for a public channel, in its clan. Treat the signed URL as a bearer token: never log it.
+
 ## 1.9.0
 
 ### Added
