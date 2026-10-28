@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.11.0
+
+### Deprecated
+
+- These `Mezon.Net.Sdk` methods are `[Obsolete]`, because mezon-proto-server now answers bot sessions with 403 for
+  their APIs and the call throws `MezonApiException` (`RawCode` 403):
+  - `MezonClient.ListChannelMessagesAsync`, `ListClanUsersAsync`, `ListRoleUsersAsync` and `Clan.ListRoleUsersAsync`
+  - `MezonClient.ListQuickMenuAccessAsync`
+  - `MezonClient.UploadAttachmentFileAsync`, `MultipartUploadAttachmentFileStartAsync` and
+    `MultipartUploadAttachmentFileFinishAsync`
+
+### Server changes since 1.10.0
+
+- mezon-proto-server (`a3aa707`, on `main` since mezonai/mezon-proto-server#511) rejects every socket API a bot calls
+  unless it is in `is_bot_allowed_api`: ListChannelDescs, ListChannelDetail, ListClanDescs, CreateChannelDesc,
+  ListChannelVoiceUsers, ListRoles, CreateRole, UpdateRole, GetRoleOfUserInTheClan, ListFriends, AddFriends,
+  Add/Update/DeleteQuickMenuAccess, GenerateMeetToken, Send/Update/DeleteChannelMessage, CreatePoll, ClosePoll,
+  GetPoll, GenerateCDNSignature and GetStreamPlayback. Realtime sends (`*RtAsync`) are not affected.
+
 ## 1.9.1
 
 ### Added
