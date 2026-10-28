@@ -16,6 +16,9 @@ namespace Mezon.Net.Sdk
 {
     public sealed partial class MezonClient : IAsyncDisposable
     {
+        // Marks Sdk methods whose API is missing from is_bot_allowed_api in mezon-proto-server src/pipeline_api.c.
+        internal const string BotBlockedApiMessage = "mezon-proto-server answers bot sessions with 403 (Permission denied) for this API, so the call throws MezonApiException. This method will be removed in a future major version.";
+
         internal readonly AsyncEvent<Func<LogMessage, Task>> _logEvent = new AsyncEvent<Func<LogMessage, Task>>();
         public event Func<LogMessage, Task> Log { add { _logEvent.Add(value); } remove { _logEvent.Remove(value); } }
 
@@ -311,14 +314,17 @@ namespace Mezon.Net.Sdk
             MarkClanChatJoined(clanId);
         }
 
+        [Obsolete(BotBlockedApiMessage)]
         public Task<UploadAttachmentResponse> UploadAttachmentFileAsync(UploadAttachmentParams body, RequestOptions? options = null)
             => _engine.UploadAttachmentFileAsync(body, options);
 
+        [Obsolete(BotBlockedApiMessage)]
         public Task<MultipartUploadAttachmentResponse> MultipartUploadAttachmentFileStartAsync(
             UploadAttachmentParams body,
             RequestOptions? options = null)
             => _engine.MultipartUploadAttachmentFileStartAsync(body, options);
 
+        [Obsolete(BotBlockedApiMessage)]
         public Task<UploadAttachmentResponse> MultipartUploadAttachmentFileFinishAsync(
             MultipartUploadAttachmentFinishParams body,
             RequestOptions? options = null)
@@ -333,9 +339,11 @@ namespace Mezon.Net.Sdk
         public Task<ClanDescListResponse> ListClanDescsAsync(ListClanDescParams body, RequestOptions? options = null)
             => _engine.ListClanDescsAsync(body, options);
 
+        [Obsolete(BotBlockedApiMessage)]
         public Task<ClanUserListResponse> ListClanUsersAsync(long clanId, RequestOptions? options = null)
             => _engine.ListClanUsersAsync(clanId, options);
 
+        [Obsolete(BotBlockedApiMessage)]
         public Task<ChannelMessageListResponse> ListChannelMessagesAsync(
             long clanId,
             long channelId,
@@ -359,6 +367,7 @@ namespace Mezon.Net.Sdk
         public Task<RoleListEventResponse> ListRolesAsync(RoleListEventParams request, RequestOptions? options = null)
             => _engine.ListRolesAsync(request, options);
 
+        [Obsolete(BotBlockedApiMessage)]
         public Task<RoleUserListResponse> ListRoleUsersAsync(ListRoleUsersParams request, RequestOptions? options = null)
             => _engine.ListRoleUsersAsync(request, options);
 
@@ -386,6 +395,7 @@ namespace Mezon.Net.Sdk
         public Task DeleteQuickMenuAccessAsync(QuickMenuAccessParams body, RequestOptions? options = null)
             => _engine.DeleteQuickMenuAccessAsync(body, options);
 
+        [Obsolete(BotBlockedApiMessage)]
         public Task<QuickMenuAccessListResponse> ListQuickMenuAccessAsync(
             long botId,
             long channelId,

@@ -51,6 +51,7 @@ namespace Mezon.Net.Sdk.Entities
         public Task<Mezon.Net.Models.RoleListEventResponse> ListRolesAsync(int? limit = null, int? state = null, string? cursor = null, RequestOptions? options = null)
             => _client.ListRolesAsync(new RoleListEventParams(clanId: Id, limit: limit, state: state, cursor: cursor), options);
 
+        [System.Obsolete(MezonClient.BotBlockedApiMessage)]
         public Task<Mezon.Net.Models.RoleUserListResponse> ListRoleUsersAsync(long roleId, int? limit = null, string? cursor = null, RequestOptions? options = null)
             => _client.ListRoleUsersAsync(new ListRoleUsersParams(roleId: roleId, limit: limit, cursor: cursor), options);
 
