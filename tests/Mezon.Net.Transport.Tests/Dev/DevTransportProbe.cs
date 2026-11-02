@@ -27,7 +27,11 @@ public sealed class DevTransportProbe
             return;
         }
 
-        var options = new MezonSocketClientOptions(DevApiHost, DevApiPort, useSSL: true);
+        var serverKey = Environment.GetEnvironmentVariable("MEZON_SERVER_KEY");
+        var options = new MezonSocketClientOptions(DevApiHost, DevApiPort, useSSL: true)
+        {
+            ServerKey = string.IsNullOrWhiteSpace(serverKey) ? "defaultkey" : serverKey,
+        };
         var client = new MezonClient(options);
         var session = await client.AuthenticateEmailAsync(CreateAuthRequest()).ConfigureAwait(false);
 
