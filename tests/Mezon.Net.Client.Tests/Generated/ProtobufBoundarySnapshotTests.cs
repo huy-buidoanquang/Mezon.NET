@@ -18,6 +18,14 @@ namespace Mezon.Net.Client.Tests.Generated
             Assert.Contains("GenerateCDNSignatureAsync", facade);
             Assert.Contains("Task<Mezon.Net.Models.GetStreamPlaybackResponse> GetStreamPlaybackAsync", facade);
             Assert.Contains("Task LinkCDNFileAsync", facade);
+            Assert.Contains("Task<Mezon.Net.Models.SfuBreakoutRoomResponse> SfuBreakoutRoomAsync", facade);
+            Assert.Contains("Task SfuBreakoutMergeAsync", facade);
+            Assert.Contains("Task SetOverrideEveryoneChannelAsync", facade);
+            Assert.Contains("Task<Mezon.Net.Models.GetOverrideEveryoneChannelResponse> GetOverrideEveryoneChannelAsync", facade);
+            Assert.Contains("Task<Mezon.Net.Models.DMSettingResponse> GetDMSettingAsync", facade);
+            Assert.Contains("Task<Mezon.Net.Models.DMSettingResponse> UpdateDMSettingAsync", facade);
+            Assert.Contains("Task RevokeAllSessionAsync", facade);
+            Assert.Contains("Task RedeemProPlanCouponAsync", facade);
         }
 
         [Fact]
@@ -26,12 +34,24 @@ namespace Mezon.Net.Client.Tests.Generated
             var root = FindRepoRoot();
             var models = Path.Combine(root, "src", "Mezon.Net.Client", "Models");
             var upload = File.ReadAllText(Path.Combine(models, "Requests", "UploadAttachmentParams.g.cs"));
+            var meetTokenReq = File.ReadAllText(Path.Combine(models, "Requests", "GenerateMeetTokenParams.g.cs"));
             var meetToken = File.ReadAllText(Path.Combine(models, "Responses", "GenerateMeetTokenResponse.g.cs"));
             var streamingJoined = File.ReadAllText(Path.Combine(models, "Responses", "StreamingJoinedEventResponse.g.cs"));
+            var eventMgmt = File.ReadAllText(Path.Combine(models, "Responses", "EventManagementResponse.g.cs"));
+            var createEvent = File.ReadAllText(Path.Combine(models, "Requests", "CreateEventParams.g.cs"));
+            var friendState = File.ReadAllText(Path.Combine(models, "Responses", "FriendStateUpdatedResponse.g.cs"));
 
             Assert.Contains("long? channelId = null", upload);
+            Assert.Contains("int? currentEndpointId = null", meetTokenReq);
             Assert.Contains("public string Url =>", meetToken);
             Assert.Contains("public bool IsPublisher =>", streamingJoined);
+            Assert.Contains("public bool IsExternal =>", eventMgmt);
+            Assert.Contains("public bool IsPrivate =>", eventMgmt);
+            Assert.Contains("public long CoHost =>", eventMgmt);
+            Assert.Contains("public readonly bool? IsExternal;", createEvent);
+            Assert.Contains("public bool? IsPrivate => IsExternal;", createEvent);
+            Assert.Contains("public readonly long? CoHost;", createEvent);
+            Assert.Contains("public int State =>", friendState);
         }
 
         [Fact]

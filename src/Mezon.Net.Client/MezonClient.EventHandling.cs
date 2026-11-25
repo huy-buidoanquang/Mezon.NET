@@ -390,6 +390,12 @@ namespace Mezon.Net.Client
                     case Envelope.MessageOneofCase.VoiceInteractiveEvent:
                         ScheduleEvent(lane, () => TimedInvokeAsync(_voiceInteractiveReceivedEvent, nameof(VoiceInteractiveReceivedEvent), new VoiceInteractiveEventEventData(new VoiceInteractiveEventResponse(envelope.VoiceInteractiveEvent))));
                         break;
+                    case Envelope.MessageOneofCase.SfuBreakoutRoomEvent:
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_sfuBreakoutRoomReceivedEvent, nameof(SfuBreakoutRoomReceivedEvent), new SfuBreakoutRoomEventEventData(new SfuBreakoutRoomEventResponse(envelope.SfuBreakoutRoomEvent))));
+                        break;
+                    case Envelope.MessageOneofCase.FriendStateUpdated:
+                        ScheduleEvent(lane, () => TimedInvokeAsync(_friendStateUpdatedEvent, nameof(FriendStateUpdatedEvent), new FriendStateUpdatedEventData(new FriendStateUpdatedResponse(envelope.FriendStateUpdated))));
+                        break;
                     default:
                         ScheduleEvent(lane, () => _logger.WarningAsync($"Unknown message type ({envelope.MessageCase})"));
                         break;

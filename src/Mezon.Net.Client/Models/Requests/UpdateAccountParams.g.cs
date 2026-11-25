@@ -17,7 +17,9 @@ namespace Mezon.Net.Models
         public readonly string? SplashScreen;
         public readonly string? EncryptPrivateKey;
         public readonly string? Email;
-        public UpdateAccountParams(string? displayName = null, string? avatarUrl = null, string? langTag = null, string? location = null, string? timezone = null, string? aboutMe = null, uint? dobSeconds = null, string? logo = null, string? splashScreen = null, string? encryptPrivateKey = null, string? email = null)
+        public readonly string? Banner;
+        public readonly bool? ProPlan;
+        public UpdateAccountParams(string? displayName = null, string? avatarUrl = null, string? langTag = null, string? location = null, string? timezone = null, string? aboutMe = null, uint? dobSeconds = null, string? logo = null, string? splashScreen = null, string? encryptPrivateKey = null, string? email = null, string? banner = null, bool? proPlan = null)
         {
             DisplayName = displayName;
             AvatarUrl = avatarUrl;
@@ -30,6 +32,8 @@ namespace Mezon.Net.Models
             SplashScreen = splashScreen;
             EncryptPrivateKey = encryptPrivateKey;
             Email = email;
+            Banner = banner;
+            ProPlan = proPlan;
         }
     }
 }

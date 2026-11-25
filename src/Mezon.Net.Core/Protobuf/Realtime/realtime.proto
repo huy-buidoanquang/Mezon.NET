@@ -237,6 +237,8 @@ message Envelope {
     SfuBreakoutRoomEvent sfu_breakout_room_event = 105;
     // Aggregated audience count of a streaming channel
     StreamingViewerCountEvent streaming_viewer_count_event = 106;
+    // Friend relationship changed by the current user from another session
+    FriendStateUpdated friend_state_updated = 107;
   }
 }
 
@@ -666,6 +668,8 @@ message AddFriend {
   string display_name = 3;
   // avatar
   string avatar = 4;
+  // true when this call accepted the receiver's pending request
+  bool accepted = 5;
 }
 
 message RemoveFriend {
@@ -1269,6 +1273,7 @@ message ClanUpdatedEvent {
   string hashtags = 14;
   // community vanity short url (clan_discover)
   string short_url = 15;
+  bool pro_plan = 16;
 }
 
 // clan profile updated event
@@ -1299,6 +1304,9 @@ message UserProfileUpdatedEvent {
   int64 clan_id = 6;
   // the encrypt_private_key
   string encrypt_private_key = 7;
+  // profile banner url
+  string banner = 8;
+  bool pro_plan = 9;
 }
 
 message ConfirmLinkMezonOTPData {
@@ -1592,4 +1600,19 @@ message MetricMessageEvent {
   int32 sessions_peak = 3;
   int64 sessions_created_total = 4;
   int64 sessions_closed_total = 5;
+}
+
+// Sent to the acting user's own sessions after they add, accept, block or unblock a friend,
+// so their other devices show the same relationship.
+message FriendStateUpdated {
+  // the other user
+  int64 user_id = 1;
+  // username
+  string username = 2;
+  // display name
+  string display_name = 3;
+  // avatar
+  string avatar = 4;
+  // new api.Friend.State of the relationship from the acting user's side
+  int32 state = 5;
 }

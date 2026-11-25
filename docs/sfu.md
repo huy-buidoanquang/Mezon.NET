@@ -201,22 +201,19 @@ stays out of the process list. Both examples are run against the real SFU by `Ex
 
 ## Compatibility and known server issues
 
-Tested against mezon-sfu `0520143` (`tools/SfuE2e/stack/sfu.lock`) in dynamic and fixed-slot rooms, on Windows and in
-Linux containers, and with the other SDKs (`mezon-sfu-sdk-js` `test/e2e-node/interop.e2e.test.ts` records a JS tone with
-this SDK's recorder example and plays it back with its bot example). Decoupled rooms were tested against mezon-sfu
-`develop` `19f885a` on Windows (host stacks), and so were that build's legacy rooms.
+Tested against mezon-sfu `c158b18` (`tools/SfuE2e/stack/sfu.lock`) across all four modes (`dynamic`, `fixed2`, `alone`
+and `decoupled`, with `max_active_speakers = 0` in decoupled rooms and camera stop without holding an audio slot) on
+Windows, plus interop with the other SDKs (`mezon-sfu-sdk-js` `test/e2e-node/interop.e2e.test.ts` records a JS tone
+with this SDK's recorder example and plays it back with its bot example).
 
 - Decoupled rooms refuse a join without `media_pool_version: 1` (error `unsupported_media_pool_version`, then close
   1002). This SDK declares it on every join (legacy rooms ignore it); a server that requires another version ends the
   room with `ProtocolRejected` after one retry. The other SDKs do not declare it yet, so they cannot join decoupled
   rooms.
-- mezon-sfu `19f885a` rejects every renegotiation answer in legacy rooms (`invalid_answer_sdp`, since `244313c`): in a
-  dynamic room nobody receives a publisher who starts after them, whatever the client. Its fixed-slot rooms pass.
-- In decoupled rooms, `19f885a` moves audio slots by voice activity, and gives a freed audio slot to a waiting
-  speaker, only when `max_active_speakers` is above 0 as well; the e2e stack sets it to `max_audio_slots`.
-- In decoupled rooms, `19f885a` refuses to stop the camera of a publisher that holds no other slot at some receiver:
-  `SetCameraEnabledAsync(false)` throws `SfuException` (`camera_update_failed`) and the server keeps the camera on,
-  holding its slot.
+- Older `19f885a` servers had three issues that are fixed in `c158b18`: legacy renegotiation answers rejected with
+  `invalid_answer_sdp` (fixed in `cc5b2fb`, `mezonai/mezon-sfu#506`), decoupled VAD speaker switching requiring
+  `max_active_speakers > 0` (fixed in `52439b6`, `mezonai/mezon-sfu#532`), and stopping a camera while holding no other
+  slot failing with `camera_update_failed` (fixed in `9651d76`, `mezonai/mezon-sfu#511`).
 - Servers built before mezon-sfu `0520143` (`mezonai/mezon-sfu#480`) relay participant metadata and room messages without escaping control
   characters other than CR, LF and TAB, and without validating UTF-8. The SDK drops raw control characters from
   server frames and parses them again, but a frame with invalid UTF-8 fails the socket read (.NET's
@@ -267,22 +264,21 @@ The test project (`net10.0`) has five levels:
 ### Real-SFU stacks (Docker)
 
 `tools/SfuE2e` starts nats and mezon-sfu with the same image, templates and Dockerfile as the other SDKs
-(`tools/SfuE2e/stack/` holds copies: keep them identical in all six, except `decoupled.ini.template`, which only this
-SDK has so far; `stack/sfu.lock` pins mezon-sfu `develop` 0520143). `SFU_IMAGE` runs an existing image and is never
-rebuilt; without it, `up` builds `../mezon-sfu` into the shared tag `mezon-sfu:e2e` unless `--no-build`:
+(`tools/SfuE2e/stack/` holds copies: keep them identical in all six; `stack/sfu.lock` pins mezon-sfu `main` `c158b18`).
+`SFU_IMAGE` runs an existing image and is never rebuilt; without it, `up` builds `../mezon-sfu` into the shared tag
+`mezon-sfu:e2e` unless `--no-build`:
 
 ```sh
-SFU_IMAGE=mezon-sfu:develop-0520143 dotnet run --project tools/SfuE2e -- up --mode dynamic --no-build
-SFU_IMAGE=mezon-sfu:develop-19f885a dotnet run --project tools/SfuE2e -- up --mode decoupled --no-build
+SFU_IMAGE=mezon-sfu:main-c158b18 dotnet run --project tools/SfuE2e -- up --mode dynamic --no-build
+SFU_IMAGE=mezon-sfu:main-c158b18 dotnet run --project tools/SfuE2e -- up --mode decoupled --no-build
 dotnet run --project tools/SfuE2e -- up --mode fixed2 [--net host|bridge] [--no-build]
 dotnet run --project tools/SfuE2e -- test          # the test project in mcr.microsoft.com/dotnet/sdk:10.0 on every bridge stack
 dotnet run --project tools/SfuE2e -- down [--mode <mode>] [--keep]
 ```
 
 - Modes: `dynamic`, `fixed2` (`max_active_speakers = 2`), `alone` (alone timeout 8 s) and `decoupled`
-  (`media_pool_mode = decoupled` with 2 audio, 1 camera and 1 screen slots, plus `max_active_speakers = 2` for the
-  server's voice activity detection; needs an image of mezon-sfu `19f885a` or later, and the Dockerfile builds such
-  sources only with `zlib1g-dev` added to its build packages). Every SDK has its own ports, subnets and compose
+  (`media_pool_mode = decoupled` with 2 audio, 1 camera and 1 screen slots, `max_active_speakers = 0`; the Dockerfile
+  includes `zlib1g-dev` / `zlib1g` for `mezon-sfu`'s `permessage-deflate` dependency). Every SDK has its own ports, subnets and compose
   projects, so all stacks can run together; never stop another SDK's stacks:
 
   | SDK | Media / signaling / NATS ports | Subnets | Compose projects | Command |

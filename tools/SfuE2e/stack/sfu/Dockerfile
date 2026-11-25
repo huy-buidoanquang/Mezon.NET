@@ -16,7 +16,7 @@ ARG NATSC_REF=v3.11.0
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential ca-certificates cmake git golang-go liburing-dev libuv1-dev \
-    ninja-build pkg-config python3 && \
+    ninja-build pkg-config python3 zlib1g-dev && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /tmp/deps
@@ -57,7 +57,7 @@ FROM ubuntu:24.04 AS runtime
 
 ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates libssl3t64 liburing2 libuv1t64 netcat-openbsd && \
+    ca-certificates libssl3t64 liburing2 libuv1t64 netcat-openbsd zlib1g && \
     rm -rf /var/lib/apt/lists/* && \
     groupadd --gid 10001 mezon && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin mezon
 

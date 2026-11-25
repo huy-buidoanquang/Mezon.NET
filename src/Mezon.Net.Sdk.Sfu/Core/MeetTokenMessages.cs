@@ -9,7 +9,14 @@ namespace Mezon.Net.Sdk.Sfu.Core;
 
 /// <summary>Request body of <c>GenerateMeetToken</c>. Ids are decimal int64 strings.</summary>
 /// <param name="Metadata">Becomes the participant metadata, conventionally <c>"display_name;avatar_url"</c>.</param>
-public sealed record GenerateMeetTokenRequest(string ChannelId, string RoomName = "", string Metadata = "");
+/// <param name="CurrentEndpointId">Optional current SFU cluster endpoint id for overflow routing (set to <c>0</c> to explicitly signal endpoint 0).</param>
+public sealed record GenerateMeetTokenRequest(string ChannelId, string RoomName = "", string Metadata = "", int? CurrentEndpointId = null)
+{
+    public GenerateMeetTokenRequest(string channelId, string roomName, string metadata)
+        : this(channelId, roomName, metadata, null)
+    {
+    }
+}
 
 /// <summary>Request body of the mute/kick participant APIs.</summary>
 public sealed record MeetParticipantRequest(string UserId, string ChannelId, string ClanId);
@@ -56,7 +63,7 @@ public static class MeetTokenMessages
     /// <summary>Message → fields (name, number, scalar type), as in <c>api.proto</c>.</summary>
     public static IReadOnlyList<(string Message, IReadOnlyList<(string Name, int Number, string Type)> Fields)> Schema { get; } = new (string, IReadOnlyList<(string, int, string)>)[]
     {
-        ("GenerateMeetTokenRequest", new[] { ("channel_id", 1, "int64"), ("room_name", 2, "string"), ("metadata", 3, "string") }),
+        ("GenerateMeetTokenRequest", new[] { ("channel_id", 1, "int64"), ("room_name", 2, "string"), ("metadata", 3, "string"), ("current_endpoint_id", 4, "int32") }),
         ("GenerateMeetTokenResponse", new[] { ("token", 1, "string"), ("url", 2, "string") }),
         ("MeetParticipantRequest", new[] { ("user_id", 1, "int64"), ("channel_id", 2, "int64"), ("clan_id", 3, "int64") }),
         ("GenerateMeetTokenExternalResponse", new[] { ("token", 1, "string"), ("guest_user_id", 2, "int64"), ("guest_access_token", 3, "string"), ("url", 4, "string") }),
@@ -102,6 +109,17 @@ public static class MeetTokenMessages
         output.Write(bytes, 0, bytes.Length);
     }
 
+    private static void Int32Field(int field, int? value, Stream output)
+    {
+        if (value is not int n)
+        {
+            return;
+        }
+
+        Varint((ulong)(field << 3), output);
+        Varint(unchecked((ulong)(long)n), output);
+    }
+
     /// <summary>Protobuf encoding of <c>mezon.api.GenerateMeetTokenRequest</c>.</summary>
     public static byte[] Encode(GenerateMeetTokenRequest request)
     {
@@ -109,6 +127,7 @@ public static class MeetTokenMessages
         Int64Field(1, request.ChannelId, output);
         StringField(2, request.RoomName, output);
         StringField(3, request.Metadata, output);
+        Int32Field(4, request.CurrentEndpointId, output);
         return output.ToArray();
     }
 

@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.12.0
+
+### Added
+
+- Synced vendored `api.proto` and `realtime.proto` with `mezon-protocol` `v2.16.4`:
+  - Socket APIs `215..222` on `Mezon.Net.Client`: `SfuBreakoutRoomAsync`, `SfuBreakoutMergeAsync`,
+    `SetOverrideEveryoneChannelAsync`, `GetOverrideEveryoneChannelAsync`, `GetDMSettingAsync`, `UpdateDMSettingAsync`,
+    `RevokeAllSessionAsync`, and `RedeemProPlanCouponAsync` (`MezonApiMap` now covers `0..222`).
+  - Realtime events: `SfuBreakoutRoomReceivedEvent` / `SfuBreakoutRoomReceived` (Envelope 105) and
+    `FriendStateUpdatedEvent` / `FriendStateUpdated` (Envelope 107).
+  - New protocol fields across accounts, users, clans, friends, events, channel messages, and meet tokens
+    (`Banner`, `ProPlan`, `TotalMembers`, `CoHost`, `DisplayNames`, `Avatars`, `Accepted`, `SortByLastSent`,
+    `LastSeenMessageId`, `CurrentEndpointId`).
+  - Backwards-compatible overloads `ListFriendsAsync(..., bool? sortByLastSent, ...)` and
+    `ListChannelMessagesAsync(..., long? lastSeenMessageId, ...)`.
+- `Mezon.Net.Sdk.Sfu`: added optional `CurrentEndpointId` (field 4, `int32`) to `GenerateMeetTokenRequest` and
+  `MeetTokenMessages.Encode` (emitting explicit `0x20 0x00` when `0` so overflow routing from endpoint 0 matches
+  `mezon-proto-server`).
+- `Mezon.Net.Client`: `GenerateMeetTokenAsync` now preserves explicit `CurrentEndpointId = 0` on the wire when set on
+  `GenerateMeetTokenParams`.
+- Updated the real-SFU e2e stack (`tools/SfuE2e/stack/sfu.lock` → `c158b18`, `Dockerfile` adds `zlib1g-dev` / `zlib1g`
+  for `permessage-deflate`) and verified all four downlink modes (`dynamic`, `fixed2`, `alone`, `decoupled`).
+
+### Deprecated
+
+- `EventManagementResponse.IsPrivate` and `CreateEventParams.IsPrivate` are kept as `[Obsolete]` aliases forwarding to
+  `IsExternal` (`mezon-protocol` renamed `is_private` to `is_external`).
+
 ## 1.11.0
 
 ### Deprecated

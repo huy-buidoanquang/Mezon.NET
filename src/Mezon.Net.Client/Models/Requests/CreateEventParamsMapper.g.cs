@@ -42,9 +42,11 @@ namespace Mezon.Net.Client.Models.Internal
                 proto.CreatorId = p.CreatorId.Value;
             if (p.UserId.HasValue)
                 proto.UserId = p.UserId.Value;
-            if (p.IsPrivate.HasValue)
-                proto.IsPrivate = p.IsPrivate.Value;
+            if (p.IsExternal.HasValue)
+                proto.IsExternal = p.IsExternal.Value;
             proto.MeetRoom = GenerateMezonMeetResponseParamsMapper.ToProto(p.MeetRoom);
+            if (p.CoHost.HasValue)
+                proto.CoHost = p.CoHost.Value;
             return proto;
         }
     }

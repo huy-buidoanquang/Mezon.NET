@@ -21,7 +21,8 @@ namespace Mezon.Net.Models
         public readonly string? ShortUrl;
         public readonly bool? PreventAnonymous;
         public readonly string? Hashtags;
-        public UpdateClanDescParams(long? clanId = null, string? clanName = null, string? logo = null, string? banner = null, int? status = null, bool? isOnboarding = null, long? welcomeChannelId = null, string? onboardingBanner = null, bool? isCommunity = null, string? communityBanner = null, string? description = null, string? about = null, string? shortUrl = null, bool? preventAnonymous = null, string? hashtags = null)
+        public readonly bool? ProPlan;
+        public UpdateClanDescParams(long? clanId = null, string? clanName = null, string? logo = null, string? banner = null, int? status = null, bool? isOnboarding = null, long? welcomeChannelId = null, string? onboardingBanner = null, bool? isCommunity = null, string? communityBanner = null, string? description = null, string? about = null, string? shortUrl = null, bool? preventAnonymous = null, string? hashtags = null, bool? proPlan = null)
         {
             ClanId = clanId;
             ClanName = clanName;
@@ -38,6 +39,7 @@ namespace Mezon.Net.Models
             ShortUrl = shortUrl;
             PreventAnonymous = preventAnonymous;
             Hashtags = hashtags;
+            ProPlan = proPlan;
         }
     }
 }

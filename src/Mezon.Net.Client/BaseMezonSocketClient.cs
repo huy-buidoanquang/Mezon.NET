@@ -43,8 +43,23 @@ namespace Mezon.Net.Client
         /// </summary>
         public async Task<GenerateMeetTokenResponse> GenerateMeetTokenAsync(GenerateMeetTokenParams body, RequestOptions? options = null)
         {
-            var result = await ApiClient.GenerateMeetTokenAsync(GenerateMeetTokenParamsMapper.ToProto(body), options).ConfigureAwait(false);
+            var result = await ApiClient.GenerateMeetTokenAsync(
+                GenerateMeetTokenParamsMapper.ToProto(body),
+                includeZeroCurrentEndpointId: body.CurrentEndpointId == 0,
+                options).ConfigureAwait(false);
             return new GenerateMeetTokenResponse(result);
+        }
+
+        public async Task<FriendListResponse> ListFriendsAsync(int? state, int? limit, string? cursor, bool? sortByLastSent, RequestOptions? options = null)
+        {
+            var result = await ApiClient.ListFriendsAsync(state, limit, cursor, sortByLastSent, options).ConfigureAwait(false);
+            return new FriendListResponse(result);
+        }
+
+        public async Task<ChannelMessageListResponse> ListChannelMessagesAsync(long clanId, long channelId, long? messageId, int? direction, int? limit, long? topicId, long? lastSeenMessageId, RequestOptions? options = null)
+        {
+            var result = await ApiClient.ListChannelMessagesAsync(clanId, channelId, messageId, direction, limit, topicId, lastSeenMessageId, options).ConfigureAwait(false);
+            return new ChannelMessageListResponse(result);
         }
     }
 }

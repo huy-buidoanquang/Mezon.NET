@@ -64,7 +64,7 @@ public sealed class ApiNameIndexMapTests
     [Fact]
     public void Map_contains_all_expected_api_names()
     {
-        Assert.Equal(215, MezonApiMap.NameToIndex.Count);
+        Assert.Equal(223, MezonApiMap.NameToIndex.Count);
     }
 
     [Theory]
@@ -73,6 +73,14 @@ public sealed class ApiNameIndexMapTests
     [InlineData("GenerateCDNSignature", 212)]
     [InlineData("GetStreamPlayback", 213)]
     [InlineData("LinkCDNFile", 214)]
+    [InlineData("SfuBreakoutRoom", 215)]
+    [InlineData("SfuBreakoutMerge", 216)]
+    [InlineData("SetOverrideEveryoneChannel", 217)]
+    [InlineData("GetOverrideEveryoneChannel", 218)]
+    [InlineData("GetDMSetting", 219)]
+    [InlineData("UpdateDMSetting", 220)]
+    [InlineData("RevokeAllSession", 221)]
+    [InlineData("RedeemProPlanCoupon", 222)]
     public void Tail_indices_match_mezon_js_ApiNameEnum(string name, int expectedIndex)
     {
         // Source: mezon-js transport.ts ApiNameEnum, mezon-api constant.go and mezon_api_client.h (append-only).

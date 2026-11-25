@@ -28,7 +28,10 @@ namespace Mezon.Net.Models
         public long ChannelId => _proto.ChannelId;
         public int EventStatus => _proto.EventStatus;
         public int RepeatType => _proto.RepeatType;
-        public bool IsPrivate => _proto.IsPrivate;
+        public bool IsExternal => _proto.IsExternal;
         public GenerateMezonMeetResponse MeetRoom => new GenerateMezonMeetResponse(_proto.MeetRoom);
+        public long CoHost => _proto.CoHost;
+        [System.Obsolete("Use IsExternal instead.")]
+        public bool IsPrivate => _proto.IsExternal;
     }
 }

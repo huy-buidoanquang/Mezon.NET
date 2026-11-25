@@ -47,6 +47,9 @@ message Account {
   string encrypt_private_key = 8;
   // password is setted
   bool password_setted = 9;
+  // Profile banner url
+  string banner = 10;
+  bool pro_plan = 11;
 }
 
 // Obtain a new authentication token using a refresh token.
@@ -71,6 +74,10 @@ message AddFriendsResponse {
   repeated int64 ids = 1;
   // The account username of a user.
   repeated string usernames = 2;
+  // Display name of each user, aligned with ids.
+  repeated string display_names = 3;
+  // Avatar URL of each user, aligned with ids.
+  repeated string avatars = 4;
 }
 
 // Add users to a group.
@@ -560,6 +567,8 @@ message ListChannelMessagesRequest {
   int32 direction = 5;
   //
   int64 topic_id = 6;
+  // The client's last seen message ID for this channel/topic.
+  int64 last_seen_message_id = 7;
 }
 
 // List friends for a user.
@@ -570,6 +579,8 @@ message ListFriendsRequest {
   int32 state = 2;
   // An optional next page cursor.
   string cursor = 3;
+  // Sort friends by last_sent (most recent DM first).
+  bool sort_by_last_sent = 4;
 }
 
 // List groups based on given filters.
@@ -820,6 +831,10 @@ message UpdateAccountRequest {
   string encrypt_private_key = 10;
   // The email of the user's account.
   google.protobuf.StringValue email = 11;
+  // Profile banner url
+  google.protobuf.StringValue banner = 12;
+  // Pro plan
+  google.protobuf.BoolValue pro_plan = 13;
 }
 
 // Update fields in a given group.
@@ -887,6 +902,9 @@ message User {
   repeated string list_nick_names = 19;
   // online, offline, invisible, idle, do not disturb
   string status = 20;
+  // Profile banner url
+  string banner = 21;
+  bool pro_plan = 22;
 }
 
 // A collection of zero or more users.
@@ -993,6 +1011,9 @@ message ClanDesc {
   bool has_unread_message = 18;
   // comma-separated clan hashtags
   string hashtags = 19;
+  bool pro_plan = 20;
+  // Total members in clan
+  int32 total_members = 21;
 }
 
 // Clan information
@@ -1036,6 +1057,8 @@ message UpdateClanDescRequest {
   bool prevent_anonymous = 14;
   // comma-separated clan hashtags
   google.protobuf.StringValue hashtags = 15;
+  // Pro plan
+  google.protobuf.BoolValue pro_plan = 16;
 }
 
 // Delete a clan the user has access to.
@@ -1559,8 +1582,9 @@ message EventManagement {
   int64 channel_id = 16;
   int32 event_status = 17;
   int32 repeat_type = 18;
-  bool is_private = 19;
+  bool is_external = 19;
   GenerateMezonMeetResponse meet_room = 20;
+  int64 co_host = 21;
 }
 
 // Permission record
@@ -1841,8 +1865,9 @@ message CreateEventRequest {
   int32 repeat_type = 13;
   int64 creator_id = 14;
   int64 user_id = 15;
-  bool is_private = 16;
+  bool is_external = 16;
   GenerateMezonMeetResponse meet_room = 17;
+  int64 co_host = 18;
 }
 
 // update a event within clan.
@@ -1860,6 +1885,7 @@ message UpdateEventRequest {
   int64 channel_voice_id = 11;
   int64 channel_id_old = 12;
   int32 repeat_type = 13;
+  int64 co_host = 14;
 }
 
 // Delete a role the user has access to.
@@ -3259,6 +3285,7 @@ message GenerateMeetTokenRequest {
   int64 channel_id = 1;
   string room_name = 2;
   string metadata = 3;
+  int32 current_endpoint_id = 4;
 }
 
 message MeetParticipantRequest {
@@ -3940,4 +3967,19 @@ message SfuBreakoutRoomResponse {
 
 message SfuBreakoutMergeRequest {
     int64 target_id = 1;
+}
+
+message DMSetting {
+  bool only_friends_dm = 1;
+}
+
+message UpdateDMSettingRequest {
+  bool only_friends_dm = 1;
+}
+
+// Success body is NoParams. Failures use status codes.
+message RedeemProPlanCouponRequest {
+  string code = 1;
+  // Zero for a user coupon. The clan to unlock for a clan coupon.
+  int64 clan_id = 2;
 }

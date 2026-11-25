@@ -18,6 +18,8 @@ namespace Mezon.Net.Client.Models.Internal
                 proto.RoomName = p.RoomName;
             if (p.Metadata is not null)
                 proto.Metadata = p.Metadata;
+            if (p.CurrentEndpointId.HasValue)
+                proto.CurrentEndpointId = p.CurrentEndpointId.Value;
             return proto;
         }
     }

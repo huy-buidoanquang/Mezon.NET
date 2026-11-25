@@ -209,6 +209,18 @@ namespace Mezon.Net.Sdk
             remove => _engine.OwnershipTransferredEvent -= value;
         }
 
+        public event Func<SfuBreakoutRoomEventEventData, Task> SfuBreakoutRoomReceived
+        {
+            add => _engine.SfuBreakoutRoomReceivedEvent += value;
+            remove => _engine.SfuBreakoutRoomReceivedEvent -= value;
+        }
+
+        public event Func<FriendStateUpdatedEventData, Task> FriendStateUpdated
+        {
+            add => _engine.FriendStateUpdatedEvent += value;
+            remove => _engine.FriendStateUpdatedEvent -= value;
+        }
+
         public event Func<AgentSseSessionEvent, Task> AgentSessionStarted
         {
             add => AgentSessionStartedInternal += value;

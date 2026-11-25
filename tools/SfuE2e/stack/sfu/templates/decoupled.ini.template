@@ -41,8 +41,7 @@ multi_session_user_ids = @SFU_MULTI_SESSION_USER_IDS@
 
 [room]
 alone_participant_timeout_seconds = 1800
-; mezon-sfu 19f885a re-evaluates speakers by voice activity only when max_active_speakers > 0, also in decoupled rooms.
-max_active_speakers = 2
+max_active_speakers = 0
 media_pool_mode = decoupled
 max_audio_slots = 2
 max_camera_slots = 1

@@ -19,7 +19,8 @@ namespace Mezon.Net.Models
         public readonly long? ChannelVoiceId;
         public readonly long? ChannelIdOld;
         public readonly int? RepeatType;
-        public UpdateEventParams(string? title = null, string? logo = null, string? description = null, long? eventId = null, long? channelId = null, string? address = null, uint? startTimeSeconds = null, uint? endTimeSeconds = null, long? clanId = null, long? creatorId = null, long? channelVoiceId = null, long? channelIdOld = null, int? repeatType = null)
+        public readonly long? CoHost;
+        public UpdateEventParams(string? title = null, string? logo = null, string? description = null, long? eventId = null, long? channelId = null, string? address = null, uint? startTimeSeconds = null, uint? endTimeSeconds = null, long? clanId = null, long? creatorId = null, long? channelVoiceId = null, long? channelIdOld = null, int? repeatType = null, long? coHost = null)
         {
             Title = title;
             Logo = logo;
@@ -34,6 +35,7 @@ namespace Mezon.Net.Models
             ChannelVoiceId = channelVoiceId;
             ChannelIdOld = channelIdOld;
             RepeatType = repeatType;
+            CoHost = coHost;
         }
     }
 }

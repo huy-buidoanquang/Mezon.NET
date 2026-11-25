@@ -215,9 +215,6 @@ public class E2eTests
         await using var carol = await Join(stack, roomId, "Carol");
         await WaitFor(5, "Bob sees Alice and Carol", () => bob.Room.RemoteParticipants.Count == 2);
 
-        // mezon-sfu 19f885a refuses to stop the camera of a publisher that holds no other slot (camera_update_failed).
-        await alice.Publish((byte)'A', () => 30);
-        await WaitFor(10, "Bob receives Alice", () => bob.Frames(alice.UserId, (byte)'A') > 10);
         using var stop = new CancellationTokenSource();
         var writers = new[] { WriteCamera(alice, stop.Token), WriteCamera(carol, stop.Token) };
         await alice.Room.LocalParticipant.SetCameraEnabledAsync(true);

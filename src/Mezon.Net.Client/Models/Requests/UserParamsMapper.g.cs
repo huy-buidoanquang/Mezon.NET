@@ -52,6 +52,10 @@ namespace Mezon.Net.Client.Models.Internal
                 proto.ListNickNames.AddRange(p.ListNickNames);
             if (p.Status is not null)
                 proto.Status = p.Status;
+            if (p.Banner is not null)
+                proto.Banner = p.Banner;
+            if (p.ProPlan.HasValue)
+                proto.ProPlan = p.ProPlan.Value;
             return proto;
         }
     }

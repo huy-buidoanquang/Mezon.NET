@@ -367,5 +367,19 @@ namespace Mezon.Net.Client
         }
         internal readonly AsyncEvent<Func<StreamingViewerCountEventEventData, Task>> _streamingViewerCountChangedEvent = new AsyncEvent<Func<StreamingViewerCountEventEventData, Task>>();
 
+        public event Func<SfuBreakoutRoomEventEventData, Task> SfuBreakoutRoomReceivedEvent
+        {
+            add { _sfuBreakoutRoomReceivedEvent.Add(value); }
+            remove { _sfuBreakoutRoomReceivedEvent.Remove(value); }
+        }
+        internal readonly AsyncEvent<Func<SfuBreakoutRoomEventEventData, Task>> _sfuBreakoutRoomReceivedEvent = new AsyncEvent<Func<SfuBreakoutRoomEventEventData, Task>>();
+
+        public event Func<FriendStateUpdatedEventData, Task> FriendStateUpdatedEvent
+        {
+            add { _friendStateUpdatedEvent.Add(value); }
+            remove { _friendStateUpdatedEvent.Remove(value); }
+        }
+        internal readonly AsyncEvent<Func<FriendStateUpdatedEventData, Task>> _friendStateUpdatedEvent = new AsyncEvent<Func<FriendStateUpdatedEventData, Task>>();
+
     }
 }

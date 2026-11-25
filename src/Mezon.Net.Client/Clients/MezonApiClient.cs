@@ -1496,6 +1496,46 @@ namespace Mezon.Net.Client
             throw new NotSupportedException("Socket API is not available on REST-only client.");
         }
 
+        public virtual Task<SfuBreakoutRoomResponse> SfuBreakoutRoomAsync(SfuBreakoutRoomRequest body, RequestOptions? options = null)
+        {
+            throw new NotSupportedException("Socket API is not available on REST-only client.");
+        }
+
+        public virtual Task SfuBreakoutMergeAsync(SfuBreakoutMergeRequest body, RequestOptions? options = null)
+        {
+            throw new NotSupportedException("Socket API is not available on REST-only client.");
+        }
+
+        public virtual Task SetOverrideEveryoneChannelAsync(SetOverrideEveryoneChannelRequest body, RequestOptions? options = null)
+        {
+            throw new NotSupportedException("Socket API is not available on REST-only client.");
+        }
+
+        public virtual Task<GetOverrideEveryoneChannelResponse> GetOverrideEveryoneChannelAsync(GetOverrideEveryoneChannelRequest body, RequestOptions? options = null)
+        {
+            throw new NotSupportedException("Socket API is not available on REST-only client.");
+        }
+
+        public virtual Task<DMSetting> GetDMSettingAsync(RequestOptions? options = null)
+        {
+            throw new NotSupportedException("Socket API is not available on REST-only client.");
+        }
+
+        public virtual Task<DMSetting> UpdateDMSettingAsync(UpdateDMSettingRequest body, RequestOptions? options = null)
+        {
+            throw new NotSupportedException("Socket API is not available on REST-only client.");
+        }
+
+        public virtual Task RevokeAllSessionAsync(RequestOptions? options = null)
+        {
+            throw new NotSupportedException("Socket API is not available on REST-only client.");
+        }
+
+        public virtual Task RedeemProPlanCouponAsync(RedeemProPlanCouponRequest body, RequestOptions? options = null)
+        {
+            throw new NotSupportedException("Socket API is not available on REST-only client.");
+        }
+
         #endregion
     }
 }

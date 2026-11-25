@@ -29,5 +29,7 @@ namespace Mezon.Net.Models
         public bool PreventAnonymous => _proto.PreventAnonymous;
         public bool HasUnreadMessage => _proto.HasUnreadMessage;
         public string Hashtags => _proto.Hashtags;
+        public bool ProPlan => _proto.ProPlan;
+        public int TotalMembers => _proto.TotalMembers;
     }
 }

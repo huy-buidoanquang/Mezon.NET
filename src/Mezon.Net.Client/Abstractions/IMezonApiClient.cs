@@ -264,5 +264,13 @@ namespace Mezon.Net.Abstractions
         Task<GenerateCDNSignatureResponse> GenerateCDNSignatureAsync(GenerateCDNSignatureRequest body, RequestOptions? options = null);
         Task<GetStreamPlaybackResponse> GetStreamPlaybackAsync(GetStreamPlaybackRequest body, RequestOptions? options = null);
         Task LinkCDNFileAsync(LinkCDNFileRequest body, RequestOptions? options = null);
+        Task<SfuBreakoutRoomResponse> SfuBreakoutRoomAsync(SfuBreakoutRoomRequest body, RequestOptions? options = null);
+        Task SfuBreakoutMergeAsync(SfuBreakoutMergeRequest body, RequestOptions? options = null);
+        Task SetOverrideEveryoneChannelAsync(SetOverrideEveryoneChannelRequest body, RequestOptions? options = null);
+        Task<GetOverrideEveryoneChannelResponse> GetOverrideEveryoneChannelAsync(GetOverrideEveryoneChannelRequest body, RequestOptions? options = null);
+        Task<DMSetting> GetDMSettingAsync(RequestOptions? options = null);
+        Task<DMSetting> UpdateDMSettingAsync(UpdateDMSettingRequest body, RequestOptions? options = null);
+        Task RevokeAllSessionAsync(RequestOptions? options = null);
+        Task RedeemProPlanCouponAsync(RedeemProPlanCouponRequest body, RequestOptions? options = null);
     }
 }

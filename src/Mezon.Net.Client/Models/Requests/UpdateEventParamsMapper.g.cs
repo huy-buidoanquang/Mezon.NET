@@ -38,6 +38,8 @@ namespace Mezon.Net.Client.Models.Internal
                 proto.ChannelIdOld = p.ChannelIdOld.Value;
             if (p.RepeatType.HasValue)
                 proto.RepeatType = p.RepeatType.Value;
+            if (p.CoHost.HasValue)
+                proto.CoHost = p.CoHost.Value;
             return proto;
         }
     }
