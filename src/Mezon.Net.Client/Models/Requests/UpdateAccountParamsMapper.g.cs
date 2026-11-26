@@ -34,6 +34,10 @@ namespace Mezon.Net.Client.Models.Internal
                 proto.EncryptPrivateKey = p.EncryptPrivateKey;
             if (p.Email is not null)
                 proto.Email = p.Email;
+            if (p.Banner is not null)
+                proto.Banner = p.Banner;
+            if (p.ProPlan.HasValue)
+                proto.ProPlan = p.ProPlan.Value;
             return proto;
         }
     }

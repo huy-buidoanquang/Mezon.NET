@@ -225,6 +225,14 @@ namespace Mezon.Net.Core
             ["GenerateCDNSignature"] = 212,
             ["GetStreamPlayback"] = 213,
             ["LinkCDNFile"] = 214,
+            ["SfuBreakoutRoom"] = 215,
+            ["SfuBreakoutMerge"] = 216,
+            ["SetOverrideEveryoneChannel"] = 217,
+            ["GetOverrideEveryoneChannel"] = 218,
+            ["GetDMSetting"] = 219,
+            ["UpdateDMSetting"] = 220,
+            ["RevokeAllSession"] = 221,
+            ["RedeemProPlanCoupon"] = 222,
         };
 
 #if NET8_0_OR_GREATER

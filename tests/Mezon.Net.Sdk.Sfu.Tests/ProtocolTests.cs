@@ -406,6 +406,9 @@ public class ProtocolTests
     {
         var request = new GenerateMeetTokenRequest("1840651530236071936", "0", "Bot;");
         Assert.Equal("08" + "80a080b888dad3c519" + "1201" + "30" + "1a04" + Hex(Encoding.UTF8.GetBytes("Bot;")), Hex(MeetTokenMessages.Encode(request)));
+        Assert.Equal("08" + "80a080b888dad3c519" + "1201" + "30" + "1a04" + Hex(Encoding.UTF8.GetBytes("Bot;")) + "2000", Hex(MeetTokenMessages.Encode(new GenerateMeetTokenRequest("1840651530236071936", "0", "Bot;", 0))));
+        Assert.Equal("2002", Hex(MeetTokenMessages.Encode(new GenerateMeetTokenRequest("0", CurrentEndpointId: 2))));
+        Assert.Equal("20ffffffffffffffffff01", Hex(MeetTokenMessages.Encode(new GenerateMeetTokenRequest("0", CurrentEndpointId: -1))));
         Assert.Empty(MeetTokenMessages.Encode(new GenerateMeetTokenRequest("0")));
         Assert.Throws<MeetTokenProtobufException>(() => MeetTokenMessages.Encode(new GenerateMeetTokenRequest("abc")));
         Assert.Equal("0801100218ac02", Hex(MeetTokenMessages.Encode(new MeetParticipantRequest("1", "2", "300"))));
@@ -431,9 +434,15 @@ public class ProtocolTests
     [Fact]
     public void Meet_token_protobuf_matches_the_generated_mezon_net_types()
     {
-        var bytes = MeetTokenMessages.Encode(new GenerateMeetTokenRequest("1840651530236071936", "room", "Bot;https://a"));
+        var bytes = MeetTokenMessages.Encode(new GenerateMeetTokenRequest("1840651530236071936", "room", "Bot;https://a", 2));
         var parsed = Mezon.Net.Internal.Api.GenerateMeetTokenRequest.Parser.ParseFrom(bytes);
-        Assert.Equal((1840651530236071936L, "room", "Bot;https://a"), (parsed.ChannelId, parsed.RoomName, parsed.Metadata));
+        Assert.Equal((1840651530236071936L, "room", "Bot;https://a", 2), (parsed.ChannelId, parsed.RoomName, parsed.Metadata, parsed.CurrentEndpointId));
+
+        var zeroParsed = Mezon.Net.Internal.Api.GenerateMeetTokenRequest.Parser.ParseFrom(MeetTokenMessages.Encode(new GenerateMeetTokenRequest("1", "", "", 0)));
+        Assert.Equal((1L, 0), (zeroParsed.ChannelId, zeroParsed.CurrentEndpointId));
+
+        var negParsed = Mezon.Net.Internal.Api.GenerateMeetTokenRequest.Parser.ParseFrom(MeetTokenMessages.Encode(new GenerateMeetTokenRequest("1", "", "", -1)));
+        Assert.Equal((1L, -1), (negParsed.ChannelId, negParsed.CurrentEndpointId));
 
         var participant = Mezon.Net.Internal.Api.MeetParticipantRequest.Parser.ParseFrom(MeetTokenMessages.Encode(new MeetParticipantRequest("7", "-8", "9")));
         Assert.Equal((7L, -8L, 9L), (participant.UserId, participant.ChannelId, participant.ClanId));

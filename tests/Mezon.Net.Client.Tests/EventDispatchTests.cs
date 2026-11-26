@@ -154,6 +154,51 @@ public sealed class EventDispatchTests
         Assert.Equal(5, viewers.ViewerCount);
     }
 
+    [Fact]
+    public async Task SocketMessageHandlerAsync_dispatches_breakout_and_friend_state_events()
+    {
+        var client = new MezonClient();
+        SfuBreakoutRoomEventEventData? breakout = null;
+        FriendStateUpdatedEventData? friendState = null;
+
+        client.SfuBreakoutRoomReceivedEvent += payload => { breakout = payload; return Task.CompletedTask; };
+        client.FriendStateUpdatedEvent += payload => { friendState = payload; return Task.CompletedTask; };
+
+        var envelopes = new[]
+        {
+            new Envelope
+            {
+                SfuBreakoutRoomEvent = new SfuBreakoutRoomEvent
+                {
+                    ChannelId = 77,
+                    Token = "eyJ.breakout.sig",
+                    SelfSelectIds = { 101, 102 },
+                },
+            },
+            new Envelope
+            {
+                FriendStateUpdated = new FriendStateUpdated
+                {
+                    UserId = 101,
+                    Username = "alice",
+                    DisplayName = "Alice",
+                    Avatar = "https://cdn/a.png",
+                    State = 2,
+                },
+            },
+        };
+
+        await DispatchAllAsync(client, envelopes);
+        await WaitUntilAsync(() => breakout.HasValue && friendState.HasValue);
+
+        var breakoutResp = (SfuBreakoutRoomEventResponse)breakout!.Value;
+        Assert.Equal((77L, "eyJ.breakout.sig"), (breakoutResp.ChannelId, breakoutResp.Token));
+        Assert.Equal([101L, 102L], breakoutResp.SelfSelectIds);
+
+        var friendResp = (FriendStateUpdatedResponse)friendState!.Value;
+        Assert.Equal((101L, "alice", "Alice", "https://cdn/a.png", 2), (friendResp.UserId, friendResp.Username, friendResp.DisplayName, friendResp.Avatar, friendResp.State));
+    }
+
     private static async Task DispatchAllAsync(MezonClient client, Envelope[] envelopes)
     {
         var process = typeof(MezonClient).GetMethod("SocketMessageHandlerAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;

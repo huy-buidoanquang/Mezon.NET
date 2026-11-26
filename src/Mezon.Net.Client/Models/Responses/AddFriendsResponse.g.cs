@@ -12,5 +12,7 @@ namespace Mezon.Net.Models
 
         public ProtoListView<long> Ids => ProtoListView<long>.FromRepeated(_proto.Ids);
         public ProtoListView<string> Usernames => ProtoListView<string>.FromRepeated(_proto.Usernames);
+        public ProtoListView<string> DisplayNames => ProtoListView<string>.FromRepeated(_proto.DisplayNames);
+        public ProtoListView<string> Avatars => ProtoListView<string>.FromRepeated(_proto.Avatars);
     }
 }

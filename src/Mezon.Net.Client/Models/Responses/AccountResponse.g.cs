@@ -19,5 +19,7 @@ namespace Mezon.Net.Models
         public string SplashScreen => _proto.SplashScreen;
         public string EncryptPrivateKey => _proto.EncryptPrivateKey;
         public bool PasswordSetted => _proto.PasswordSetted;
+        public string Banner => _proto.Banner;
+        public bool ProPlan => _proto.ProPlan;
     }
 }

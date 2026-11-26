@@ -383,6 +383,9 @@ namespace Mezon.Net.Sdk
         public Task<FriendListResponse> ListFriendsAsync(int? state = null, int? limit = null, string? cursor = null, RequestOptions? options = null)
             => _engine.ListFriendsAsync(state, limit, cursor, options);
 
+        public Task<FriendListResponse> ListFriendsAsync(int? state, int? limit, string? cursor, bool? sortByLastSent, RequestOptions? options = null)
+            => _engine.ListFriendsAsync(state, limit, cursor, sortByLastSent, options);
+
         public Task<AddFriendsResponse> AddFriendsAsync(IEnumerable<long>? ids = null, IEnumerable<string>? usernames = null, RequestOptions? options = null)
             => _engine.AddFriendsAsync(ids, usernames, options);
 

@@ -26,7 +26,9 @@ namespace Mezon.Net.Models
         public readonly string? MezonId;
         public readonly IEnumerable<string?>? ListNickNames;
         public readonly string? Status;
-        public UserParams(long? id = null, string? username = null, string? displayName = null, string? avatarUrl = null, string? langTag = null, string? location = null, string? timezone = null, string? userStatus = null, bool? online = null, string? phoneNumber = null, int? edgeCount = null, uint? createTimeSeconds = null, uint? updateTimeSeconds = null, string? aboutMe = null, uint? joinTimeSeconds = null, bool? isMobile = null, uint? dobSeconds = null, string? mezonId = null, IEnumerable<string?>? listNickNames = null, string? status = null)
+        public readonly string? Banner;
+        public readonly bool? ProPlan;
+        public UserParams(long? id = null, string? username = null, string? displayName = null, string? avatarUrl = null, string? langTag = null, string? location = null, string? timezone = null, string? userStatus = null, bool? online = null, string? phoneNumber = null, int? edgeCount = null, uint? createTimeSeconds = null, uint? updateTimeSeconds = null, string? aboutMe = null, uint? joinTimeSeconds = null, bool? isMobile = null, uint? dobSeconds = null, string? mezonId = null, IEnumerable<string?>? listNickNames = null, string? status = null, string? banner = null, bool? proPlan = null)
         {
             Id = id;
             Username = username;
@@ -48,6 +50,8 @@ namespace Mezon.Net.Models
             MezonId = mezonId;
             ListNickNames = listNickNames;
             Status = status;
+            Banner = banner;
+            ProPlan = proPlan;
         }
     }
 }

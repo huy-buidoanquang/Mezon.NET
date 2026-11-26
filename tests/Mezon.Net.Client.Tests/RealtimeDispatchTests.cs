@@ -159,6 +159,8 @@ public sealed class RealtimeDispatchTests
             UserChannelAddedEvent = new UserChannelAdded { ChannelDesc = new Mezon.Net.Internal.Api.ChannelDescription { ChannelId = 9 }, ClanId = 4 },
         }));
         Assert.Equal(11, RealtimeLaneKey.Compute(new Envelope { ClanUpdatedEvent = new ClanUpdatedEvent { ClanId = 11 } }));
+        Assert.Equal(77, RealtimeLaneKey.Compute(new Envelope { SfuBreakoutRoomEvent = new SfuBreakoutRoomEvent { ChannelId = 77 } }));
+        Assert.Equal(0, RealtimeLaneKey.Compute(new Envelope { FriendStateUpdated = new FriendStateUpdated { UserId = 101 } }));
         Assert.Equal(0, RealtimeLaneKey.Compute(new Envelope { Ping = new Ping() }));
         Assert.Equal(0, RealtimeLaneKey.Compute(new Envelope()));
     }

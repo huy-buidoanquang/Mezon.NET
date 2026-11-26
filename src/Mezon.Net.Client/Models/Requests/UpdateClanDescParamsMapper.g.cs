@@ -42,6 +42,8 @@ namespace Mezon.Net.Client.Models.Internal
                 proto.PreventAnonymous = p.PreventAnonymous.Value;
             if (p.Hashtags is not null)
                 proto.Hashtags = p.Hashtags;
+            if (p.ProPlan.HasValue)
+                proto.ProPlan = p.ProPlan.Value;
             return proto;
         }
     }

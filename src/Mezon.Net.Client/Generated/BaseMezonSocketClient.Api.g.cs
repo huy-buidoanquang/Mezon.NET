@@ -1201,5 +1201,49 @@ namespace Mezon.Net.Client
             await ApiClient.LinkCDNFileAsync(LinkCDNFileParamsMapper.ToProto(body), options).ConfigureAwait(false);
         }
 
+        public async Task<Mezon.Net.Models.SfuBreakoutRoomResponse> SfuBreakoutRoomAsync(Mezon.Net.Models.SfuBreakoutRoomParams body, RequestOptions? options = null)
+        {
+            var result = await ApiClient.SfuBreakoutRoomAsync(SfuBreakoutRoomParamsMapper.ToProto(body), options).ConfigureAwait(false);
+            return new Mezon.Net.Models.SfuBreakoutRoomResponse(result);
+        }
+
+        public async Task SfuBreakoutMergeAsync(Mezon.Net.Models.SfuBreakoutMergeParams body, RequestOptions? options = null)
+        {
+            await ApiClient.SfuBreakoutMergeAsync(SfuBreakoutMergeParamsMapper.ToProto(body), options).ConfigureAwait(false);
+        }
+
+        public async Task SetOverrideEveryoneChannelAsync(Mezon.Net.Models.SetOverrideEveryoneChannelParams body, RequestOptions? options = null)
+        {
+            await ApiClient.SetOverrideEveryoneChannelAsync(SetOverrideEveryoneChannelParamsMapper.ToProto(body), options).ConfigureAwait(false);
+        }
+
+        public async Task<Mezon.Net.Models.GetOverrideEveryoneChannelResponse> GetOverrideEveryoneChannelAsync(Mezon.Net.Models.GetOverrideEveryoneChannelParams body, RequestOptions? options = null)
+        {
+            var result = await ApiClient.GetOverrideEveryoneChannelAsync(GetOverrideEveryoneChannelParamsMapper.ToProto(body), options).ConfigureAwait(false);
+            return new Mezon.Net.Models.GetOverrideEveryoneChannelResponse(result);
+        }
+
+        public async Task<Mezon.Net.Models.DMSettingResponse> GetDMSettingAsync(RequestOptions? options = null)
+        {
+            var result = await ApiClient.GetDMSettingAsync(options).ConfigureAwait(false);
+            return new Mezon.Net.Models.DMSettingResponse(result);
+        }
+
+        public async Task<Mezon.Net.Models.DMSettingResponse> UpdateDMSettingAsync(Mezon.Net.Models.UpdateDMSettingParams body, RequestOptions? options = null)
+        {
+            var result = await ApiClient.UpdateDMSettingAsync(UpdateDMSettingParamsMapper.ToProto(body), options).ConfigureAwait(false);
+            return new Mezon.Net.Models.DMSettingResponse(result);
+        }
+
+        public async Task RevokeAllSessionAsync(RequestOptions? options = null)
+        {
+            await ApiClient.RevokeAllSessionAsync(options).ConfigureAwait(false);
+        }
+
+        public async Task RedeemProPlanCouponAsync(Mezon.Net.Models.RedeemProPlanCouponParams body, RequestOptions? options = null)
+        {
+            await ApiClient.RedeemProPlanCouponAsync(RedeemProPlanCouponParamsMapper.ToProto(body), options).ConfigureAwait(false);
+        }
+
     }
 }

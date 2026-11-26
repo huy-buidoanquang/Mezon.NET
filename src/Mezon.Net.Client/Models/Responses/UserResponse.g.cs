@@ -30,5 +30,7 @@ namespace Mezon.Net.Models
         public string MezonId => _proto.MezonId;
         public ProtoListView<string> ListNickNames => ProtoListView<string>.FromRepeated(_proto.ListNickNames);
         public string Status => _proto.Status;
+        public string Banner => _proto.Banner;
+        public bool ProPlan => _proto.ProPlan;
     }
 }

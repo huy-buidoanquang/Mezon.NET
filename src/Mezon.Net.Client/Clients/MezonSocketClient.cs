@@ -708,6 +708,9 @@ namespace Mezon.Net.Client
         }
 
         public override Task<FriendList> ListFriendsAsync(int? state = null, int? limit = null, string? cursor = null, RequestOptions? options = null)
+            => ListFriendsAsync(state, limit, cursor, sortByLastSent: null, options);
+
+        public Task<FriendList> ListFriendsAsync(int? state, int? limit, string? cursor, bool? sortByLastSent, RequestOptions? options = null)
         {
             var request = new ListFriendsRequest();
             if (state.HasValue)
@@ -721,6 +724,10 @@ namespace Mezon.Net.Client
             if (!string.IsNullOrEmpty(cursor))
             {
                 request.Cursor = cursor;
+            }
+            if (sortByLastSent.HasValue)
+            {
+                request.SortByLastSent = sortByLastSent.Value;
             }
             return SendApiAsync("ListFriends", request, FriendList.Parser, options);
         }
@@ -839,6 +846,9 @@ namespace Mezon.Net.Client
         }
 
         public override Task<ChannelMessageList> ListChannelMessagesAsync(long clanId, long channelId, long? messageId = null, int? direction = null, int? limit = null, long? topicId = null, RequestOptions? options = null)
+            => ListChannelMessagesAsync(clanId, channelId, messageId, direction, limit, topicId, lastSeenMessageId: null, options);
+
+        public Task<ChannelMessageList> ListChannelMessagesAsync(long clanId, long channelId, long? messageId, int? direction, int? limit, long? topicId, long? lastSeenMessageId, RequestOptions? options = null)
         {
             var request = new ListChannelMessagesRequest();
             request.ClanId = clanId;
@@ -858,6 +868,10 @@ namespace Mezon.Net.Client
             if (topicId.HasValue)
             {
                 request.TopicId = topicId.Value;
+            }
+            if (lastSeenMessageId.HasValue)
+            {
+                request.LastSeenMessageId = lastSeenMessageId.Value;
             }
             return SendApiAsync("ListChannelMessages", request, ChannelMessageList.Parser, options);
         }
@@ -1140,7 +1154,25 @@ namespace Mezon.Net.Client
             return SendApiAsync("ListActivity", new Empty(), ListUserActivity.Parser, options);
         }
 
-        public override async Task<GenerateMeetTokenResponse> GenerateMeetTokenAsync(GenerateMeetTokenRequest body, RequestOptions? options = null)
+        public override Task<GenerateMeetTokenResponse> GenerateMeetTokenAsync(GenerateMeetTokenRequest body, RequestOptions? options = null)
+            => GenerateMeetTokenAsync(body, includeZeroCurrentEndpointId: false, options);
+
+        internal static ByteString SerializeGenerateMeetTokenRequest(GenerateMeetTokenRequest body, bool includeZeroCurrentEndpointId)
+        {
+            if (!includeZeroCurrentEndpointId || body.CurrentEndpointId != 0)
+            {
+                return body.ToByteString();
+            }
+
+            var size = body.CalculateSize();
+            var bytes = new byte[size + 2];
+            body.WriteTo(new Span<byte>(bytes, 0, size));
+            bytes[size] = 0x20;
+            bytes[size + 1] = 0x00;
+            return ByteString.CopyFrom(bytes);
+        }
+
+        internal async Task<GenerateMeetTokenResponse> GenerateMeetTokenAsync(GenerateMeetTokenRequest body, bool includeZeroCurrentEndpointId, RequestOptions? options = null)
         {
             Check.NotNull(body, nameof(body));
             if (!MezonApiMap.TryGetIndex("GenerateMeetToken", out var apiIndex))
@@ -1154,7 +1186,7 @@ namespace Mezon.Net.Client
                 {
                     ApiIndex = apiIndex,
                     ApiName = "GenerateMeetToken",
-                    Body = body.ToByteString(),
+                    Body = SerializeGenerateMeetTokenRequest(body, includeZeroCurrentEndpointId),
                 }
             };
 
@@ -2257,6 +2289,48 @@ namespace Mezon.Net.Client
         {
             Check.NotNull(body, nameof(body));
             await SendApiAsync("LinkCDNFile", body, Empty.Parser, options);
+        }
+
+        public override Task<SfuBreakoutRoomResponse> SfuBreakoutRoomAsync(SfuBreakoutRoomRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            return SendApiAsync("SfuBreakoutRoom", body, SfuBreakoutRoomResponse.Parser, options);
+        }
+
+        public override async Task SfuBreakoutMergeAsync(SfuBreakoutMergeRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            await SendApiAsync("SfuBreakoutMerge", body, Empty.Parser, options);
+        }
+
+        public override async Task SetOverrideEveryoneChannelAsync(SetOverrideEveryoneChannelRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            await SendApiAsync("SetOverrideEveryoneChannel", body, Empty.Parser, options);
+        }
+
+        public override Task<GetOverrideEveryoneChannelResponse> GetOverrideEveryoneChannelAsync(GetOverrideEveryoneChannelRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            return SendApiAsync("GetOverrideEveryoneChannel", body, GetOverrideEveryoneChannelResponse.Parser, options);
+        }
+
+        public override Task<DMSetting> GetDMSettingAsync(RequestOptions? options = null)
+            => SendApiAsync("GetDMSetting", new NoParams(), DMSetting.Parser, options);
+
+        public override Task<DMSetting> UpdateDMSettingAsync(UpdateDMSettingRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            return SendApiAsync("UpdateDMSetting", body, DMSetting.Parser, options);
+        }
+
+        public override async Task RevokeAllSessionAsync(RequestOptions? options = null)
+            => await SendApiAsync("RevokeAllSession", new Empty(), Empty.Parser, options);
+
+        public override async Task RedeemProPlanCouponAsync(RedeemProPlanCouponRequest body, RequestOptions? options = null)
+        {
+            Check.NotNull(body, nameof(body));
+            await SendApiAsync("RedeemProPlanCoupon", body, Empty.Parser, options);
         }
 
         #endregion

@@ -21,9 +21,12 @@ namespace Mezon.Net.Models
         public readonly int? RepeatType;
         public readonly long? CreatorId;
         public readonly long? UserId;
-        public readonly bool? IsPrivate;
+        public readonly bool? IsExternal;
         public readonly GenerateMezonMeetResponseParams MeetRoom;
-        public CreateEventParams(string? title = null, string? logo = null, string? description = null, long? clanId = null, long? channelVoiceId = null, string? address = null, uint? startTimeSeconds = null, uint? endTimeSeconds = null, long? eventId = null, int? eventStatus = null, long? channelId = null, int? action = null, int? repeatType = null, long? creatorId = null, long? userId = null, bool? isPrivate = null, GenerateMezonMeetResponseParams meetRoom = default)
+        public readonly long? CoHost;
+        [System.Obsolete("Use IsExternal instead.")]
+        public bool? IsPrivate => IsExternal;
+        public CreateEventParams(string? title = null, string? logo = null, string? description = null, long? clanId = null, long? channelVoiceId = null, string? address = null, uint? startTimeSeconds = null, uint? endTimeSeconds = null, long? eventId = null, int? eventStatus = null, long? channelId = null, int? action = null, int? repeatType = null, long? creatorId = null, long? userId = null, bool? isExternal = null, GenerateMezonMeetResponseParams meetRoom = default, long? coHost = null, bool? isPrivate = null)
         {
             Title = title;
             Logo = logo;
@@ -40,8 +43,9 @@ namespace Mezon.Net.Models
             RepeatType = repeatType;
             CreatorId = creatorId;
             UserId = userId;
-            IsPrivate = isPrivate;
+            IsExternal = isExternal ?? isPrivate;
             MeetRoom = meetRoom;
+            CoHost = coHost;
         }
     }
 }
