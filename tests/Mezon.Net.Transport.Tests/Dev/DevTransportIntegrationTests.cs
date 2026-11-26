@@ -1,5 +1,8 @@
+using Google.Protobuf;
 using Mezon.Net.Client;
 using Mezon.Net.Core;
+using Mezon.Net.Core.Abstractions;
+using Mezon.Net.Internal.Realtime;
 using Mezon.Net.Transport.Tests.Helpers;
 
 namespace Mezon.Net.Transport.Tests.Dev;
@@ -18,6 +21,51 @@ public sealed class DevTransportIntegrationTests
         [TransporterKind.Tcp],
         [TransporterKind.WebSocket],
     ];
+
+    internal static (MezonMessageType Type, ReadOnlyMemory<byte> Payload) CreateHeartbeatFrame(TransporterKind kind, int cid) => kind switch
+    {
+        TransporterKind.Tcp => (MezonMessageType.Heartbeat, ReadOnlyMemory<byte>.Empty),
+        TransporterKind.WebSocket => (MezonMessageType.Realtime, new Envelope { Cid = cid, Ping = new Ping() }.ToByteArray()),
+        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unsupported transporter kind."),
+    };
+
+    internal static bool IsHeartbeatResponse(
+        TransporterKind kind,
+        int cid,
+        MezonMessageType type,
+        int responseCid,
+        ReadOnlySpan<byte> payload) => kind switch
+    {
+        TransporterKind.Tcp => type == MezonMessageType.Heartbeat && responseCid == cid,
+        TransporterKind.WebSocket => type == MezonMessageType.Realtime && IsMatchingPong(payload, cid),
+        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unsupported transporter kind."),
+    };
+
+    private static bool IsMatchingPong(ReadOnlySpan<byte> payload, int cid)
+    {
+        try
+        {
+            var envelope = Envelope.Parser.ParseFrom(payload);
+            return envelope.MessageCase == Envelope.MessageOneofCase.Pong && envelope.Cid == cid;
+        }
+        catch (InvalidProtocolBufferException)
+        {
+            return false;
+        }
+    }
+
+    internal static async Task SafeCloseAndDisposeAsync(IMezonNetworkTransporter transporter)
+    {
+        try
+        {
+            await transporter.DisconnectAsync().ConfigureAwait(false);
+        }
+        catch
+        {
+        }
+
+        await TransporterFactory.DisposeAsync(transporter).ConfigureAwait(false);
+    }
 
     private static async Task RunDevTestAsync(Func<Task> testBody)
     {
@@ -49,17 +97,23 @@ public sealed class DevTransportIntegrationTests
             var events = new TransporterEventCapture();
             events.Attach(transporter);
 
-            await transporter.ConnectAsync(
-                DevSocketHost,
-                DevSocketPort,
-                token,
-                useSsl: true,
-                createStatus: false).ConfigureAwait(false);
+            try
+            {
+                await transporter.ConnectAsync(
+                    DevSocketHost,
+                    DevSocketPort,
+                    token,
+                    useSsl: true,
+                    createStatus: false).ConfigureAwait(false);
 
-            Assert.Equal(1, events.OpenedCount);
-            await transporter.DisconnectAsync().ConfigureAwait(false);
-            Assert.Equal(1, events.ClosedCount);
-            await TransporterFactory.DisposeAsync(transporter).ConfigureAwait(false);
+                Assert.Equal(1, events.OpenedCount);
+                await transporter.DisconnectAsync().ConfigureAwait(false);
+                Assert.Equal(1, events.ClosedCount);
+            }
+            finally
+            {
+                await SafeCloseAndDisposeAsync(transporter).ConfigureAwait(false);
+            }
         });
     }
 
@@ -79,19 +133,32 @@ public sealed class DevTransportIntegrationTests
             var events = new TransporterEventCapture();
             events.Attach(transporter);
 
-            await transporter.ConnectAsync(
-                DevSocketHost,
-                DevSocketPort,
-                token,
-                useSsl: true,
-                createStatus: false).ConfigureAwait(false);
+            try
+            {
+                await transporter.ConnectAsync(
+                    DevSocketHost,
+                    DevSocketPort,
+                    token,
+                    useSsl: true,
+                    createStatus: false).ConfigureAwait(false);
 
-            await transporter.SendAsync(MezonMessageType.Heartbeat, 1, ReadOnlyMemory<byte>.Empty).ConfigureAwait(false);
-            await Task.Delay(1500).ConfigureAwait(false);
+                var (messageType, payload) = CreateHeartbeatFrame(kind, 1);
+                await transporter.SendAsync(messageType, 1, payload).ConfigureAwait(false);
+                var deadline = Environment.TickCount64 + 5_000;
+                var matched = false;
+                while (!matched && Environment.TickCount64 < deadline)
+                {
+                    var remaining = TimeSpan.FromMilliseconds(Math.Max(100, deadline - Environment.TickCount64));
+                    var frame = await events.WaitForMessageAsync(null, remaining).ConfigureAwait(false);
+                    matched = IsHeartbeatResponse(kind, 1, frame.type, frame.cid, frame.payload);
+                }
 
-            Assert.True(events.SnapshotMessages().Count >= 0);
-            await transporter.DisconnectAsync().ConfigureAwait(false);
-            await TransporterFactory.DisposeAsync(transporter).ConfigureAwait(false);
+                Assert.True(matched);
+            }
+            finally
+            {
+                await SafeCloseAndDisposeAsync(transporter).ConfigureAwait(false);
+            }
         });
     }
 
@@ -110,15 +177,20 @@ public sealed class DevTransportIntegrationTests
             var events = new TransporterEventCapture();
             events.Attach(transporter);
 
-            await transporter.ConnectAsync(
-                DevSocketHost,
-                DevSocketPort,
-                auth.SessionId,
-                useSsl: true).ConfigureAwait(false);
+            try
+            {
+                await transporter.ConnectAsync(
+                    DevSocketHost,
+                    DevSocketPort,
+                    auth.SessionId,
+                    useSsl: true).ConfigureAwait(false);
 
-            Assert.Equal(1, events.OpenedCount);
-            await transporter.DisconnectAsync().ConfigureAwait(false);
-            await TransporterFactory.DisposeAsync(transporter).ConfigureAwait(false);
+                Assert.Equal(1, events.OpenedCount);
+            }
+            finally
+            {
+                await SafeCloseAndDisposeAsync(transporter).ConfigureAwait(false);
+            }
         });
     }
 
@@ -138,7 +210,7 @@ public sealed class DevTransportIntegrationTests
         {
             ServerKey = string.IsNullOrWhiteSpace(serverKey) ? "defaultkey" : serverKey,
         };
-        var client = new MezonClient(options);
+        await using var client = new MezonClient(options);
         return await client.AuthenticateEmailAsync(CreateAuthRequest()).ConfigureAwait(false);
     }
 
